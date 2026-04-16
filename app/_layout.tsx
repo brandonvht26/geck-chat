@@ -1,24 +1,20 @@
-import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
-import { Stack } from 'expo-router';
-import { StatusBar } from 'expo-status-bar';
-import 'react-native-reanimated';
+// Slot: espacio desde el que se renderiza la pantalla activa
 
-import { useColorScheme } from '@/hooks/use-color-scheme';
+import { Slot } from "expo-router";
+import { StatusBar } from "expo-status-bar";
+import React from "react";
+import { View } from "react-native";
+import { Colors } from "@/constants/theme";
 
-export const unstable_settings = {
-  anchor: '(tabs)',
+// Layout raíz de la app, va a envolver todas las rutas dentro de app/
+
+const RootLayout = () => {
+    return (
+        <View style={{ backgroundColor: Colors.background, flex: 1 }}>
+            <Slot />
+            <StatusBar style="light" />
+        </View>
+    );
 };
 
-export default function RootLayout() {
-  const colorScheme = useColorScheme();
-
-  return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <Stack>
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
-      </Stack>
-      <StatusBar style="auto" />
-    </ThemeProvider>
-  );
-}
+export default RootLayout;
