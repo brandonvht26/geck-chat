@@ -1,18 +1,34 @@
-import { useState } from 'react';
 import { View, TextInput, Button, StyleSheet, Text, Pressable } from 'react-native';
+import { useForm, Controller } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
+import { AntDesign } from '@expo/vector-icons';
 import Toast from 'react-native-toast-message';
 import { useRouter } from 'expo-router';
 import { useAuth } from '@/src/hooks/useAuth';
 
+const loginSchema = z.object({
+  email: z.string().email('Ingresa un correo electrónico válido'),
+  password: z.string().min(6, 'La contraseña debe tener al menos 6 caracteres'),
+});
+
+type LoginFormData = z.infer<typeof loginSchema>;
+
 export default function LoginScreen() {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
   const router = useRouter();
   const { signIn, loading } = useAuth();
 
-  const handleLogin = async () => {
+  const { control, handleSubmit, formState: { errors } } = useForm<LoginFormData>({
+    resolver: zodResolver(loginSchema),
+    defaultValues: {
+      email: '',
+      password: '',
+    },
+  });
+
+  const onSubmit = async (data: LoginFormData) => {
     try {
-      await signIn(email, password);
+      await signIn(data.email, data.password);
       Toast.show({
         type: 'success',
         text1: 'Bienvenido',
@@ -29,25 +45,73 @@ export default function LoginScreen() {
 
   return (
     <View style={styles.container}>
-      <TextInput
-        placeholder="Correo electrónico"
-        value={email}
-        onChangeText={setEmail}
-        autoCapitalize="none"
-        keyboardType="email-address"
-        style={styles.input}
+      <Text style={styles.title}>Iniciar sesión</Text>
+
+      <Controller
+        control={control}
+        name="email"
+        render={({ field: { onChange, onBlur, value } }) => (
+          <View>
+            <TextInput
+              placeholder="Correo electrónico"
+              autoCapitalize="none"
+              keyboardType="email-address"
+              style={[styles.input, errors.email && styles.inputError]}
+              onBlur={onBlur}
+              onChangeText={onChange}
+              value={value}
+            />
+            {errors.email && <Text style={styles.errorText}>{errors.email.message}</Text>}
+          </View>
+        )}
       />
-      <TextInput
-        placeholder="Contraseña"
-        value={password}
-        onChangeText={setPassword}
-        secureTextEntry
-        style={styles.input}
+
+      <Controller
+        control={control}
+        name="password"
+        render={({ field: { onChange, onBlur, value } }) => (
+          <View>
+            <TextInput
+              placeholder="Contraseña"
+              secureTextEntry
+              style={[styles.input, errors.password && styles.inputError]}
+              onBlur={onBlur}
+              onChangeText={onChange}
+              value={value}
+            />
+            {errors.password && <Text style={styles.errorText}>{errors.password.message}</Text>}
+          </View>
+        )}
       />
-      <Button title={loading ? 'Ingresando...' : 'Iniciar sesión'} onPress={handleLogin} disabled={loading} />
+
+      <Pressable onPress={() => router.push('/forgot-password')} style={styles.forgotLink}>
+        <Text style={styles.forgotLinkText}>¿Olvidaste tu contraseña?</Text>
+      </Pressable>
+
+      <Button
+        title={loading ? 'Ingresando...' : 'Iniciar sesión'}
+        onPress={handleSubmit(onSubmit)}
+        disabled={loading}
+      />
+
+      <View style={styles.divider}>
+        <View style={styles.dividerLine} />
+        <Text style={styles.dividerText}>O ingresa con</Text>
+        <View style={styles.dividerLine} />
+      </View>
+
+      <Button
+        title="Google"
+        onPress={() => Toast.show({ type: 'info', text1: 'Próximamente' })}
+        disabled
+        color="#ccc"
+      />
+      <AntDesign name="google" size={24} color="black" style={styles.googleIcon} />
+
       <Pressable onPress={() => router.push('/register')} style={styles.link}>
         <Text style={styles.linkText}>¿No tienes cuenta? Regístrate</Text>
       </Pressable>
+
       <Toast />
     </View>
   );
@@ -59,12 +123,51 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     padding: 16,
   },
+  title: {
+    fontSize: 28,
+    fontWeight: 'bold',
+    marginBottom: 24,
+    textAlign: 'center',
+  },
   input: {
     borderWidth: 1,
     borderColor: '#ccc',
     borderRadius: 8,
     padding: 12,
+    marginBottom: 8,
+  },
+  inputError: {
+    borderColor: '#ff3b30',
+  },
+  errorText: {
+    color: '#ff3b30',
+    marginBottom: 8,
+  },
+  forgotLink: {
+    alignItems: 'flex-end',
     marginBottom: 16,
+  },
+  forgotLinkText: {
+    color: '#007AFF',
+  },
+  divider: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: 20,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: '#ccc',
+  },
+  dividerText: {
+    marginHorizontal: 10,
+    color: '#666',
+  },
+  googleIcon: {
+    position: 'absolute',
+    left: 40,
+    top: 368,
   },
   link: {
     marginTop: 16,
