@@ -33,9 +33,9 @@ export default function RegisterScreen() {
       Toast.show({
         type: 'success',
         text1: 'Registro exitoso',
-        text2: 'Bienvenido a GeckChat',
+        text2: 'Por favor, revisa tu correo electrónico para verificar tu cuenta antes de iniciar sesión.',
       });
-      router.replace('/home');
+      router.replace('/login');
     } catch (error) {
       Toast.show({
         type: 'error',

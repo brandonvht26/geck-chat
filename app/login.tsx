@@ -44,6 +44,7 @@ export default function LoginScreen() {
         text1: 'Bienvenido',
         text2: 'Has iniciado sesión correctamente',
       });
+      router.replace('/home');
     } catch (error) {
       Toast.show({
         type: 'error',
@@ -71,6 +72,7 @@ export default function LoginScreen() {
         text1: 'Bienvenido',
         text2: 'Has iniciado sesión con Google',
       });
+      router.replace('/home');
     } catch (error) {
       Toast.show({
         type: 'error',
