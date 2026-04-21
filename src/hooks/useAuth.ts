@@ -1,9 +1,11 @@
 import { useState } from 'react';
+import { useRouter } from 'expo-router';
 import { loginUser, registerUser } from '../services/auth.service';
-import { setToken, ApiError } from '../services/api';
+import { setToken, removeToken, ApiError } from '../services/api';
 
 export const useAuth = () => {
   const [loading, setLoading] = useState(false);
+  const router = useRouter();
 
   const signIn = async (email: string, password: string): Promise<boolean> => {
     setLoading(true);
@@ -33,5 +35,10 @@ export const useAuth = () => {
     }
   };
 
-  return { signIn, signUp, loading };
+  const signOut = async (): Promise<void> => {
+    await removeToken();
+    router.replace('/login');
+  };
+
+  return { signIn, signUp, signOut, loading };
 };

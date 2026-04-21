@@ -1,20 +1,10 @@
-import { useState } from 'react';
-import { View, TextInput, Button, StyleSheet, Text, Pressable, TouchableOpacity } from 'react-native';
+import { View, TextInput, Button, StyleSheet, Text, Pressable } from 'react-native';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { AntDesign } from '@expo/vector-icons';
-import { GoogleSignin } from '@react-native-google-signin/google-signin';
 import Toast from 'react-native-toast-message';
 import { useRouter } from 'expo-router';
 import { useAuth } from '@/src/hooks/useAuth';
-import { loginGoogleMobile } from '@/src/services/auth.service';
-import { setToken } from '@/src/services/api';
-
-GoogleSignin.configure({
-  webClientId: 'YOUR_WEB_CLIENT_ID.apps.googleusercontent.com',
-  offlineAccess: true,
-});
 
 const loginSchema = z.object({
   email: z.string().email('Ingresa un correo electrónico válido'),
@@ -26,7 +16,6 @@ type LoginFormData = z.infer<typeof loginSchema>;
 export default function LoginScreen() {
   const router = useRouter();
   const { signIn, loading } = useAuth();
-  const [googleLoading, setGoogleLoading] = useState(false);
 
   const { control, handleSubmit, formState: { errors } } = useForm<LoginFormData>({
     resolver: zodResolver(loginSchema),
@@ -51,36 +40,6 @@ export default function LoginScreen() {
         text1: 'Error',
         text2: (error as Error).message,
       });
-    }
-  };
-
-  const handleGoogleLogin = async () => {
-    try {
-      setGoogleLoading(true);
-      await GoogleSignin.hasPlayServices();
-      const googleUser = await GoogleSignin.signIn() as { idToken?: string };
-      const idToken = googleUser.idToken;
-      
-      if (!idToken) {
-        throw new Error('No se pudo obtener el token de Google');
-      }
-      
-      const response = await loginGoogleMobile(idToken);
-      await setToken(response.token);
-      Toast.show({
-        type: 'success',
-        text1: 'Bienvenido',
-        text2: 'Has iniciado sesión con Google',
-      });
-      router.replace('/home');
-    } catch (error) {
-      Toast.show({
-        type: 'error',
-        text1: 'Error',
-        text2: (error as Error).message || 'Error al iniciar sesión con Google',
-      });
-    } finally {
-      setGoogleLoading(false);
     }
   };
 
@@ -135,23 +94,6 @@ export default function LoginScreen() {
         disabled={loading}
       />
 
-      <View style={styles.divider}>
-        <View style={styles.dividerLine} />
-        <Text style={styles.dividerText}>O ingresa con</Text>
-        <View style={styles.dividerLine} />
-      </View>
-
-      <TouchableOpacity
-        style={styles.googleButton}
-        onPress={handleGoogleLogin}
-        disabled={googleLoading}
-      >
-        <AntDesign name="google" size={20} color="#666" />
-        <Text style={styles.googleButtonText}>
-          {googleLoading ? 'Ingresando...' : 'Iniciar sesión con Google'}
-        </Text>
-      </TouchableOpacity>
-
       <Pressable onPress={() => router.push('/register')} style={styles.link}>
         <Text style={styles.linkText}>¿No tienes cuenta? Regístrate</Text>
       </Pressable>
@@ -193,35 +135,6 @@ const styles = StyleSheet.create({
   },
   forgotLinkText: {
     color: '#007AFF',
-  },
-  divider: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginVertical: 20,
-  },
-  dividerLine: {
-    flex: 1,
-    height: 1,
-    backgroundColor: '#ccc',
-  },
-  dividerText: {
-    marginHorizontal: 10,
-    color: '#666',
-  },
-  googleButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: '#ccc',
-    borderRadius: 8,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    gap: 8,
-  },
-  googleButtonText: {
-    color: '#666',
-    fontSize: 16,
   },
   link: {
     marginTop: 16,

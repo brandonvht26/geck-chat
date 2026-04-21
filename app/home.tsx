@@ -1,11 +1,13 @@
-import { SafeAreaView, StyleSheet, Text, View } from 'react-native';
+import { View, Text, Button, StyleSheet } from 'react-native';
+import { useAuth } from '@/src/hooks/useAuth';
 
 export default function HomeScreen() {
+  const { signOut } = useAuth();
+
   return (
     <View style={styles.container}>
-      <SafeAreaView>
-        <Text style={styles.title}>Home</Text>
-      </SafeAreaView>
+      <Text style={styles.title}>¡Bienvenido a GeckChat!</Text>
+      <Button title="Cerrar Sesión" onPress={signOut} />
     </View>
   );
 }
@@ -15,11 +17,12 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(36, 235, 142, 0.82)',
+    padding: 16,
   },
   title: {
-    fontSize: 50,
-    color: '#c91569',
+    fontSize: 24,
     fontWeight: 'bold',
+    marginBottom: 24,
+    textAlign: 'center',
   },
 });

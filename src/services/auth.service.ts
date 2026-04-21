@@ -11,16 +11,6 @@ export const registerUser = async (payload: RegisterPayload): Promise<AuthRespon
   return response.data;
 };
 
-export const loginGoogleMobile = async (idToken: string): Promise<AuthResponse> => {
-  try {
-    const response = await api.post<AuthResponse>('/api/auth/google', { idToken });
-    return response.data;
-  } catch (error) {
-    const apiError = error as ApiError;
-    throw new Error(apiError.message);
-  }
-};
-
 export const recoverPassword = async (email: string): Promise<void> => {
   try {
     const payload: ForgotPasswordPayload = { email };
