@@ -4,20 +4,22 @@ import Toast from 'react-native-toast-message';
 import { useRouter } from 'expo-router';
 import { useAuth } from '@/src/hooks/useAuth';
 
-export default function LoginScreen() {
+export default function RegisterScreen() {
+  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const router = useRouter();
-  const { signIn, loading } = useAuth();
+  const { signUp, loading } = useAuth();
 
-  const handleLogin = async () => {
+  const handleRegister = async () => {
     try {
-      await signIn(email, password);
+      await signUp(name, email, password);
       Toast.show({
         type: 'success',
-        text1: 'Bienvenido',
-        text2: 'Has iniciado sesión correctamente',
+        text1: 'Registro exitoso',
+        text2: 'Bienvenido a GeckChat',
       });
+      router.replace('/home');
     } catch (error) {
       Toast.show({
         type: 'error',
@@ -29,6 +31,13 @@ export default function LoginScreen() {
 
   return (
     <View style={styles.container}>
+      <TextInput
+        placeholder="Nombre"
+        value={name}
+        onChangeText={setName}
+        autoCapitalize="words"
+        style={styles.input}
+      />
       <TextInput
         placeholder="Correo electrónico"
         value={email}
@@ -44,9 +53,9 @@ export default function LoginScreen() {
         secureTextEntry
         style={styles.input}
       />
-      <Button title={loading ? 'Ingresando...' : 'Iniciar sesión'} onPress={handleLogin} disabled={loading} />
-      <Pressable onPress={() => router.push('/register')} style={styles.link}>
-        <Text style={styles.linkText}>¿No tienes cuenta? Regístrate</Text>
+      <Button title={loading ? 'Registrando...' : 'Registrarse'} onPress={handleRegister} disabled={loading} />
+      <Pressable onPress={() => router.push('/login')} style={styles.link}>
+        <Text style={styles.linkText}>¿Ya tienes cuenta? Inicia sesión</Text>
       </Pressable>
       <Toast />
     </View>
