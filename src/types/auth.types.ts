@@ -9,6 +9,10 @@ export interface RegisterPayload {
   password: string;
 }
 
+export interface ForgotPasswordPayload {
+  email: string;
+}
+
 export interface AuthResponse {
   token: string;
   name: string;

@@ -1,5 +1,5 @@
-import { api } from './api';
-import { LoginPayload, RegisterPayload, AuthResponse } from '../types/auth.types';
+import { api, ApiError } from './api';
+import { LoginPayload, RegisterPayload, ForgotPasswordPayload, AuthResponse } from '../types/auth.types';
 
 export const loginUser = async (payload: LoginPayload): Promise<AuthResponse> => {
   const response = await api.post<AuthResponse>('/api/auth/login', payload);
@@ -9,4 +9,14 @@ export const loginUser = async (payload: LoginPayload): Promise<AuthResponse> =>
 export const registerUser = async (payload: RegisterPayload): Promise<AuthResponse> => {
   const response = await api.post<AuthResponse>('/api/auth/register', payload);
   return response.data;
+};
+
+export const recoverPassword = async (email: string): Promise<void> => {
+  try {
+    const payload: ForgotPasswordPayload = { email };
+    await api.post('/api/auth/forgot-password', payload);
+  } catch (error) {
+    const apiError = error as ApiError;
+    throw new Error(apiError.message);
+  }
 };
