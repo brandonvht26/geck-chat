@@ -1,5 +1,5 @@
 import { api, ApiError } from './api';
-import { LoginPayload, RegisterPayload, ForgotPasswordPayload, ResetPasswordPayload, AuthResponse } from '../types/auth.types';
+import { LoginPayload, RegisterPayload, ForgotPasswordPayload, AuthResponse } from '../types/auth.types';
 
 export const loginUser = async (payload: LoginPayload): Promise<AuthResponse> => {
   const response = await api.post<AuthResponse>('/api/auth/login', payload);
@@ -11,20 +11,20 @@ export const registerUser = async (payload: RegisterPayload): Promise<AuthRespon
   return response.data;
 };
 
-export const recoverPassword = async (email: string): Promise<void> => {
+export const loginGoogleMobile = async (idToken: string): Promise<AuthResponse> => {
   try {
-    const payload: ForgotPasswordPayload = { email };
-    await api.post('/api/auth/forgot-password', payload);
+    const response = await api.post<AuthResponse>('/api/auth/google', { idToken });
+    return response.data;
   } catch (error) {
     const apiError = error as ApiError;
     throw new Error(apiError.message);
   }
 };
 
-export const resetPassword = async (token: string, password: string, confirmPassword: string): Promise<void> => {
+export const recoverPassword = async (email: string): Promise<void> => {
   try {
-    const payload: ResetPasswordPayload = { password, confirmPassword };
-    await api.post(`/api/auth/reset-password/${token}`, payload);
+    const payload: ForgotPasswordPayload = { email };
+    await api.post('/api/auth/forgot-password', payload);
   } catch (error) {
     const apiError = error as ApiError;
     throw new Error(apiError.message);

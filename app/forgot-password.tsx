@@ -28,11 +28,11 @@ export default function ForgotPasswordScreen() {
     try {
       await recoverPassword(data.email);
       Toast.show({
-        type: 'success',
+        type: 'info',
         text1: 'Correo enviado',
-        text2: 'Enlace enviado a tu correo',
+        text2: 'Se ha enviado un correo con instrucciones. Por favor, revísalo en tu navegador para restablecer tu contraseña.',
       });
-      setTimeout(() => router.push('/login'), 2000);
+      setTimeout(() => router.replace('/login'), 3000);
     } catch (error) {
       Toast.show({
         type: 'error',

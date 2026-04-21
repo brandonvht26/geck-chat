@@ -13,11 +13,6 @@ export interface ForgotPasswordPayload {
   email: string;
 }
 
-export interface ResetPasswordPayload {
-  password: string;
-  confirmPassword: string;
-}
-
 export interface AuthResponse {
   token: string;
   name: string;
