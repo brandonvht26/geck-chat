@@ -1,4 +1,4 @@
-import { View, TextInput, Button, StyleSheet, Text, Pressable } from 'react-native';
+import { View, TextInput, Button, StyleSheet, Text, Pressable, TouchableOpacity } from 'react-native';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -100,13 +100,10 @@ export default function LoginScreen() {
         <View style={styles.dividerLine} />
       </View>
 
-      <Button
-        title="Google"
-        onPress={() => Toast.show({ type: 'info', text1: 'Próximamente' })}
-        disabled
-        color="#ccc"
-      />
-      <AntDesign name="google" size={24} color="black" style={styles.googleIcon} />
+      <TouchableOpacity style={styles.googleButton} onPress={() => Toast.show({ type: 'info', text1: 'Próximamente' })}>
+        <AntDesign name="google" size={20} color="#666" />
+        <Text style={styles.googleButtonText}>Iniciar sesión con Google</Text>
+      </TouchableOpacity>
 
       <Pressable onPress={() => router.push('/register')} style={styles.link}>
         <Text style={styles.linkText}>¿No tienes cuenta? Regístrate</Text>
@@ -164,10 +161,20 @@ const styles = StyleSheet.create({
     marginHorizontal: 10,
     color: '#666',
   },
-  googleIcon: {
-    position: 'absolute',
-    left: 40,
-    top: 368,
+  googleButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#ccc',
+    borderRadius: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    gap: 8,
+  },
+  googleButtonText: {
+    color: '#666',
+    fontSize: 16,
   },
   link: {
     marginTop: 16,
