@@ -1,7 +1,9 @@
+import { useState } from 'react';
 import { View, TextInput, Button, StyleSheet, Text, Pressable } from 'react-native';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
+import { Feather } from '@expo/vector-icons';
 import Toast from 'react-native-toast-message';
 import { useRouter } from 'expo-router';
 import { useAuth } from '@/src/hooks/useAuth';
@@ -16,6 +18,7 @@ type LoginFormData = z.infer<typeof loginSchema>;
 export default function LoginScreen() {
   const router = useRouter();
   const { signIn, loading } = useAuth();
+  const [showPassword, setShowPassword] = useState(false);
 
   const { control, handleSubmit, formState: { errors } } = useForm<LoginFormData>({
     resolver: zodResolver(loginSchema),
@@ -24,6 +27,11 @@ export default function LoginScreen() {
       password: '',
     },
   });
+
+  const getErrorMessage = (error: unknown): string => {
+    const err = error as Error;
+    return err?.message || 'Ocurrió un problema de conexión. Por favor, inténtalo más tarde.';
+  };
 
   const onSubmit = async (data: LoginFormData) => {
     try {
@@ -38,7 +46,7 @@ export default function LoginScreen() {
       Toast.show({
         type: 'error',
         text1: 'Error',
-        text2: (error as Error).message,
+        text2: getErrorMessage(error),
       });
     }
   };
@@ -71,14 +79,19 @@ export default function LoginScreen() {
         name="password"
         render={({ field: { onChange, onBlur, value } }) => (
           <View>
-            <TextInput
-              placeholder="Contraseña"
-              secureTextEntry
-              style={[styles.input, errors.password && styles.inputError]}
-              onBlur={onBlur}
-              onChangeText={onChange}
-              value={value}
-            />
+            <View style={styles.passwordContainer}>
+              <TextInput
+                placeholder="Contraseña"
+                secureTextEntry={!showPassword}
+                style={[styles.input, styles.passwordInput, errors.password && styles.inputError]}
+                onBlur={onBlur}
+                onChangeText={onChange}
+                value={value}
+              />
+              <Pressable style={styles.eyeIcon} onPress={() => setShowPassword(!showPassword)}>
+                <Feather name={showPassword ? 'eye' : 'eye-off'} size={20} color="#666" />
+              </Pressable>
+            </View>
             {errors.password && <Text style={styles.errorText}>{errors.password.message}</Text>}
           </View>
         )}
@@ -128,6 +141,17 @@ const styles = StyleSheet.create({
   errorText: {
     color: '#ff3b30',
     marginBottom: 8,
+  },
+  passwordContainer: {
+    position: 'relative',
+  },
+  passwordInput: {
+    paddingRight: 40,
+  },
+  eyeIcon: {
+    position: 'absolute',
+    right: 12,
+    top: 14,
   },
   forgotLink: {
     alignItems: 'flex-end',

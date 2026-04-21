@@ -1,13 +1,20 @@
+import { useState } from 'react';
 import { View, TextInput, Button, StyleSheet, Text, Pressable } from 'react-native';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
+import { Feather } from '@expo/vector-icons';
 import Toast from 'react-native-toast-message';
 import { useRouter } from 'expo-router';
 import { useAuth } from '@/src/hooks/useAuth';
 
 const registerSchema = z.object({
-  name: z.string().min(1, 'El nombre es requerido'),
+  name: z
+    .string()
+    .min(1, 'El nombre es requerido')
+    .max(15, 'Máximo 15 caracteres')
+    .regex(/^\S+$/, 'No se permiten espacios')
+    .refine((val) => !/^\d+$/.test(val), 'El nombre no puede contener solo números'),
   email: z.string().email('Ingresa un correo electrónico válido'),
   password: z.string().min(6, 'La contraseña debe tener al menos 6 caracteres'),
 });
@@ -17,6 +24,7 @@ type RegisterFormData = z.infer<typeof registerSchema>;
 export default function RegisterScreen() {
   const router = useRouter();
   const { signUp, loading } = useAuth();
+  const [showPassword, setShowPassword] = useState(false);
 
   const { control, handleSubmit, formState: { errors } } = useForm<RegisterFormData>({
     resolver: zodResolver(registerSchema),
@@ -27,6 +35,11 @@ export default function RegisterScreen() {
     },
   });
 
+  const getErrorMessage = (error: unknown): string => {
+    const err = error as Error;
+    return err?.message || 'Ocurrió un problema de conexión. Por favor, inténtalo más tarde.';
+  };
+
   const onSubmit = async (data: RegisterFormData) => {
     try {
       await signUp(data.name, data.email, data.password);
@@ -35,12 +48,12 @@ export default function RegisterScreen() {
         text1: 'Registro exitoso',
         text2: 'Por favor, revisa tu correo electrónico para verificar tu cuenta antes de iniciar sesión.',
       });
-      router.replace('/login');
+      setTimeout(() => router.replace('/login'), 2500);
     } catch (error) {
       Toast.show({
         type: 'error',
         text1: 'Error',
-        text2: (error as Error).message,
+        text2: getErrorMessage(error),
       });
     }
   };
@@ -91,14 +104,19 @@ export default function RegisterScreen() {
         name="password"
         render={({ field: { onChange, onBlur, value } }) => (
           <View>
-            <TextInput
-              placeholder="Contraseña"
-              secureTextEntry
-              style={[styles.input, errors.password && styles.inputError]}
-              onBlur={onBlur}
-              onChangeText={onChange}
-              value={value}
-            />
+            <View style={styles.passwordContainer}>
+              <TextInput
+                placeholder="Contraseña"
+                secureTextEntry={!showPassword}
+                style={[styles.input, styles.passwordInput, errors.password && styles.inputError]}
+                onBlur={onBlur}
+                onChangeText={onChange}
+                value={value}
+              />
+              <Pressable style={styles.eyeIcon} onPress={() => setShowPassword(!showPassword)}>
+                <Feather name={showPassword ? 'eye' : 'eye-off'} size={20} color="#666" />
+              </Pressable>
+            </View>
             {errors.password && <Text style={styles.errorText}>{errors.password.message}</Text>}
           </View>
         )}
@@ -144,6 +162,17 @@ const styles = StyleSheet.create({
   errorText: {
     color: '#ff3b30',
     marginBottom: 8,
+  },
+  passwordContainer: {
+    position: 'relative',
+  },
+  passwordInput: {
+    paddingRight: 40,
+  },
+  eyeIcon: {
+    position: 'absolute',
+    right: 12,
+    top: 14,
   },
   link: {
     marginTop: 16,
