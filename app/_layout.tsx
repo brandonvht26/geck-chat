@@ -1,20 +1,18 @@
-// Slot: espacio desde el que se renderiza la pantalla activa
-
-import { Slot } from "expo-router";
-import { StatusBar } from "expo-status-bar";
-import React from "react";
-import { View } from "react-native";
-import { Colors } from "@/constants/theme";
-
-// Layout raíz de la app, va a envolver todas las rutas dentro de app/
+import { Stack } from 'expo-router';
+import { StatusBar } from 'expo-status-bar';
+import React from 'react';
+import { View } from 'react-native';
+import Toast from 'react-native-toast-message';
+import { Colors } from '@/constants/theme';
 
 const RootLayout = () => {
-    return (
-        <View style={{ backgroundColor: Colors.background, flex: 1 }}>
-            <Slot />
-            <StatusBar style="light" />
-        </View>
-    );
+  return (
+    <View style={{ backgroundColor: Colors.background, flex: 1 }}>
+      <Stack screenOptions={{ headerShown: false }} />
+      <StatusBar style="light" />
+      <Toast />
+    </View>
+  );
 };
 
 export default RootLayout;
