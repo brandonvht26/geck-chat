@@ -8,6 +8,14 @@ export interface ApiError {
   status?: number;
 }
 
+const HTTP_ERROR_MESSAGES: Record<number, string> = {
+  401: 'Credenciales incorrectas. Verifica tu correo y contraseña.',
+  404: 'El recurso solicitado no existe o el usuario no está registrado.',
+  500: 'Estamos experimentando problemas técnicos. Intenta más tarde.',
+};
+
+const DEFAULT_ERROR_MESSAGE = 'Error de conexión con el servidor';
+
 export const api: AxiosInstance = axios.create({
   baseURL: process.env.EXPO_PUBLIC_API_URI || 'http://localhost:3000/api',
   timeout: 10000,
@@ -27,16 +35,40 @@ api.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
+const getErrorMessage = (error: AxiosError): string => {
+  const status = error.response?.status;
+  const backendMessage = (error.response?.data as { msg?: string })?.msg;
+
+  if (backendMessage) {
+    return backendMessage;
+  }
+
+  if (status && HTTP_ERROR_MESSAGES[status]) {
+    return HTTP_ERROR_MESSAGES[status];
+  }
+
+  return DEFAULT_ERROR_MESSAGE;
+};
+
 api.interceptors.response.use(
   (response) => response,
   async (error: AxiosError) => {
     if (error.response?.status === 401) {
       await AsyncStorage.removeItem(TOKEN_KEY);
     }
+
+    const status = error.response?.status;
+    const message = error.code === 'ECONNABORTED'
+      ? 'La solicitud tardó demasiado. Verifica tu conexión.'
+      : error.code === 'ERR_NETWORK'
+      ? 'No hay conexión a internet. Revisa tu red.'
+      : getErrorMessage(error);
+
     const apiError: ApiError = {
-      message: (error.response?.data as { message?: string })?.message || error.message || 'Error de conexión',
-      status: error.response?.status,
+      message,
+      status,
     };
+
     return Promise.reject(apiError);
   }
 );

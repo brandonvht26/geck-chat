@@ -6,6 +6,7 @@ import { z } from 'zod';
 import Toast from 'react-native-toast-message';
 import { useRouter } from 'expo-router';
 import { recoverPassword } from '@/src/services/auth.service';
+import { ApiError } from '@/src/services/api';
 
 const forgotPasswordSchema = z.object({
   email: z.string().min(1, 'El correo es requerido').email('Ingresa un correo electrónico válido'),
@@ -28,16 +29,17 @@ export default function ForgotPasswordScreen() {
     try {
       await recoverPassword(data.email);
       Toast.show({
-        type: 'info',
-        text1: 'Correo enviado',
-        text2: 'Se ha enviado un correo con instrucciones. Por favor, revísalo en tu navegador para restablecer tu contraseña.',
+        type: 'success',
+        text1: '¡Logrado!',
+        text2: 'Se ha enviado un correo con instrucciones. Por favor, revísalo para restablecer tu contraseña.',
       });
       setTimeout(() => router.replace('/login'), 3000);
     } catch (error) {
+      const apiError = error as ApiError;
       Toast.show({
         type: 'error',
-        text1: 'Error',
-        text2: (error as Error).message,
+        text1: 'Algo salió mal',
+        text2: apiError.message,
       });
     } finally {
       setLoading(false);

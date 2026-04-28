@@ -7,6 +7,7 @@ import { Feather } from '@expo/vector-icons';
 import Toast from 'react-native-toast-message';
 import { useRouter } from 'expo-router';
 import { useAuth } from '@/src/hooks/useAuth';
+import { ApiError } from '@/src/services/api';
 
 const registerSchema = z.object({
   name: z
@@ -35,25 +36,21 @@ export default function RegisterScreen() {
     },
   });
 
-  const getErrorMessage = (error: unknown): string => {
-    const err = error as Error;
-    return err?.message || 'Ocurrió un problema de conexión. Por favor, inténtalo más tarde.';
-  };
-
   const onSubmit = async (data: RegisterFormData) => {
     try {
       await signUp(data.name, data.email, data.password);
       Toast.show({
         type: 'success',
-        text1: 'Registro exitoso',
+        text1: '¡Logrado!',
         text2: 'Por favor, revisa tu correo electrónico para verificar tu cuenta antes de iniciar sesión.',
       });
-      setTimeout(() => router.replace('/login'), 2500);
+      setTimeout(() => router.replace('/login'), 3000);
     } catch (error) {
+      const apiError = error as ApiError;
       Toast.show({
         type: 'error',
-        text1: 'Error',
-        text2: getErrorMessage(error),
+        text1: 'Atención',
+        text2: apiError.message,
       });
     }
   };
