@@ -1,11 +1,14 @@
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Feather } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 
 interface MainHeaderProps {
   onToggleMenu: () => void;
 }
 
 export default function MainHeader({ onToggleMenu }: MainHeaderProps) {
+  const router = useRouter();
+
   return (
     <View style={styles.container}>
       <TouchableOpacity onPress={onToggleMenu} style={styles.iconButton}>
@@ -14,7 +17,7 @@ export default function MainHeader({ onToggleMenu }: MainHeaderProps) {
 
       <Text style={styles.title}>GeckChat</Text>
 
-      <TouchableOpacity style={styles.iconButton}>
+      <TouchableOpacity style={styles.iconButton} onPress={() => router.push('/search')}>
         <Feather name="search" size={24} color="#333" />
       </TouchableOpacity>
     </View>
