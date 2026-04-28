@@ -1,4 +1,5 @@
 import { View, StyleSheet, FlatList, Text } from 'react-native';
+import { useRouter } from 'expo-router';
 import WorkspaceCard from './WorkspaceCard';
 
 export interface Workspace {
@@ -30,11 +31,14 @@ const mockWorkspaces: Workspace[] = [
 ];
 
 export default function WorkspaceList() {
+  const router = useRouter();
+
   const renderItem = ({ item }: { item: Workspace }) => (
     <WorkspaceCard
       name={item.name}
       description={item.description}
       membersCount={item.membersCount}
+      onPress={() => router.push({ pathname: '/workspace/[id]', params: { id: item.id, name: item.name } })}
     />
   );
 

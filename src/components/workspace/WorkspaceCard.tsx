@@ -1,15 +1,16 @@
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 
 interface WorkspaceCardProps {
   name: string;
   description: string;
   membersCount: number;
+  onPress: () => void;
 }
 
-export default function WorkspaceCard({ name, description, membersCount }: WorkspaceCardProps) {
+export default function WorkspaceCard({ name, description, membersCount, onPress }: WorkspaceCardProps) {
   return (
-    <View style={styles.container}>
+    <TouchableOpacity style={styles.container} onPress={onPress} activeOpacity={0.7}>
       <View style={styles.header}>
         <Feather name="layers" size={20} color="#007AFF" />
         <Text style={styles.name}>{name}</Text>
@@ -21,7 +22,7 @@ export default function WorkspaceCard({ name, description, membersCount }: Works
           <Text style={styles.membersCount}>{membersCount}</Text>
         </View>
       </View>
-    </View>
+    </TouchableOpacity>
   );
 }
 
