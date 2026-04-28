@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, SafeAreaView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { getToken } from '@/src/services/api';
 
@@ -26,30 +26,23 @@ const App = () => {
     checkAuth();
   }, [router]);
 
-  return (
-    <View style={styles.container}>
-      <SafeAreaView>
-        <Text style={styles.title}>¡Hola, Geckos!</Text>
-        {loading && <ActivityIndicator size="large" color="#c91569" style={styles.loader} />}
-      </SafeAreaView>
-    </View>
-  );
+  if (loading) {
+    return (
+      <View style={styles.container}>
+        <ActivityIndicator size="large" color="#007AFF" />
+      </View>
+    );
+  }
+
+  return null;
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(36, 235, 142, 0.82)',
-  },
-  title: {
-    fontSize: 50,
-    color: '#c91569',
-    fontWeight: 'bold',
-  },
-  loader: {
-    marginTop: 20,
+    alignItems: 'center',
+    backgroundColor: '#f5f5f5',
   },
 });
 
