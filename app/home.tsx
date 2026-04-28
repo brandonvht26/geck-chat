@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { View, StyleSheet } from 'react-native';
 import MainHeader from '@/src/components/layout/MainHeader';
 import SideMenu from '@/src/components/layout/SideMenu';
-import ChatList from '@/src/components/chat/ChatList';
+import WorkspaceList from '@/src/components/workspace/WorkspaceList';
 
 export default function HomeScreen() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -13,7 +13,7 @@ export default function HomeScreen() {
         <MainHeader onToggleMenu={() => setIsMenuOpen(!isMenuOpen)} />
         {isMenuOpen && <SideMenu />}
       </View>
-      <ChatList />
+      <WorkspaceList />
     </View>
   );
 }
