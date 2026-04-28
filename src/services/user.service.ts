@@ -7,6 +7,6 @@ export interface UserProfile {
 }
 
 export const getUserProfile = async (): Promise<UserProfile> => {
-  const response = await api.get<UserProfile>('/users/profile');
+  const response = await api.get<UserProfile>('api/users/profile');
   return response.data;
 };
