@@ -40,7 +40,14 @@
           }
         }
       ],
-      "expo-web-browser"
+      "expo-web-browser",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "GeckChat necesita acceder a tu galería de fotos para que puedas seleccionar y actualizar tu imagen de perfil.",
+          "cameraPermission": "GeckChat necesita acceder a tu cámara para que puedas tomarte una nueva foto de perfil."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

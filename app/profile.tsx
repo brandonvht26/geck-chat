@@ -1,24 +1,26 @@
 import { useEffect, useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import Toast from 'react-native-toast-message';
 import { useRouter } from 'expo-router';
+import * as ImagePicker from 'expo-image-picker';
 import ProfileAvatar from '@/src/components/profile/ProfileAvatar';
 import ProfileInfoRow from '@/src/components/profile/ProfileInfoRow';
-import Placeholder from '@/src/components/ui/Placeholder';
-import { getUserProfile, UserProfile } from '@/src/services/user.service';
+import { getUserProfile, updateProfileImage, UserProfile } from '@/src/services/user.service';
+import { ApiError } from '@/src/services/api';
 
 export default function ProfileScreen() {
   const router = useRouter();
   const [profileData, setProfileData] = useState<UserProfile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isUploading, setIsUploading] = useState(false);
 
   useEffect(() => {
     getUserProfile()
       .then(setProfileData)
       .catch((error) => {
-        const apiError = error as { message?: string };
+        const apiError = error as ApiError;
         Toast.show({
           type: 'error',
           text1: 'Algo salió mal',
@@ -27,6 +29,81 @@ export default function ProfileScreen() {
       })
       .finally(() => setIsLoading(false));
   }, []);
+
+  const handleEditProfile = () => {
+    if (profileData) {
+      router.push({
+        pathname: '/edit-profile',
+        params: {
+          id: profileData._id,
+          nombre: profileData.nombre,
+          email: profileData.email,
+        },
+      });
+    }
+  };
+
+  const handleUpdateImage = async () => {
+    Alert.alert('Actualizar Foto', 'Elige una opción', [
+      {
+        text: 'Tomar Foto',
+        onPress: async () => {
+          const { status } = await ImagePicker.requestCameraPermissionsAsync();
+          if (status !== 'granted') {
+            Toast.show({ type: 'error', text1: 'Permiso requerido', text2: 'Se necesita acceso a la cámara' });
+            return;
+          }
+          const result = await ImagePicker.launchCameraAsync({
+            allowsEditing: true,
+            aspect: [1, 1],
+            quality: 0.7,
+          });
+          if (!result.canceled && result.assets[0]) {
+            setIsUploading(true);
+            try {
+              const response = await updateProfileImage(result.assets[0].uri);
+              setProfileData(prev => prev ? { ...prev, preferences: { ...prev.preferences, wallpaperUrl: response.imageUrl } } : null);
+              Toast.show({ type: 'success', text1: '¡Logrado!', text2: 'Foto actualizada correctamente' });
+            } catch (error) {
+              const apiError = error as ApiError;
+              Toast.show({ type: 'error', text1: 'Algo salió mal', text2: apiError.message || 'No se pudo actualizar la foto' });
+            } finally {
+              setIsUploading(false);
+            }
+          }
+        },
+      },
+      {
+        text: 'Elegir de Galería',
+        onPress: async () => {
+          const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+          if (status !== 'granted') {
+            Toast.show({ type: 'error', text1: 'Permiso requerido', text2: 'Se necesita acceso a la galería' });
+            return;
+          }
+          const result = await ImagePicker.launchImageLibraryAsync({
+            allowsEditing: true,
+            aspect: [1, 1],
+            quality: 0.7,
+          });
+          if (!result.canceled && result.assets[0]) {
+            setIsUploading(true);
+            try {
+              const response = await updateProfileImage(result.assets[0].uri);
+              setProfileData(prev => prev ? { ...prev, preferences: { ...prev.preferences, wallpaperUrl: response.imageUrl } } : null);
+              Toast.show({ type: 'success', text1: '¡Logrado!', text2: 'Foto actualizada correctamente' });
+            } catch (error) {
+              const apiError = error as ApiError;
+              Toast.show({ type: 'error', text1: 'Algo salió mal', text2: apiError.message || 'No se pudo actualizar la foto' });
+            } finally {
+              setIsUploading(false);
+            }
+          }
+        },
+      },
+      { text: 'Cancelar', style: 'cancel' },
+    ]);
+  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -44,7 +121,7 @@ export default function ProfileScreen() {
         </View>
       ) : (
         <View style={styles.content}>
-          <ProfileAvatar />
+          <ProfileAvatar imageUrl={profileData?.preferences?.wallpaperUrl} onEditImage={handleUpdateImage} />
 
           <View style={styles.infoContainer}>
             <ProfileInfoRow label="Nombre" value={profileData?.nombre || ''} />
@@ -52,7 +129,13 @@ export default function ProfileScreen() {
             <ProfileInfoRow label="Rol" value={profileData?.rol || 'Usuario'} />
           </View>
 
-          <Placeholder title="Editar Perfil" />
+          <TouchableOpacity style={styles.editButton} onPress={handleEditProfile}>
+            <Text style={styles.editButtonText}>Editar Información</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.passwordButton} onPress={() => router.push('/change-password')}>
+            <Text style={styles.passwordButtonText}>Cambiar Contraseña</Text>
+          </TouchableOpacity>
         </View>
       )}
     </SafeAreaView>
@@ -95,5 +178,33 @@ const styles = StyleSheet.create({
   },
   infoContainer: {
     marginTop: 24,
+  },
+  editButton: {
+    marginHorizontal: 16,
+    marginTop: 24,
+    padding: 16,
+    backgroundColor: '#007AFF',
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  editButtonText: {
+    color: '#fff',
+    fontWeight: 'bold',
+    fontSize: 16,
+  },
+  passwordButton: {
+    marginHorizontal: 16,
+    marginTop: 12,
+    padding: 16,
+    backgroundColor: 'transparent',
+    borderRadius: 8,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#666',
+  },
+  passwordButtonText: {
+    color: '#666',
+    fontWeight: '600',
+    fontSize: 16,
   },
 });
