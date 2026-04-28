@@ -1,13 +1,19 @@
-import { View, Text, Button, StyleSheet } from 'react-native';
-import { useAuth } from '@/src/hooks/useAuth';
+import { useState } from 'react';
+import { View, StyleSheet } from 'react-native';
+import MainHeader from '@/src/components/layout/MainHeader';
+import SideMenu from '@/src/components/layout/SideMenu';
+import ChatList from '@/src/components/chat/ChatList';
 
 export default function HomeScreen() {
-  const { signOut } = useAuth();
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>¡Bienvenido a GeckChat!</Text>
-      <Button title="Cerrar Sesión" onPress={signOut} />
+      <View style={styles.headerWrapper}>
+        <MainHeader onToggleMenu={() => setIsMenuOpen(!isMenuOpen)} />
+        {isMenuOpen && <SideMenu />}
+      </View>
+      <ChatList />
     </View>
   );
 }
@@ -15,14 +21,8 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 16,
   },
-  title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    marginBottom: 24,
-    textAlign: 'center',
+  headerWrapper: {
+    paddingTop: 44,
   },
 });
