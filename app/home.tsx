@@ -1,10 +1,13 @@
 import { useState } from 'react';
-import { View, StyleSheet } from 'react-native';
+import { View, StyleSheet, Pressable } from 'react-native';
+import { Feather } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 import MainHeader from '@/src/components/layout/MainHeader';
 import SideMenu from '@/src/components/layout/SideMenu';
 import WorkspaceList from '@/src/components/workspace/WorkspaceList';
 
 export default function HomeScreen() {
+  const router = useRouter();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   return (
@@ -14,6 +17,9 @@ export default function HomeScreen() {
         {isMenuOpen && <SideMenu />}
       </View>
       <WorkspaceList />
+      <Pressable style={styles.fab} onPress={() => router.push('/create-workspace')}>
+        <Feather name="plus" size={28} color="#fff" />
+      </Pressable>
     </View>
   );
 }
@@ -24,5 +30,21 @@ const styles = StyleSheet.create({
   },
   headerWrapper: {
     paddingTop: 44,
+  },
+  fab: {
+    position: 'absolute',
+    bottom: 24,
+    right: 24,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: '#007AFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    elevation: 5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
   },
 });

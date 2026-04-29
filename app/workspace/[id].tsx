@@ -26,7 +26,7 @@ interface WorkspaceParams {
 }
 
 export default function WorkspaceScreen() {
-  const { id, name } = useLocalSearchParams<WorkspaceParams>();
+  const { id, name } = useLocalSearchParams<any>();
   const router = useRouter();
 
   const [messages, setMessages] = useState<WorkspaceMessage[]>([]);

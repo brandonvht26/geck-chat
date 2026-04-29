@@ -24,13 +24,13 @@ interface ChatParams {
 }
 
 export default function ChatScreen() {
-  const { id, name } = useLocalSearchParams<ChatParams>();
+  const { id, name } = useLocalSearchParams<any>();
   const router = useRouter();
   const flatListRef = useRef<FlatList>(null);
 
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputText, setInputText] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [socket, setSocket] = useState<Socket | null>(null);
 

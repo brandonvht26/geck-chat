@@ -1,6 +1,8 @@
-import { View, StyleSheet, FlatList, Text } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useState, useCallback } from 'react';
+import { View, StyleSheet, FlatList, Text, ActivityIndicator } from 'react-native';
+import { useRouter, useFocusEffect } from 'expo-router';
 import WorkspaceCard from './WorkspaceCard';
+import { getWorkspaces, WorkspaceResponse } from '@/src/services/workspace.service';
 
 export interface Workspace {
   id: string;
@@ -9,29 +11,35 @@ export interface Workspace {
   membersCount: number;
 }
 
-const mockWorkspaces: Workspace[] = [
-  {
-    id: '1',
-    name: 'Tesis UI',
-    description: 'Diseño de pantallas y componentes',
-    membersCount: 3,
-  },
-  {
-    id: '2',
-    name: 'Backend API',
-    description: 'Desarrollo del servidor y endpoints',
-    membersCount: 2,
-  },
-  {
-    id: '3',
-    name: 'Documentación',
-    description: 'Manuales y guías técnicas',
-    membersCount: 1,
-  },
-];
-
 export default function WorkspaceList() {
   const router = useRouter();
+  const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const fetchWorkspaces = useCallback(async () => {
+    try {
+      setLoading(true);
+      const data = await getWorkspaces();
+      setWorkspaces(
+        data.map((item: WorkspaceResponse) => ({
+          id: item.id,
+          name: item.name,
+          description: item.description,
+          membersCount: 0,
+        }))
+      );
+    } catch (error) {
+      console.error('Error fetching workspaces:', error);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      fetchWorkspaces();
+    }, [fetchWorkspaces])
+  );
 
   const renderItem = ({ item }: { item: Workspace }) => (
     <WorkspaceCard
@@ -42,9 +50,25 @@ export default function WorkspaceList() {
     />
   );
 
+  if (loading) {
+    return (
+      <View style={[styles.listContainer, styles.centered]}>
+        <ActivityIndicator size="large" color="#007AFF" />
+      </View>
+    );
+  }
+
+  if (workspaces.length === 0) {
+    return (
+      <View style={[styles.listContainer, styles.centered]}>
+        <Text style={styles.emptyText}>No hay workspaces disponibles</Text>
+      </View>
+    );
+  }
+
   return (
     <FlatList
-      data={mockWorkspaces}
+      data={workspaces}
       keyExtractor={(item) => item.id}
       renderItem={renderItem}
       contentContainerStyle={styles.listContainer}
@@ -59,5 +83,13 @@ const styles = StyleSheet.create({
   },
   separator: {
     height: 12,
+  },
+  centered: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  emptyText: {
+    color: '#666',
+    fontSize: 16,
   },
 });
