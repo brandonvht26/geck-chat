@@ -78,7 +78,12 @@ export default function WorkspaceScreen() {
           <Feather name="users" size={18} color="#007AFF" />
           <Text style={styles.headerTitle}>{name}</Text>
         </View>
-        <View style={styles.placeholder} />
+        <TouchableOpacity
+          onPress={() => router.push({ pathname: '/invite-member', params: { workspaceId: id } } as any)}
+          style={styles.inviteButton}
+        >
+          <Feather name="user-plus" size={20} color="#007AFF" />
+        </TouchableOpacity>
       </View>
 
       <FlatList
@@ -144,8 +149,8 @@ const styles = StyleSheet.create({
     color: '#333',
     marginLeft: 8,
   },
-  placeholder: {
-    width: 40,
+  inviteButton: {
+    padding: 8,
   },
   messagesList: {
     flex: 1,
