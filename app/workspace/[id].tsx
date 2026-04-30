@@ -13,7 +13,7 @@ import {
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import Toast from 'react-native-toast-message';
-import { getWorkspaceMessages, WorkspaceMessage as WorkspaceMessageType } from '@/src/services/workspace.service';
+import { getUserChats, getChatMessages, ChatMessage as ChatMessageType } from '@/src/services/chat.service';
 
 interface WorkspaceParams {
   id: string;
@@ -24,14 +24,26 @@ export default function WorkspaceScreen() {
   const { id, name } = useLocalSearchParams<any>();
   const router = useRouter();
 
-  const [messages, setMessages] = useState<WorkspaceMessageType[]>([]);
+  const [messages, setMessages] = useState<ChatMessageType[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [currentChatId, setCurrentChatId] = useState<string | null>(null);
   const [inputText, setInputText] = useState('');
 
-  const fetchHistory = useCallback(async () => {
+  const loadWorkspaceChat = useCallback(async () => {
     try {
-      const data = await getWorkspaceMessages(id);
-      setMessages(data);
+      const chatsResponse = await getUserChats();
+      const foundChat = chatsResponse.find((c) => {
+        const workspaceIdValue = typeof c.workspaceId === 'object' ? c.workspaceId?._id : c.workspaceId;
+        return workspaceIdValue === id;
+      });
+
+      if (foundChat) {
+        setCurrentChatId(foundChat._id);
+        const messagesData = await getChatMessages(foundChat._id);
+        setMessages(messagesData);
+      } else {
+        setMessages([]);
+      }
     } catch (error) {
       Toast.show({
         type: 'error',
@@ -43,16 +55,16 @@ export default function WorkspaceScreen() {
   }, [id]);
 
   useEffect(() => {
-    fetchHistory();
-  }, [fetchHistory]);
+    loadWorkspaceChat();
+  }, [loadWorkspaceChat]);
 
   const sendMessage = () => {
     if (!inputText.trim()) return;
 
-    const newMessage: WorkspaceMessageType = {
+    const newMessage: ChatMessageType = {
       _id: Date.now().toString(),
       senderId: 'currentUser',
-      workspaceId: id,
+      receiverId: currentChatId || '',
       contenido: inputText.trim(),
       createdAt: new Date().toISOString(),
     };
@@ -61,7 +73,7 @@ export default function WorkspaceScreen() {
     setInputText('');
   };
 
-  const renderMessage = ({ item }: { item: WorkspaceMessageType }) => (
+  const renderMessage = ({ item }: { item: ChatMessageType }) => (
     <View style={styles.messageBubble}>
       <Text style={styles.messageText}>{item.contenido}</Text>
       <Text style={styles.messageTime}>

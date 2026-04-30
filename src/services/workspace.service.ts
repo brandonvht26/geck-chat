@@ -1,4 +1,4 @@
-import { api, ApiError } from './api';
+import { api } from './api';
 
 export interface CreateWorkspacePayload {
   name: string;
@@ -25,13 +25,24 @@ export interface InviteResponse {
   msg: string;
 }
 
+export interface WorkspaceListResponse {
+  ok: boolean;
+  workspaces: WorkspaceResponse[];
+}
+
 export const getWorkspaces = async (): Promise<WorkspaceResponse[]> => {
   try {
-    const response = await api.get<WorkspaceResponse[]>('/api/workspaces');
-    return response.data;
+    const response = await api.get<WorkspaceListResponse>('/api/workspaces');
+    if (!response.data.ok) {
+      throw new Error('Error del servidor al obtener workspaces');
+    }
+    return response.data.workspaces;
   } catch (error) {
-    const apiError = error as ApiError;
-    console.error('Error obteniendo workspaces:', apiError.message);
+    if (error instanceof Error) {
+      console.error('Error:', error.message);
+    } else {
+      console.error('Error desconocido:', error);
+    }
     throw error;
   }
 };
@@ -41,8 +52,11 @@ export const createWorkspace = async (name: string, description: string): Promis
     const response = await api.post<WorkspaceResponse>('/api/workspaces', { name, description });
     return response.data;
   } catch (error) {
-    const apiError = error as ApiError;
-    console.error('Error creando workspace:', apiError.message);
+    if (error instanceof Error) {
+      console.error('Error:', error.message);
+    } else {
+      console.error('Error desconocido:', error);
+    }
     throw error;
   }
 };
@@ -52,6 +66,11 @@ export const inviteMember = async (workspaceId: string, email: string): Promise<
     const response = await api.post<InviteResponse>('/api/workspaces/invite', { workspaceId, email });
     return response.data;
   } catch (error) {
+    if (error instanceof Error) {
+      console.error('Error:', error.message);
+    } else {
+      console.error('Error desconocido:', error);
+    }
     throw error;
   }
 };
@@ -61,8 +80,11 @@ export const getWorkspaceMessages = async (workspaceId: string): Promise<Workspa
     const response = await api.get<{ messages: WorkspaceMessage[] }>('/api/workspaces/' + workspaceId + '/messages');
     return response.data.messages;
   } catch (error) {
-    const apiError = error as ApiError;
-    console.error('Error obteniendo mensajes:', apiError.message);
+    if (error instanceof Error) {
+      console.error('Error:', error.message);
+    } else {
+      console.error('Error desconocido:', error);
+    }
     throw error;
   }
 };

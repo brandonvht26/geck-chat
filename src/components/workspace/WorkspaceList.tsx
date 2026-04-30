@@ -5,6 +5,7 @@ import WorkspaceCard from './WorkspaceCard';
 import { getWorkspaces, WorkspaceResponse } from '@/src/services/workspace.service';
 
 export interface Workspace {
+  _id: string;
   id: string;
   name: string;
   description: string;
@@ -17,11 +18,12 @@ export default function WorkspaceList() {
   const [loading, setLoading] = useState(true);
 
   const fetchWorkspaces = useCallback(async () => {
+    setLoading(true);
     try {
-      setLoading(true);
       const data = await getWorkspaces();
       setWorkspaces(
         data.map((item: WorkspaceResponse) => ({
+          _id: item.id,
           id: item.id,
           name: item.name,
           description: item.description,
@@ -30,6 +32,7 @@ export default function WorkspaceList() {
       );
     } catch (error) {
       console.error('Error fetching workspaces:', error);
+      setWorkspaces([]);
     } finally {
       setLoading(false);
     }
@@ -69,7 +72,7 @@ export default function WorkspaceList() {
   return (
     <FlatList
       data={workspaces}
-      keyExtractor={(item) => item.id}
+      keyExtractor={(item) => item._id}
       renderItem={renderItem}
       contentContainerStyle={styles.listContainer}
       ItemSeparatorComponent={() => <View style={styles.separator} />}
