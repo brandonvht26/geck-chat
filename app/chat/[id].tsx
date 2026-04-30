@@ -88,6 +88,15 @@ export default function ChatScreen() {
     };
 
     socket.emit('sendMessage', messagePayload);
+    
+    const localMessage: ChatMessage = {
+      _id: Date.now().toString(),
+      senderId: currentUserId,
+      receiverId: id,
+      contenido: inputText.trim(),
+      createdAt: new Date().toISOString(),
+    };
+    setMessages((prev) => [...prev, localMessage]);
     setInputText('');
   };
 

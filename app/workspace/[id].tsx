@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -8,17 +8,12 @@ import {
   StyleSheet,
   KeyboardAvoidingView,
   Platform,
+  ActivityIndicator,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
-
-interface WorkspaceMessage {
-  _id: string;
-  senderId: string;
-  workspaceId: string;
-  contenido: string;
-  createdAt: string;
-}
+import Toast from 'react-native-toast-message';
+import { getWorkspaceMessages, WorkspaceMessage as WorkspaceMessageType } from '@/src/services/workspace.service';
 
 interface WorkspaceParams {
   id: string;
@@ -29,13 +24,32 @@ export default function WorkspaceScreen() {
   const { id, name } = useLocalSearchParams<any>();
   const router = useRouter();
 
-  const [messages, setMessages] = useState<WorkspaceMessage[]>([]);
+  const [messages, setMessages] = useState<WorkspaceMessageType[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [inputText, setInputText] = useState('');
+
+  const fetchHistory = useCallback(async () => {
+    try {
+      const data = await getWorkspaceMessages(id);
+      setMessages(data);
+    } catch (error) {
+      Toast.show({
+        type: 'error',
+        text1: 'Error cargando historial',
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  }, [id]);
+
+  useEffect(() => {
+    fetchHistory();
+  }, [fetchHistory]);
 
   const sendMessage = () => {
     if (!inputText.trim()) return;
 
-    const newMessage: WorkspaceMessage = {
+    const newMessage: WorkspaceMessageType = {
       _id: Date.now().toString(),
       senderId: 'currentUser',
       workspaceId: id,
@@ -47,7 +61,7 @@ export default function WorkspaceScreen() {
     setInputText('');
   };
 
-  const renderMessage = ({ item }: { item: WorkspaceMessage }) => (
+  const renderMessage = ({ item }: { item: WorkspaceMessageType }) => (
     <View style={styles.messageBubble}>
       <Text style={styles.messageText}>{item.contenido}</Text>
       <Text style={styles.messageTime}>
@@ -86,15 +100,21 @@ export default function WorkspaceScreen() {
         </TouchableOpacity>
       </View>
 
-      <FlatList
-        data={messages}
-        keyExtractor={(item) => item._id}
-        renderItem={renderMessage}
-        ListEmptyComponent={renderEmpty}
-        contentContainerStyle={styles.messagesList}
-        inverted={false}
-        showsVerticalScrollIndicator={false}
-      />
+      {isLoading ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#007AFF" />
+        </View>
+      ) : (
+        <FlatList
+          data={messages}
+          keyExtractor={(item) => item._id}
+          renderItem={renderMessage}
+          ListEmptyComponent={renderEmpty}
+          contentContainerStyle={styles.messagesList}
+          inverted={false}
+          showsVerticalScrollIndicator={false}
+        />
+      )}
 
       <View style={styles.inputContainer}>
         <TextInput
@@ -114,6 +134,7 @@ export default function WorkspaceScreen() {
           <Feather name="send" size={20} color="#fff" />
         </TouchableOpacity>
       </View>
+      <Toast />
     </KeyboardAvoidingView>
   );
 }
@@ -155,6 +176,11 @@ const styles = StyleSheet.create({
   messagesList: {
     flex: 1,
     padding: 16,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   emptyContainer: {
     flex: 1,

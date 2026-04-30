@@ -1,4 +1,4 @@
-import { api } from './api';
+import { api, ApiError } from './api';
 
 export interface ChatMessage {
   _id: string;
@@ -13,6 +13,12 @@ interface ChatHistoryResponse {
 }
 
 export const getChatHistory = async (otherUserId: string): Promise<ChatMessage[]> => {
-  const response = await api.get<ChatHistoryResponse>('/chat/history/' + otherUserId);
-  return response.data.messages;
+  try {
+    const response = await api.get<ChatHistoryResponse>('/api/chat/history/' + otherUserId);
+    return response.data?.messages || response.data || [];
+  } catch (error) {
+    const apiError = error as ApiError;
+    console.error('Error fetching chat history:', apiError.message);
+    throw error;
+  }
 };
