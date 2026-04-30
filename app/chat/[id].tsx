@@ -1,169 +1,98 @@
-import { useState, useEffect, useRef } from 'react';
-import {
-  View,
-  Text,
-  TextInput,
-  FlatList,
-  TouchableOpacity,
-  StyleSheet,
-  KeyboardAvoidingView,
-  Platform,
-  Alert,
-} from 'react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import { io, Socket } from 'socket.io-client';
-import { getChatHistory, ChatMessage } from '@/src/services/chat.service';
+import { useEffect, useState, useRef } from 'react';
+import { View, Text, FlatList, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform } from 'react-native';
+import { useLocalSearchParams } from 'expo-router';
+import { getChatMessages, sendMessage, ChatMessage } from '@/src/services/chat.service';
+import { SocketService } from '@/src/services/socket.service';
 import { getToken } from '@/src/services/api';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { api } from '@/src/services/api';
 
-const CURRENT_USER_ID_KEY = '@geckchat_user_id';
-
-interface ChatParams {
-  id: string;
-  name?: string;
-}
-
-export default function ChatScreen() {
-  const { id, name } = useLocalSearchParams<any>();
-  const router = useRouter();
+export default function ChatRoomScreen() {
+  const { id } = useLocalSearchParams();
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [content, setContent] = useState('');
+  const [currentUserId, setCurrentUserId] = useState<string>('');
   const flatListRef = useRef<FlatList>(null);
 
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [inputText, setInputText] = useState('');
-  const [isLoading, setIsLoading] = useState(true);
-  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
-  const [socket, setSocket] = useState<Socket | null>(null);
-
   useEffect(() => {
-    const initChat = async () => {
+    const init = async () => {
       try {
-        const userId = await AsyncStorage.getItem(CURRENT_USER_ID_KEY);
-        setCurrentUserId(userId);
+        const token = await getToken();
+        if (token) {
+          const userResponse = await api.get<{ _id: string }>('/api/auth/me');
+          setCurrentUserId(userResponse.data._id);
+        }
 
-        setIsLoading(true);
-        const history = await getChatHistory(id);
-        setMessages(history);
-        setIsLoading(false);
+        if (id) {
+          const history = await getChatMessages(id);
+          setMessages(history);
+
+          SocketService.emit('join_chat', id);
+        }
       } catch (error) {
-        setIsLoading(false);
-        console.error('Error loading chat history:', error);
+        console.error('Error initializing chat:', error);
       }
-
-      const apiUrl = process.env.EXPO_PUBLIC_API_URI || 'http://localhost:3000';
-      const baseUrl = apiUrl.replace('/api', '');
-      const newSocket = io(baseUrl);
-
-      newSocket.on('connect', () => {
-        console.log('Socket connected - Chat tunnel open');
-      });
-
-      newSocket.on('receiveMessage', (message: ChatMessage) => {
-        setMessages((prev) => [...prev, message]);
-      });
-
-      newSocket.on('disconnect', () => {
-        console.log('Socket disconnected');
-      });
-
-      setSocket(newSocket);
-
-      return () => {
-        newSocket.disconnect();
-      };
     };
-
-    initChat();
+    init();
   }, [id]);
 
-  const sendMessage = () => {
-    if (!inputText.trim() || !socket || !currentUserId) {
-      Alert.alert('Error', 'No se puede enviar el mensaje. Intenta de nuevo.');
-      return;
+  useEffect(() => {
+    const handleNewMessage = (newMessage: ChatMessage) => {
+      setMessages(prev => [...prev, newMessage]);
+      setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
+    };
+
+    SocketService.on('message_received', handleNewMessage);
+
+    return () => {
+      SocketService.off('message_received');
+    };
+  }, []);
+
+  const handleSendMessage = async () => {
+    if (!content.trim() || !id) return;
+
+    try {
+      const newMsg = await sendMessage(id, content);
+      setMessages(prev => [...prev, newMsg]);
+      SocketService.emit('new_message', { chatId: id, ...newMsg });
+      setContent('');
+      setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
+    } catch (error) {
+      console.error('Error sending message:', error);
     }
-
-    const messagePayload = {
-      receiverId: id,
-      contenido: inputText.trim(),
-      senderId: currentUserId,
-    };
-
-    socket.emit('sendMessage', messagePayload);
-    
-    const localMessage: ChatMessage = {
-      _id: Date.now().toString(),
-      senderId: currentUserId,
-      receiverId: id,
-      contenido: inputText.trim(),
-      createdAt: new Date().toISOString(),
-    };
-    setMessages((prev) => [...prev, localMessage]);
-    setInputText('');
-  };
-
-  const renderMessage = ({ item }: { item: ChatMessage }) => {
-    const isSent = item.senderId === currentUserId;
-
-    return (
-      <View
-        style={[
-          styles.messageBubble,
-          isSent ? styles.sentBubble : styles.receivedBubble,
-        ]}
-      >
-        <Text
-          style={[styles.messageText, isSent ? styles.sentText : styles.receivedText]}
-        >
-          {item.contenido}
-        </Text>
-        <Text style={styles.messageTime}>
-          {new Date(item.createdAt).toLocaleTimeString([], {
-            hour: '2-digit',
-            minute: '2-digit',
-          })}
-        </Text>
-      </View>
-    );
   };
 
   return (
     <KeyboardAvoidingView
       style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
     >
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <Text style={styles.backButtonText}>{'<'} Volver</Text>
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>{name || 'Chat'}</Text>
-        <View style={styles.placeholder} />
-      </View>
-
       <FlatList
         ref={flatListRef}
         data={messages}
-        keyExtractor={(item) => item._id}
-        renderItem={renderMessage}
-        inverted={true}
-        contentContainerStyle={styles.messagesList}
-        showsVerticalScrollIndicator={false}
+        keyExtractor={(item, index) => item._id ? item._id.toString() : index.toString()}
+        renderItem={({ item }) => (
+          <View style={[
+            styles.messageBubble,
+            item.senderId === currentUserId ? styles.myMessage : styles.otherMessage
+          ]}>
+            <Text style={styles.messageText}>{item.contenido}</Text>
+          </View>
+        )}
+        contentContainerStyle={styles.messagesContainer}
+        onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
       />
 
       <View style={styles.inputContainer}>
         <TextInput
-          style={styles.textInput}
-          value={inputText}
-          onChangeText={setInputText}
+          style={styles.input}
+          value={content}
+          onChangeText={setContent}
           placeholder="Escribe un mensaje..."
-          placeholderTextColor="#999"
           multiline
-          maxLength={500}
         />
-        <TouchableOpacity
-          onPress={sendMessage}
-          style={[styles.sendButton, !inputText.trim() && styles.sendButtonDisabled]}
-          disabled={!inputText.trim()}
-        >
+        <TouchableOpacity style={styles.sendButton} onPress={handleSendMessage}>
           <Text style={styles.sendButtonText}>Enviar</Text>
         </TouchableOpacity>
       </View>
@@ -176,101 +105,57 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#f5f5f5',
   },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingTop: 50,
-    paddingHorizontal: 16,
-    paddingBottom: 12,
-    backgroundColor: '#fff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
-  },
-  backButton: {
-    paddingVertical: 8,
-    paddingRight: 12,
-  },
-  backButtonText: {
-    fontSize: 16,
-    color: '#007AFF',
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#333',
-  },
-  placeholder: {
-    width: 60,
-  },
-  messagesList: {
+  messagesContainer: {
     padding: 16,
-    flexGrow: 1,
+    paddingBottom: 16,
   },
   messageBubble: {
-    maxWidth: '80%',
+    maxWidth: '75%',
     padding: 12,
     borderRadius: 16,
     marginBottom: 8,
   },
-  sentBubble: {
-    alignSelf: 'flex-end',
+  myMessage: {
     backgroundColor: '#007AFF',
+    alignSelf: 'flex-end',
     borderBottomRightRadius: 4,
   },
-  receivedBubble: {
+  otherMessage: {
+    backgroundColor: '#e0e0e0',
     alignSelf: 'flex-start',
-    backgroundColor: '#e5e5ea',
     borderBottomLeftRadius: 4,
   },
   messageText: {
-    fontSize: 16,
-    lineHeight: 20,
-  },
-  sentText: {
     color: '#fff',
-  },
-  receivedText: {
-    color: '#333',
-  },
-  messageTime: {
-    fontSize: 10,
-    color: 'rgba(255,255,255,0.7)',
-    marginTop: 4,
-    alignSelf: 'flex-end',
+    fontSize: 16,
   },
   inputContainer: {
     flexDirection: 'row',
-    alignItems: 'center',
     padding: 12,
     backgroundColor: '#fff',
     borderTopWidth: 1,
     borderTopColor: '#e0e0e0',
+    alignItems: 'flex-end',
   },
-  textInput: {
+  input: {
     flex: 1,
-    minHeight: 40,
-    maxHeight: 100,
-    backgroundColor: '#f0f0f0',
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
     borderRadius: 20,
     paddingHorizontal: 16,
     paddingVertical: 8,
+    maxHeight: 100,
     fontSize: 16,
-    color: '#333',
   },
   sendButton: {
-    marginLeft: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
+    marginLeft: 8,
     backgroundColor: '#007AFF',
     borderRadius: 20,
-  },
-  sendButtonDisabled: {
-    backgroundColor: '#ccc',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
   },
   sendButtonText: {
     color: '#fff',
-    fontSize: 16,
     fontWeight: '600',
   },
 });

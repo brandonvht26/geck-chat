@@ -33,7 +33,15 @@ export default function SearchScreen() {
   }, [query]);
 
   const renderUser = ({ item }: { item: SearchedUser }) => (
-    <View style={styles.userItem}>
+    <TouchableOpacity
+      style={styles.userItem}
+      onPress={() =>
+        router.push({
+          pathname: '/user/[id]',
+          params: { id: item._id, name: item.name, email: item.email },
+        })
+      }
+    >
       <View style={styles.userAvatar}>
         <Feather name="user" size={20} color="#666" />
       </View>
@@ -41,7 +49,7 @@ export default function SearchScreen() {
         <Text style={styles.userName}>{item.name}</Text>
         <Text style={styles.userEmail}>{item.email}</Text>
       </View>
-    </View>
+    </TouchableOpacity>
   );
 
   return (

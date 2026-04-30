@@ -17,7 +17,7 @@ const HTTP_ERROR_MESSAGES: Record<number, string> = {
 const DEFAULT_ERROR_MESSAGE = 'Error de conexión con el servidor';
 
 export const api: AxiosInstance = axios.create({
-  baseURL: process.env.EXPO_PUBLIC_API_URI || 'http://localhost:3000/api',
+  baseURL: process.env.EXPO_PUBLIC_API_URI || 'http://localhost:3000',
   timeout: 10000,
   headers: {
     'Content-Type': 'application/json',

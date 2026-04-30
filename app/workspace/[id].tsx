@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -13,6 +13,9 @@ import {
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import Toast from 'react-native-toast-message';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { api } from '@/src/services/api';
+import { SocketService } from '@/src/services/socket.service';
 import { getUserChats, getChatMessages, ChatMessage as ChatMessageType } from '@/src/services/chat.service';
 
 interface WorkspaceParams {
@@ -20,20 +23,35 @@ interface WorkspaceParams {
   name: string;
 }
 
-export default function WorkspaceScreen() {
-  const { id, name } = useLocalSearchParams<any>();
-  const router = useRouter();
+interface MessageReceivedPayload {
+  chatId: string;
+  content: string;
+  senderId: string;
+  createdAt: string;
+  _id?: string;
+}
 
-  const [messages, setMessages] = useState<ChatMessageType[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+const CURRENT_USER_ID_KEY = '@geckchat_user_id';
+
+export default function WorkspaceScreen() {
+  const { id, name } = useLocalSearchParams<WorkspaceParams>();
+  const router = useRouter();
+  const flatListRef = useRef<FlatList<MessageMessageType>>(null);
+
+  const [messages, setMessages] = useState<MessageMessageType[]>([]);
   const [currentChatId, setCurrentChatId] = useState<string | null>(null);
-  const [inputText, setInputText] = useState('');
+  const [newMessage, setNewMessage] = useState<string>('');
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
   const loadWorkspaceChat = useCallback(async () => {
     try {
       const chatsResponse = await getUserChats();
       const foundChat = chatsResponse.find((c) => {
-        const workspaceIdValue = typeof c.workspaceId === 'object' ? c.workspaceId?._id : c.workspaceId;
+        const workspaceIdValue =
+          typeof c.workspaceId === 'object' && c.workspaceId !== null
+            ? c.workspaceId._id
+            : c.workspaceId;
         return workspaceIdValue === id;
       });
 
@@ -41,6 +59,7 @@ export default function WorkspaceScreen() {
         setCurrentChatId(foundChat._id);
         const messagesData = await getChatMessages(foundChat._id);
         setMessages(messagesData);
+        SocketService.emit('join_chat', foundChat._id);
       } else {
         setMessages([]);
       }
@@ -55,32 +74,80 @@ export default function WorkspaceScreen() {
   }, [id]);
 
   useEffect(() => {
+    const initUser = async () => {
+      const userId = await AsyncStorage.getItem(CURRENT_USER_ID_KEY);
+      setCurrentUserId(userId);
+    };
+    initUser();
     loadWorkspaceChat();
   }, [loadWorkspaceChat]);
 
-  const sendMessage = () => {
-    if (!inputText.trim()) return;
-
-    const newMessage: ChatMessageType = {
-      _id: Date.now().toString(),
-      senderId: 'currentUser',
-      receiverId: currentChatId || '',
-      contenido: inputText.trim(),
-      createdAt: new Date().toISOString(),
+  useEffect(() => {
+    const handleMessageReceived = (payload: MessageReceivedPayload) => {
+      if (payload.chatId === currentChatId) {
+        const message: MessageMessageType = {
+          _id: payload._id || Date.now().toString(),
+          senderId: payload.senderId,
+          receiverId: payload.chatId,
+          contenido: payload.content,
+          createdAt: payload.createdAt,
+        };
+        setMessages((prev) => [...prev, message]);
+      }
     };
 
-    setMessages((prev) => [...prev, newMessage]);
-    setInputText('');
-  };
+    SocketService.on('message_received', handleMessageReceived);
 
-  const renderMessage = ({ item }: { item: ChatMessageType }) => (
-    <View style={styles.messageBubble}>
-      <Text style={styles.messageText}>{item.contenido}</Text>
-      <Text style={styles.messageTime}>
-        {new Date(item.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-      </Text>
-    </View>
-  );
+    return () => {
+      SocketService.off('message_received', handleMessageReceived);
+    };
+  }, [currentChatId]);
+
+  const sendMessage = useCallback(async () => {
+    if (!newMessage.trim() || !currentChatId) return;
+
+    const msgData = {
+      chatId: currentChatId,
+      content: newMessage.trim(),
+      clientTimestamp: new Date().toISOString(),
+    };
+
+    try {
+      await api.post('/api/chat/message', msgData);
+      SocketService.emit('new_message', msgData);
+      setNewMessage('');
+    } catch (error) {
+      Toast.show({
+        type: 'error',
+        text1: 'Error enviando mensaje',
+      });
+    }
+  }, [newMessage, currentChatId]);
+
+  const renderMessage = ({ item }: { item: MessageMessageType }) => {
+    const isSent = item.senderId === currentUserId;
+
+    return (
+      <View
+        style={[
+          styles.messageBubble,
+          isSent ? styles.sentBubble : styles.receivedBubble,
+        ]}
+      >
+        <Text
+          style={[styles.messageText, isSent ? styles.sentText : styles.receivedText]}
+        >
+          {item.contenido}
+        </Text>
+        <Text style={styles.messageTime}>
+          {new Date(item.createdAt).toLocaleTimeString([], {
+            hour: '2-digit',
+            minute: '2-digit',
+          })}
+        </Text>
+      </View>
+    );
+  };
 
   const renderEmpty = () => (
     <View style={styles.emptyContainer}>
@@ -93,8 +160,8 @@ export default function WorkspaceScreen() {
   return (
     <KeyboardAvoidingView
       style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={0}
     >
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
@@ -105,12 +172,20 @@ export default function WorkspaceScreen() {
           <Text style={styles.headerTitle}>{name}</Text>
         </View>
         <TouchableOpacity
-          onPress={() => router.push({ pathname: '/invite-member', params: { workspaceId: id } } as any)}
+          onPress={() =>
+            router.push({
+              pathname: '/invite-member',
+              params: { workspaceId: id },
+            })
+          }
           style={styles.inviteButton}
         >
           <Feather name="user-plus" size={20} color="#007AFF" />
         </TouchableOpacity>
       </View>
+
+      {/* TODO: Agregar indicador de estado en línea (puntito verde) de los miembros del workspace */}
+      {/* <View style={styles.onlineIndicator}><View style={styles.onlineDot} /><Text style={styles.onlineText}>3 en línea</Text></View> */}
 
       {isLoading ? (
         <View style={styles.loadingContainer}>
@@ -118,6 +193,7 @@ export default function WorkspaceScreen() {
         </View>
       ) : (
         <FlatList
+          ref={flatListRef}
           data={messages}
           keyExtractor={(item) => item._id}
           renderItem={renderMessage}
@@ -131,8 +207,8 @@ export default function WorkspaceScreen() {
       <View style={styles.inputContainer}>
         <TextInput
           style={styles.textInput}
-          value={inputText}
-          onChangeText={setInputText}
+          value={newMessage}
+          onChangeText={setNewMessage}
           placeholder="Escribe un mensaje..."
           placeholderTextColor="#999"
           multiline
@@ -140,8 +216,8 @@ export default function WorkspaceScreen() {
         />
         <TouchableOpacity
           onPress={sendMessage}
-          style={[styles.sendButton, !inputText.trim() && styles.sendButtonDisabled]}
-          disabled={!inputText.trim()}
+          style={[styles.sendButton, !newMessage.trim() && styles.sendButtonDisabled]}
+          disabled={!newMessage.trim()}
         >
           <Feather name="send" size={20} color="#fff" />
         </TouchableOpacity>
@@ -150,6 +226,8 @@ export default function WorkspaceScreen() {
     </KeyboardAvoidingView>
   );
 }
+
+type MessageMessageType = ChatMessageType;
 
 const styles = StyleSheet.create({
   container: {
@@ -214,16 +292,30 @@ const styles = StyleSheet.create({
     padding: 12,
     borderRadius: 16,
     marginBottom: 8,
-    backgroundColor: '#fff',
+  },
+  sentBubble: {
+    alignSelf: 'flex-end',
+    backgroundColor: '#007AFF',
+    borderBottomRightRadius: 4,
+  },
+  receivedBubble: {
     alignSelf: 'flex-start',
+    backgroundColor: '#fff',
+    borderBottomLeftRadius: 4,
   },
   messageText: {
     fontSize: 16,
+    lineHeight: 20,
+  },
+  sentText: {
+    color: '#fff',
+  },
+  receivedText: {
     color: '#333',
   },
   messageTime: {
     fontSize: 10,
-    color: '#999',
+    color: 'rgba(255,255,255,0.7)',
     marginTop: 4,
     alignSelf: 'flex-end',
   },
