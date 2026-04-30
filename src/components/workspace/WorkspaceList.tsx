@@ -72,7 +72,7 @@ export default function WorkspaceList() {
   return (
     <FlatList
       data={workspaces}
-      keyExtractor={(item) => item._id}
+      keyExtractor={(item, index) => item?._id?.toString() || item?.id?.toString() || index.toString()}
       renderItem={renderItem}
       contentContainerStyle={styles.listContainer}
       ItemSeparatorComponent={() => <View style={styles.separator} />}
