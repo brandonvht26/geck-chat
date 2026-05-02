@@ -24,7 +24,11 @@ export default function ChatRoomScreen() {
       try {
         if (id) {
           const history = await getChatMessages(id as string);
-          setMessages(history);
+          // Ordenar: más reciente en índice 0
+          const sortedHistory = history.sort((a, b) => 
+            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+          );
+          setMessages(sortedHistory);
 
           SocketService.emit('join_chat', id as string);
         }
@@ -33,30 +37,42 @@ export default function ChatRoomScreen() {
       }
     };
     init();
+
+    // Limpieza: salir de la sala al desmontar
+    return () => {
+      if (id) {
+        SocketService.emit('leave_chat', id as string);
+      }
+    };
   }, [id]);
 
   useEffect(() => {
     const handleNewMessage = (newMessage: ChatMessage) => {
-      setMessages(prev => [...prev, newMessage]);
-      setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
+      // Validación: asegurar que el mensaje pertenece a esta sala
+      const chatId = (newMessage as any).chatId || (newMessage as any).workspaceId || (newMessage as any).roomId;
+      if (chatId?.toString() !== id?.toString()) {
+        return;
+      }
+      // Agregar al inicio (porque FlatList está invertido)
+      setMessages(prev => [newMessage, ...prev]);
     };
 
-    SocketService.on('message_received', handleNewMessage);
+    SocketService.on('receive_message', handleNewMessage);
 
     return () => {
-      SocketService.off('message_received');
+      SocketService.off('receive_message', handleNewMessage);
     };
-  }, []);
+  }, [id]);
 
   const handleSendMessage = async () => {
     if (!content.trim() || !id) return;
 
     try {
       const newMsg = await sendMessage(id as string, content);
-      setMessages(prev => [...prev, newMsg]);
+      // Agregar al inicio porque FlatList está invertido
+      setMessages(prev => [newMsg, ...prev]);
       SocketService.emit('new_message', { chatId: id, ...newMsg });
       setContent('');
-      setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
     } catch (error) {
       console.error('Error sending message:', error);
     }
@@ -71,18 +87,25 @@ export default function ChatRoomScreen() {
       <FlatList
         ref={flatListRef}
         data={messages}
+        inverted={true}
         keyExtractor={(item, index) => item._id ? item._id.toString() : index.toString()}
         renderItem={({ item }) => {
-          const senderId = (item as any).sender?._id || item.senderId || (item as any).sender;
+          const sender = (item as any).senderId;
+          const senderId = typeof sender === 'object' ? sender?._id : sender;
+          const senderName = typeof sender === 'object' ? (sender?.name || sender?.username || 'Usuario') : 'Usuario';
           const isMyMessage = senderId === currentUserId;
           return (
             <View style={[styles.messageBubble, isMyMessage ? styles.myMessage : styles.otherMessage]}>
-              <Text style={styles.messageText}>{item.content || item.contenido}</Text>
+              {!isMyMessage && (
+                <Text style={styles.senderName}>{senderName}</Text>
+              )}
+              <Text style={[styles.messageText, isMyMessage ? styles.myMessageText : styles.otherMessageText]}>
+                {item.content || item.contenido}
+              </Text>
             </View>
           );
         }}
         contentContainerStyle={styles.messagesContainer}
-        onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
       />
 
       <View style={styles.inputContainer}>
@@ -126,9 +149,22 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
     borderBottomLeftRadius: 4,
   },
+  senderName: {
+    fontSize: 12,
+    fontWeight: 'bold',
+    color: '#666',
+    marginBottom: 4,
+    marginLeft: 4,
+  },
   messageText: {
-    color: '#fff',
     fontSize: 16,
+    lineHeight: 22,
+  },
+  myMessageText: {
+    color: '#fff',
+  },
+  otherMessageText: {
+    color: '#333',
   },
   inputContainer: {
     flexDirection: 'row',
