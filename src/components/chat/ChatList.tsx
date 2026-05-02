@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { View, Text, FlatList, TouchableOpacity, ActivityIndicator, StyleSheet } from 'react-native';
+import { View, Text, FlatList, TouchableOpacity, ActivityIndicator, StyleSheet, Image } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import { getUserChats, Chat } from '@/src/services/chat.service';
@@ -44,10 +44,6 @@ const user = authData?.user; // Mantenemos esto por si acaso, pero el log nos di
   // 3. LA FACHADA (Renderizado visual)
   return (
     <View style={styles.container}>
-      {/* Botón de Pánico (Opcional, lo puedes borrar cuando confirmemos que el ciclo automático ya funciona) */}
-      <TouchableOpacity onPress={fetchChats} style={styles.reloadButton}>
-        <Text style={styles.reloadText}>Recargar Chats Manualmente</Text>
-      </TouchableOpacity>
 
       {isLoading ? (
         <ActivityIndicator size="large" color="#007AFF" style={{ marginTop: 20 }} />
@@ -56,44 +52,53 @@ const user = authData?.user; // Mantenemos esto por si acaso, pero el log nos di
           data={chats}
           keyExtractor={(item, index) => item._id ? item._id.toString() : index.toString()}
           ListEmptyComponent={<Text style={styles.emptyText}>No tienes conversaciones</Text>}
-          renderItem={({ item, index }) => {
-            // EL RADAR (Solo imprimimos el primer elemento para no saturar la consola)
-            if (index === 0) {
-              console.log("🕵️‍♂️ MI USUARIO:", user ? `ID: ${user._id || user.id}` : "UNDEFINED/NULL");
-              console.log("👥 PARTICIPANTES:", JSON.stringify(item.participants));
-              console.log("🏢 WORKSPACE:", JSON.stringify(item.workspaceId));
-            }
+renderItem={({ item }) => {
+            // 1. SACAMOS AL USUARIO AL PASILLO (Variable Global de la tarjeta)
+            const otherUser = item.isGroup ? null : item.participants?.find(p => 
+              (p?._id || p) !== (user?._id || user?.id)
+            );
 
-            // Lógica para determinar el título
+            // 2. Lógica para determinar el título
             let displayTitle = 'Chat';
             if (item.isGroup) {
               displayTitle = item.workspaceId?.name || 'Grupo sin nombre';
             } else {
-              const otherUser = item.participants?.find(p =>
-                (p?._id || p) !== (user?._id || user?.id)
-              );
-              // Fallback extremo por si otherUser falla
               displayTitle = otherUser?.name || otherUser?.username || 'Usuario';
             }
 
+            // 3. Determinar la URL de la imagen
+            const imageUrl = item.isGroup 
+              ? item.workspaceId?.imageUrl 
+              : otherUser?.avatarUrl || otherUser?.profilePicture;
+
             return (
-              <TouchableOpacity
+              <TouchableOpacity 
                 style={styles.chatCard}
                 onPress={() => router.push(`/chat/${item._id}`)}
               >
-                <View style={[styles.avatar, { backgroundColor: item.isGroup ? '#E3F2FD' : '#F5F5F5' }]}>
-                  <Feather name={item.isGroup ? "users" : "user"} size={24} color={item.isGroup ? "#1976D2" : "#757575"} />
-                </View>
-
+                {/* 4. Renderizado condicional del Avatar */}
+                {imageUrl ? (
+                  <Image 
+                    source={{ uri: imageUrl }} 
+                    style={styles.avatar} 
+                    resizeMode="cover"
+                  />
+                ) : (
+                  <View style={[styles.avatar, { backgroundColor: item.isGroup ? '#E3F2FD' : '#F5F5F5' }]}>
+                    <Feather name={item.isGroup ? "users" : "user"} size={24} color={item.isGroup ? "#1976D2" : "#757575"} />
+                  </View>
+                )}
+                
+                {/* Textos */}
                 <View style={styles.textContainer}>
                   <Text style={styles.chatTitle}>{displayTitle}</Text>
                   <Text style={styles.lastMessage} numberOfLines={1}>
-                    {typeof item.lastMessage === 'string'
-                      ? item.lastMessage
+                    {typeof item.lastMessage === 'string' 
+                      ? item.lastMessage 
                       : (item.lastMessage?.content || item.lastMessage?.contenido || 'Envía un mensaje para iniciar...')}
                   </Text>
                 </View>
-
+                
                 <Feather name="chevron-right" size={20} color="#ccc" />
               </TouchableOpacity>
             );
