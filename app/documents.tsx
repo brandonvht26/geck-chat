@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import * as DocumentPicker from 'expo-document-picker';
 import { 
   View, 
   Text, 
@@ -6,12 +7,13 @@ import {
   StyleSheet, 
   TouchableOpacity,
   SafeAreaView,
-  ActivityIndicator 
+  ActivityIndicator,
+  Alert 
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useAuth } from '@/src/hooks/useAuth';
-import { api } from '@/src/services/api';
+import { getAllDocuments, uploadDocument } from '@/src/services/item.service';
 
 // Etiqueta oficial del documento según el backend
 interface DocumentItem {
@@ -32,7 +34,7 @@ const getIconForType = (item: any) => {
       </View>
     );
   }
-  
+
   if (item.type === 'note') {
     return (
       <View style={[styles.iconContainer, { backgroundColor: '#5856D615' }]}>
@@ -40,10 +42,10 @@ const getIconForType = (item: any) => {
       </View>
     );
   }
-  
+
   if (item.type === 'file') {
     const format = item.fileFormat?.toLowerCase() || '';
-    
+
     // PDF - Rojo
     if (format === 'pdf') {
       return (
@@ -52,7 +54,7 @@ const getIconForType = (item: any) => {
         </View>
       );
     }
-    
+
     // Imagen - Verde
     if (['jpg', 'jpeg', 'png', 'gif', 'bmp'].includes(format)) {
       return (
@@ -61,7 +63,7 @@ const getIconForType = (item: any) => {
         </View>
       );
     }
-    
+
     // Archivo genérico - Azul
     return (
       <View style={[styles.iconContainer, { backgroundColor: '#007AFF15' }]}>
@@ -69,7 +71,7 @@ const getIconForType = (item: any) => {
       </View>
     );
   }
-  
+
   // Tipo desconocido - Gris
   return (
     <View style={[styles.iconContainer, { backgroundColor: '#8E8E9315' }]}>
@@ -93,7 +95,7 @@ const DocumentCard = ({ item }: { item: any }) => {
     <TouchableOpacity style={styles.card} activeOpacity={0.7}>
       {/* Ícono dinámico según tipo */}
       {getIconForType(item)}
-      
+
       {/* Información del documento */}
       <View style={styles.infoContainer}>
         <Text style={styles.documentName} numberOfLines={1}>
@@ -103,7 +105,7 @@ const DocumentCard = ({ item }: { item: any }) => {
           {formatDate(item.createdAt || item.updatedAt)}
         </Text>
       </View>
-      
+
       {/* Flecha opcional */}
       <Feather name="chevron-right" size={20} color="#ccc" />
     </TouchableOpacity>
@@ -116,25 +118,48 @@ export default function DocumentsScreen() {
   const { user } = useAuth();
   const [documents, setDocuments] = useState<DocumentItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [uploading, setUploading] = useState(false);
+
+  const fetchDocuments = async () => {
+    try {
+      setLoading(true);
+      const items = await getAllDocuments();
+      setDocuments(items);
+    } catch (error) {
+      console.error('❌ [Documents] Error fetching documents:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleUpload = async () => {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: '*/*',
+        copyToCacheDirectory: true,
+      });
+
+      if (result.canceled) return;
+
+      const { uri, name, mimeType } = result.assets[0];
+      
+      setUploading(true);
+      Alert.alert('Subiendo...', 'Por favor espera mientras se sube el archivo.');
+
+      // Llamada simplificada al servicio
+      await uploadDocument(uri, name, mimeType);
+
+      Alert.alert('Éxito', 'Archivo subido correctamente.');
+      fetchDocuments();
+    } catch (error) {
+      console.error('❌ [Documents] Error uploading:', error);
+      Alert.alert('Error', 'No se pudo subir el archivo.');
+    } finally {
+      setUploading(false);
+    }
+  };
 
   useEffect(() => {
-    const fetchDocuments = async () => {
-try {
-        setLoading(true);
-        const response = await api.get('/api/items/all');
-        
-        // CORRECCIÓN: Le quitamos el .data extra. 
-        // Buscamos directamente los items dentro de response.data
-        if (response.data?.ok) {
-          setDocuments(response.data.items || []);
-        }
-      } catch (error) {
-        console.error('❌ [Documents] Error fetching documents:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
     if (user) {
       fetchDocuments();
     }
@@ -170,6 +195,19 @@ try {
           </View>
         }
       />
+
+      {/* FAB para subir documento */}
+      <TouchableOpacity
+        style={styles.fab}
+        onPress={handleUpload}
+        disabled={uploading}
+      >
+        {uploading ? (
+          <ActivityIndicator size="small" color="#fff" />
+        ) : (
+          <Feather name="plus" size={24} color="#fff" />
+        )}
+      </TouchableOpacity>
     </SafeAreaView>
   );
 }
@@ -238,5 +276,21 @@ const styles = StyleSheet.create({
   emptyText: {
     fontSize: 16,
     color: '#888',
+  },
+  fab: {
+    position: 'absolute',
+    bottom: 24,
+    right: 24,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: '#007AFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    elevation: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
   },
 });
