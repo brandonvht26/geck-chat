@@ -9,9 +9,9 @@ export default function ChatList() {
   const [chats, setChats] = useState<Chat[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
-const authData = useAuth();
-console.log("🔑 RADAR HOOK AUTH:", JSON.stringify(authData, null, 2));
-const user = authData?.user; // Mantenemos esto por si acaso, pero el log nos dirá la verdad
+  const authData = useAuth();
+  console.log("🔑 RADAR HOOK AUTH:", JSON.stringify(authData, null, 2));
+  const user = authData?.user; // Mantenemos esto por si acaso, pero el log nos dirá la verdad
 
   // 1. LA PLOMERÍA (Lógica de obtención de datos)
   const fetchChats = useCallback(async () => {
@@ -52,10 +52,10 @@ const user = authData?.user; // Mantenemos esto por si acaso, pero el log nos di
           data={chats}
           keyExtractor={(item, index) => item._id ? item._id.toString() : index.toString()}
           ListEmptyComponent={<Text style={styles.emptyText}>No tienes conversaciones</Text>}
-renderItem={({ item }) => {
+          renderItem={({ item }) => {
             // 1. SACAMOS AL USUARIO AL PASILLO (Variable Global de la tarjeta)
-            const otherUser = item.isGroup ? null : item.participants?.find(p => 
-              (p?._id || p) !== (user?._id || user?.id)
+            const otherUser = item.isGroup ? null : item.participants?.find(p =>
+              (p?._id || p) !== (user?._id)
             );
 
             // 2. Lógica para determinar el título
@@ -67,20 +67,20 @@ renderItem={({ item }) => {
             }
 
             // 3. Determinar la URL de la imagen
-            const imageUrl = item.isGroup 
-              ? item.workspaceId?.imageUrl 
+            const imageUrl = item.isGroup
+              ? item.workspaceId?.imageUrl
               : otherUser?.avatarUrl || otherUser?.profilePicture;
 
             return (
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={styles.chatCard}
                 onPress={() => router.push(`/chat/${item._id}`)}
               >
                 {/* 4. Renderizado condicional del Avatar */}
                 {imageUrl ? (
-                  <Image 
-                    source={{ uri: imageUrl }} 
-                    style={styles.avatar} 
+                  <Image
+                    source={{ uri: imageUrl }}
+                    style={styles.avatar}
                     resizeMode="cover"
                   />
                 ) : (
@@ -88,17 +88,17 @@ renderItem={({ item }) => {
                     <Feather name={item.isGroup ? "users" : "user"} size={24} color={item.isGroup ? "#1976D2" : "#757575"} />
                   </View>
                 )}
-                
+
                 {/* Textos */}
                 <View style={styles.textContainer}>
                   <Text style={styles.chatTitle}>{displayTitle}</Text>
                   <Text style={styles.lastMessage} numberOfLines={1}>
-                    {typeof item.lastMessage === 'string' 
-                      ? item.lastMessage 
+                    {typeof item.lastMessage === 'string'
+                      ? item.lastMessage
                       : (item.lastMessage?.content || item.lastMessage?.contenido || 'Envía un mensaje para iniciar...')}
                   </Text>
                 </View>
-                
+
                 <Feather name="chevron-right" size={20} color="#ccc" />
               </TouchableOpacity>
             );
