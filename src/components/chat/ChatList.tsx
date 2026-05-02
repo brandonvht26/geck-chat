@@ -9,7 +9,9 @@ export default function ChatList() {
   const [chats, setChats] = useState<Chat[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
-  const { user } = useAuth(); // Usamos tu Gafete VIP
+const authData = useAuth();
+console.log("🔑 RADAR HOOK AUTH:", JSON.stringify(authData, null, 2));
+const user = authData?.user; // Mantenemos esto por si acaso, pero el log nos dirá la verdad
 
   // 1. LA PLOMERÍA (Lógica de obtención de datos)
   const fetchChats = useCallback(async () => {
@@ -54,8 +56,15 @@ export default function ChatList() {
           data={chats}
           keyExtractor={(item, index) => item._id ? item._id.toString() : index.toString()}
           ListEmptyComponent={<Text style={styles.emptyText}>No tienes conversaciones</Text>}
-          renderItem={({ item }) => {
-            // Lógica para determinar el título y avatar
+          renderItem={({ item, index }) => {
+            // EL RADAR (Solo imprimimos el primer elemento para no saturar la consola)
+            if (index === 0) {
+              console.log("🕵️‍♂️ MI USUARIO:", user ? `ID: ${user._id || user.id}` : "UNDEFINED/NULL");
+              console.log("👥 PARTICIPANTES:", JSON.stringify(item.participants));
+              console.log("🏢 WORKSPACE:", JSON.stringify(item.workspaceId));
+            }
+
+            // Lógica para determinar el título
             let displayTitle = 'Chat';
             if (item.isGroup) {
               displayTitle = item.workspaceId?.name || 'Grupo sin nombre';
@@ -63,6 +72,7 @@ export default function ChatList() {
               const otherUser = item.participants?.find(p =>
                 (p?._id || p) !== (user?._id || user?.id)
               );
+              // Fallback extremo por si otherUser falla
               displayTitle = otherUser?.name || otherUser?.username || 'Usuario';
             }
 

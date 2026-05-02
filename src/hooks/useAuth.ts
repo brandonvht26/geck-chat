@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'expo-router';
 import { loginUser, registerUser } from '../services/auth.service';
 import { setToken, removeToken, getToken, ApiError } from '../services/api';
@@ -70,13 +70,17 @@ export const useAuth = () => {
     try {
       const token = await getToken();
       if (token) {
-        const response = await api.get<{ _id: string; name: string; email: string; rol: string }>('/api/auth/me');
+        const response = await api.get<{ _id: string; name: string; email: string; rol: string }>('/api/users/profile');
         setUser(response.data);
       }
-    } catch (error) {
-      console.error('Error checking auth:', error);
+    } catch (error: any) {
+      console.log("🚨 ERROR EN AUTH CONTEXT:", error.response?.data || error.message);
     }
   };
+
+  useEffect(() => {
+    checkAuth();
+  }, []);
 
   return { signIn, signUp, signOut, loading, user, checkAuth };
 };
