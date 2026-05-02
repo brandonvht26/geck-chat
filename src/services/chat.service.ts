@@ -14,10 +14,10 @@ interface ChatHistoryResponse {
 
 export interface Chat {
   _id: string;
-  workspaceId?: string | { _id: string };
-  participants: string[];
+  workspaceId?: any; 
+  participants: any[]; 
   isGroup: boolean;
-  lastMessage?: string;
+  lastMessage?: any; 
   updatedAt: string;
 }
 

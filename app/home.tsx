@@ -4,7 +4,7 @@ import { Feather } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import MainHeader from '@/src/components/layout/MainHeader';
 import SideMenu from '@/src/components/layout/SideMenu';
-import WorkspaceList from '@/src/components/workspace/WorkspaceList';
+import ChatList from '@/src/components/chat/ChatList';
 
 export default function HomeScreen() {
   const router = useRouter();
@@ -16,7 +16,7 @@ export default function HomeScreen() {
         <MainHeader onToggleMenu={() => setIsMenuOpen(!isMenuOpen)} />
         {isMenuOpen && <SideMenu />}
       </View>
-      <WorkspaceList />
+      <ChatList />
       <Pressable style={styles.fab} onPress={() => router.push('/create-workspace')}>
         <Feather name="plus" size={28} color="#fff" />
       </Pressable>
