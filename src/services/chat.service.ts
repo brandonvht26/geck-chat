@@ -69,7 +69,11 @@ export const getPrivateChats = async (): Promise<Chat[]> => {
 
 export const getChatMessages = async (chatId: string): Promise<ChatMessage[]> => {
   try {
-    const response = await api.get<GetMessagesResponse>('/api/chat/' + chatId + '/chat');
+    const urlDestino = '/api/chat/' + chatId + '/chat';
+    // RADAR 4: La dirección exacta que intenta golpear Axios
+    console.log("🕵️‍♂️ RADAR 4 - URL EXACTA DISPARADA POR AXIOS:", urlDestino);
+    
+    const response = await api.get<GetMessagesResponse>(urlDestino);
     return response.data.messages;
   } catch (error) {
     const apiError = error as ApiError;

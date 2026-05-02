@@ -1,11 +1,20 @@
 import { useState } from 'react';
 import { useRouter } from 'expo-router';
 import { loginUser, registerUser } from '../services/auth.service';
-import { setToken, removeToken, ApiError } from '../services/api';
+import { setToken, removeToken, getToken, ApiError } from '../services/api';
 import { SocketService } from '../services/socket.service';
+import { api } from '../services/api';
+
+interface User {
+  _id: string;
+  name: string;
+  email: string;
+  rol: string;
+}
 
 export const useAuth = () => {
   const [loading, setLoading] = useState(false);
+  const [user, setUser] = useState<User | null>(null);
   const router = useRouter();
 
   const signIn = async (email: string, password: string): Promise<boolean> => {
@@ -13,6 +22,12 @@ export const useAuth = () => {
     try {
       const response = await loginUser({ email, password });
       await setToken(response.token);
+      setUser({
+        _id: response._id,
+        name: response.name,
+        email: response.email,
+        rol: response.rol,
+      });
       SocketService.connect(response._id);
       return true;
     } catch (error) {
@@ -28,6 +43,12 @@ export const useAuth = () => {
     try {
       const response = await registerUser({ name, email, password });
       await setToken(response.token);
+      setUser({
+        _id: response._id,
+        name: response.name,
+        email: response.email,
+        rol: response.rol,
+      });
       SocketService.connect(response._id);
       return true;
     } catch (error) {
@@ -41,8 +62,21 @@ export const useAuth = () => {
   const signOut = async (): Promise<void> => {
     SocketService.disconnect();
     await removeToken();
+    setUser(null);
     router.replace('/login');
   };
 
-  return { signIn, signUp, signOut, loading };
+  const checkAuth = async (): Promise<void> => {
+    try {
+      const token = await getToken();
+      if (token) {
+        const response = await api.get<{ _id: string; name: string; email: string; rol: string }>('/api/auth/me');
+        setUser(response.data);
+      }
+    } catch (error) {
+      console.error('Error checking auth:', error);
+    }
+  };
+
+  return { signIn, signUp, signOut, loading, user, checkAuth };
 };

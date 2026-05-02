@@ -3,8 +3,7 @@ import { View, Text, FlatList, TextInput, TouchableOpacity, StyleSheet, Keyboard
 import { useLocalSearchParams } from 'expo-router';
 import { getChatMessages, sendMessage, ChatMessage } from '@/src/services/chat.service';
 import { SocketService } from '@/src/services/socket.service';
-import { getToken } from '@/src/services/api';
-import { api } from '@/src/services/api';
+import { useAuth } from '@/src/hooks/useAuth';
 
 export default function ChatRoomScreen() {
   const { id } = useLocalSearchParams();
@@ -12,21 +11,22 @@ export default function ChatRoomScreen() {
   const [content, setContent] = useState('');
   const [currentUserId, setCurrentUserId] = useState<string>('');
   const flatListRef = useRef<FlatList>(null);
+  const { user } = useAuth();
+
+  useEffect(() => {
+    if (user) {
+      setCurrentUserId(user._id);
+    }
+  }, [user]);
 
   useEffect(() => {
     const init = async () => {
       try {
-        const token = await getToken();
-        if (token) {
-          const userResponse = await api.get<{ _id: string }>('/api/auth/me');
-          setCurrentUserId(userResponse.data._id);
-        }
-
         if (id) {
-          const history = await getChatMessages(id);
+          const history = await getChatMessages(id as string);
           setMessages(history);
 
-          SocketService.emit('join_chat', id);
+          SocketService.emit('join_chat', id as string);
         }
       } catch (error) {
         console.error('Error initializing chat:', error);
@@ -52,7 +52,7 @@ export default function ChatRoomScreen() {
     if (!content.trim() || !id) return;
 
     try {
-      const newMsg = await sendMessage(id, content);
+      const newMsg = await sendMessage(id as string, content);
       setMessages(prev => [...prev, newMsg]);
       SocketService.emit('new_message', { chatId: id, ...newMsg });
       setContent('');
@@ -72,14 +72,15 @@ export default function ChatRoomScreen() {
         ref={flatListRef}
         data={messages}
         keyExtractor={(item, index) => item._id ? item._id.toString() : index.toString()}
-        renderItem={({ item }) => (
-          <View style={[
-            styles.messageBubble,
-            item.senderId === currentUserId ? styles.myMessage : styles.otherMessage
-          ]}>
-            <Text style={styles.messageText}>{item.contenido}</Text>
-          </View>
-        )}
+        renderItem={({ item }) => {
+          const senderId = (item as any).sender?._id || item.senderId || (item as any).sender;
+          const isMyMessage = senderId === currentUserId;
+          return (
+            <View style={[styles.messageBubble, isMyMessage ? styles.myMessage : styles.otherMessage]}>
+              <Text style={styles.messageText}>{item.content || item.contenido}</Text>
+            </View>
+          );
+        }}
         contentContainerStyle={styles.messagesContainer}
         onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
       />

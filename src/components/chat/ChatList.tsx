@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { FlatList, View, Text, ActivityIndicator, StyleSheet } from 'react-native';
+import { useFocusEffect } from 'expo-router';
 import { getPrivateChats, Chat } from '@/src/services/chat.service';
 import { getToken } from '@/src/services/api';
 import { api } from '@/src/services/api';
@@ -32,41 +33,48 @@ export default function ChatList() {
     fetchCurrentUser();
   }, []);
 
-  useEffect(() => {
-    if (!currentUserId) return;
+  useFocusEffect(
+    useCallback(() => {
+      let isActive = true;
+      const fetchChats = async () => {
+        if (!currentUserId) return;
+        try {
+          setLoading(true);
+          const privateChats = await getPrivateChats();
 
-    const fetchChats = async () => {
-      try {
-        setLoading(true);
-        const privateChats = await getPrivateChats();
-
-        const chatsWithParticipants = await Promise.all(
-          privateChats.map(async (chat) => {
-            const otherParticipantId = chat.participants.find(id => id !== currentUserId);
-            if (otherParticipantId) {
-              try {
-                const response = await api.get<{ _id: string; nombre: string; avatar?: string }>(
-                  `/api/users/${otherParticipantId}`
-                );
-                return { ...chat, otherParticipant: response.data };
-              } catch {
-                return { ...chat, otherParticipant: undefined };
+          const chatsWithParticipants = await Promise.all(
+            privateChats.map(async (chat) => {
+              const otherParticipantId = chat.participants.find(id => id !== currentUserId);
+              if (otherParticipantId) {
+                try {
+                  const response = await api.get<{ _id: string; nombre: string; avatar?: string }>(
+                    `/api/users/${otherParticipantId}`
+                  );
+                  return { ...chat, otherParticipant: response.data };
+                } catch {
+                  return { ...chat, otherParticipant: undefined };
+                }
               }
-            }
-            return { ...chat, otherParticipant: undefined };
-          })
-        );
+              return { ...chat, otherParticipant: undefined };
+            })
+          );
 
-        setChats(chatsWithParticipants);
-      } catch (error) {
-        console.error('Error fetching chats:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
+          if (isActive) {
+            setChats(chatsWithParticipants);
+          }
+        } catch (error) {
+          console.error('Error fetching chats:', error);
+        } finally {
+          if (isActive) {
+            setLoading(false);
+          }
+        }
+      };
 
-    fetchChats();
-  }, [currentUserId]);
+      fetchChats();
+      return () => { isActive = false; };
+    }, [currentUserId])
+  );
 
   if (loading) {
     return (
