@@ -8,7 +8,8 @@ import {
   TouchableOpacity,
   SafeAreaView,
   ActivityIndicator,
-  Alert 
+  Alert,
+  ScrollView 
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -119,6 +120,7 @@ export default function DocumentsScreen() {
   const [documents, setDocuments] = useState<DocumentItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
+const [sortBy, setSortBy] = useState<'date' | 'name' | 'type'>('date');
 
   const fetchDocuments = async () => {
     try {
@@ -175,6 +177,12 @@ export default function DocumentsScreen() {
     );
   }
 
+  const sortedDocuments = [...documents].sort((a, b) => {
+    if (sortBy === 'name') return a.name.localeCompare(b.name);
+    if (sortBy === 'type') return a.type.localeCompare(b.type);
+    return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+  });
+
   return (
     <SafeAreaView style={styles.container}>
       {/* Header */}
@@ -182,9 +190,30 @@ export default function DocumentsScreen() {
         <Text style={styles.headerTitle}>Mis Documentos</Text>
       </View>
 
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filtersContainer}>
+        <TouchableOpacity 
+          style={[styles.filterChip, sortBy === 'date' && styles.filterChipActive]} 
+          onPress={() => setSortBy('date')}
+        >
+          <Text style={[styles.filterChipText, sortBy === 'date' && styles.filterChipTextActive]}>Fecha</Text>
+        </TouchableOpacity>
+        <TouchableOpacity 
+          style={[styles.filterChip, sortBy === 'name' && styles.filterChipActive]} 
+          onPress={() => setSortBy('name')}
+        >
+          <Text style={[styles.filterChipText, sortBy === 'name' && styles.filterChipTextActive]}>Nombre</Text>
+        </TouchableOpacity>
+        <TouchableOpacity 
+          style={[styles.filterChip, sortBy === 'type' && styles.filterChipActive]} 
+          onPress={() => setSortBy('type')}
+        >
+          <Text style={[styles.filterChipText, sortBy === 'type' && styles.filterChipTextActive]}>Tipo</Text>
+        </TouchableOpacity>
+      </ScrollView>
+
       {/* Lista de documentos */}
       <FlatList
-        data={documents}
+        data={sortedDocuments}
         keyExtractor={(item) => item._id}
         renderItem={({ item }) => <DocumentCard item={item} />}
         contentContainerStyle={styles.listContainer}
@@ -292,5 +321,29 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.25,
     shadowRadius: 4,
+  },
+  filtersContainer: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+  },
+  filterChip: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: '#f0f0f0',
+    marginRight: 8,
+  },
+  filterChipActive: {
+    backgroundColor: '#007AFF',
+  },
+  filterChipText: {
+    fontSize: 14,
+    color: '#333',
+    fontWeight: '500',
+  },
+  filterChipTextActive: {
+    color: '#fff',
   },
 });

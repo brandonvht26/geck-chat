@@ -53,8 +53,12 @@ export default function ChatRoomScreen() {
       if (chatId?.toString() !== id?.toString()) {
         return;
       }
-      // Agregar al inicio (porque FlatList está invertido)
-      setMessages(prev => [newMessage, ...prev]);
+      // Evitar duplicados por eco de sockets
+      setMessages(prev => {
+        const exists = prev.some(msg => msg._id === newMessage._id);
+        if (exists) return prev;
+        return [newMessage, ...prev];
+      });
     };
 
     SocketService.on('receive_message', handleNewMessage);
