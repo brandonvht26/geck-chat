@@ -68,14 +68,23 @@ export default function ChatRoomScreen() {
     };
   }, [id]);
 
-  const handleSendMessage = async () => {
+const handleSendMessage = async () => {
     if (!content.trim() || !id) return;
 
     try {
+      // 1. Enviamos el mensaje por la puerta principal (REST). 
+      // El backend lo guardará y se encargará de avisarle a los demás por Socket.
       const newMsg = await sendMessage(id as string, content);
-      // Agregar al inicio porque FlatList está invertido
-      setMessages(prev => [newMsg, ...prev]);
-      SocketService.emit('new_message', { chatId: id, ...newMsg });
+      
+      // 2. Lo pintamos instantáneamente en nuestra pantalla (con filtro por si el eco del socket llega más rápido)
+      setMessages(prev => {
+        const exists = prev.some(msg => msg._id === newMsg._id);
+        if (exists) return prev;
+        return [newMsg, ...prev];
+      });
+      
+      // 3. ❌ ELIMINADO: SocketService.emit('new_message'...) para evitar que el servidor lo guarde doble.
+      
       setContent('');
     } catch (error) {
       console.error('Error sending message:', error);

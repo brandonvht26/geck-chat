@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import * as DocumentPicker from 'expo-document-picker';
 import { 
   View, 
@@ -120,7 +120,7 @@ export default function DocumentsScreen() {
   const [documents, setDocuments] = useState<DocumentItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
-const [sortBy, setSortBy] = useState<'date' | 'name' | 'type'>('date');
+const [sortBy, setSortBy] = useState<'recent' | 'name' | 'type'>('recent');
 
   const fetchDocuments = async () => {
     try {
@@ -177,11 +177,26 @@ const [sortBy, setSortBy] = useState<'date' | 'name' | 'type'>('date');
     );
   }
 
-  const sortedDocuments = [...documents].sort((a, b) => {
-    if (sortBy === 'name') return a.name.localeCompare(b.name);
-    if (sortBy === 'type') return a.type.localeCompare(b.type);
-    return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-  });
+const sortedDocuments = useMemo(() => {
+  const docs = [...documents];
+  switch (sortBy) {
+    case 'name':
+      return docs.sort((a, b) => a.name.localeCompare(b.name));
+    case 'type':
+      const typeOrder = { folder: 0, note: 1, file: 2 };
+      return docs.sort((a, b) => {
+        const orderA = typeOrder[a.type] ?? 3;
+        const orderB = typeOrder[b.type] ?? 3;
+        if (orderA !== orderB) return orderA - orderB;
+        return a.name.localeCompare(b.name);
+      });
+    case 'recent':
+    default:
+      return docs.sort((a, b) => 
+        new Date(b.createdAt || b.updatedAt).getTime() - new Date(a.createdAt || a.updatedAt).getTime()
+      );
+  }
+}, [documents, sortBy]);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -190,26 +205,26 @@ const [sortBy, setSortBy] = useState<'date' | 'name' | 'type'>('date');
         <Text style={styles.headerTitle}>Mis Documentos</Text>
       </View>
 
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filtersContainer}>
-        <TouchableOpacity 
-          style={[styles.filterChip, sortBy === 'date' && styles.filterChipActive]} 
-          onPress={() => setSortBy('date')}
-        >
-          <Text style={[styles.filterChipText, sortBy === 'date' && styles.filterChipTextActive]}>Fecha</Text>
-        </TouchableOpacity>
-        <TouchableOpacity 
-          style={[styles.filterChip, sortBy === 'name' && styles.filterChipActive]} 
-          onPress={() => setSortBy('name')}
-        >
-          <Text style={[styles.filterChipText, sortBy === 'name' && styles.filterChipTextActive]}>Nombre</Text>
-        </TouchableOpacity>
-        <TouchableOpacity 
-          style={[styles.filterChip, sortBy === 'type' && styles.filterChipActive]} 
-          onPress={() => setSortBy('type')}
-        >
-          <Text style={[styles.filterChipText, sortBy === 'type' && styles.filterChipTextActive]}>Tipo</Text>
-        </TouchableOpacity>
-      </ScrollView>
+<ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filtersContainer}>
+  <TouchableOpacity 
+    style={[styles.filterChip, sortBy === 'recent' && styles.filterChipActive]} 
+    onPress={() => setSortBy('recent')}
+  >
+    <Text style={[styles.filterChipText, sortBy === 'recent' && styles.filterChipTextActive]}>Recientes</Text>
+  </TouchableOpacity>
+  <TouchableOpacity 
+    style={[styles.filterChip, sortBy === 'name' && styles.filterChipActive]} 
+    onPress={() => setSortBy('name')}
+  >
+    <Text style={[styles.filterChipText, sortBy === 'name' && styles.filterChipTextActive]}>Nombre A-Z</Text>
+  </TouchableOpacity>
+  <TouchableOpacity 
+    style={[styles.filterChip, sortBy === 'type' && styles.filterChipActive]} 
+    onPress={() => setSortBy('type')}
+  >
+    <Text style={[styles.filterChipText, sortBy === 'type' && styles.filterChipTextActive]}>Tipo</Text>
+  </TouchableOpacity>
+</ScrollView>
 
       {/* Lista de documentos */}
       <FlatList
