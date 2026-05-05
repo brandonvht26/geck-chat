@@ -1,5 +1,8 @@
 import { useState, useEffect, useMemo } from 'react';
 import * as DocumentPicker from 'expo-document-picker';
+import * as FileSystem from 'expo-file-system';
+import * as Sharing from 'expo-sharing';
+import * as WebBrowser from 'expo-web-browser';
 import { 
   View, 
   Text, 
@@ -22,6 +25,7 @@ interface DocumentItem {
   name: string;
   type: string;
   fileFormat?: string;
+  url?: string;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -91,11 +95,35 @@ const formatDate = (dateString: string) => {
 };
 
 // Componente de tarjeta de documento
-const DocumentCard = ({ item }: { item: any }) => {
+const DocumentCard = ({ item, onDownload, onPress, openingId }: { 
+  item: any; 
+  onDownload: (doc: any) => void;
+  onPress: () => void;
+  openingId: string | null;
+}) => {
+  const isOpening = openingId === item._id;
+
   return (
-    <TouchableOpacity style={styles.card} activeOpacity={0.7}>
-      {/* Ícono dinámico según tipo */}
-      {getIconForType(item)}
+    <TouchableOpacity style={styles.card} activeOpacity={0.7} onPress={onPress}>
+      {/* Ícono dinámico según tipo con ActivityIndicator superpuesto */}
+      <View style={{ position: 'relative' }}>
+        {getIconForType(item)}
+        {isOpening && (
+          <View style={{ 
+            position: 'absolute', 
+            top: 0, 
+            left: 0, 
+            width: 50, 
+            height: 50, 
+            backgroundColor: 'rgba(255,255,255,0.7)', 
+            justifyContent: 'center', 
+            alignItems: 'center',
+            borderRadius: 12
+          }}>
+            <ActivityIndicator size="small" color="#007AFF" />
+          </View>
+        )}
+      </View>
 
       {/* Información del documento */}
       <View style={styles.infoContainer}>
@@ -107,8 +135,10 @@ const DocumentCard = ({ item }: { item: any }) => {
         </Text>
       </View>
 
-      {/* Flecha opcional */}
-      <Feather name="chevron-right" size={20} color="#ccc" />
+      {/* Botón de descarga */}
+      <TouchableOpacity onPress={() => onDownload(item)} style={styles.downloadButton}>
+        <Feather name="download" size={20} color="#007AFF" />
+      </TouchableOpacity>
     </TouchableOpacity>
   );
 };
@@ -120,7 +150,8 @@ export default function DocumentsScreen() {
   const [documents, setDocuments] = useState<DocumentItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
-const [sortBy, setSortBy] = useState<'recent' | 'name' | 'type'>('recent');
+  const [sortBy, setSortBy] = useState<'recent' | 'name' | 'type'>('recent');
+  const [openingId, setOpeningId] = useState<string | null>(null);
 
   const fetchDocuments = async () => {
     try {
@@ -161,11 +192,67 @@ const [sortBy, setSortBy] = useState<'recent' | 'name' | 'type'>('recent');
     }
   };
 
+  const handleDownload = async (document: DocumentItem) => {
+    if (!document.url) {
+      Alert.alert('Error', 'El documento no tiene una URL válida para descargar.');
+      return;
+    }
+
+    try {
+      const downloadDir = FileSystem.documentDirectory || `${FileSystem.cacheDirectory || ''}downloads/`;
+      const fileUri = `${downloadDir}${document.name}`;
+      Alert.alert('Descargando...', 'Por favor espera mientras se descarga el archivo.');
+
+      const { uri } = await FileSystem.downloadAsync(document.url, fileUri);
+      await Sharing.shareAsync(uri);
+      Alert.alert('Éxito', 'Archivo descargado correctamente.');
+    } catch (error) {
+      console.error('❌ [Documents] Error downloading:', error);
+      Alert.alert('Error', 'No se pudo descargar el archivo.');
+    }
+  };
+
+  const handleCardPress = async (item: DocumentItem) => {
+    if (item.type === 'file' && item.url) {
+      setOpeningId(item._id);
+      try {
+        await WebBrowser.openBrowserAsync(item.url);
+      } catch (error) {
+        console.error('Error opening document:', error);
+      } finally {
+        setOpeningId(null);
+      }
+    } else {
+      Alert.alert('Próximamente', 'Esta funcionalidad estará disponible pronto.');
+    }
+  };
+
   useEffect(() => {
     if (user) {
       fetchDocuments();
     }
   }, [user]);
+
+  const sortedDocuments = useMemo(() => {
+    const docs = [...documents];
+    switch (sortBy) {
+      case 'name':
+        return docs.sort((a, b) => a.name.localeCompare(b.name));
+      case 'type':
+        const typeOrder = { folder: 0, note: 1, file: 2 };
+        return docs.sort((a, b) => {
+          const orderA = typeOrder[a.type] ?? 3;
+          const orderB = typeOrder[b.type] ?? 3;
+          if (orderA !== orderB) return orderA - orderB;
+          return a.name.localeCompare(b.name);
+        });
+      case 'recent':
+      default:
+        return docs.sort((a, b) => 
+          new Date(b.createdAt || b.updatedAt).getTime() - new Date(a.createdAt || a.updatedAt).getTime()
+        );
+    }
+  }, [documents, sortBy]);
 
   if (loading) {
     return (
@@ -177,27 +264,6 @@ const [sortBy, setSortBy] = useState<'recent' | 'name' | 'type'>('recent');
     );
   }
 
-const sortedDocuments = useMemo(() => {
-  const docs = [...documents];
-  switch (sortBy) {
-    case 'name':
-      return docs.sort((a, b) => a.name.localeCompare(b.name));
-    case 'type':
-      const typeOrder = { folder: 0, note: 1, file: 2 };
-      return docs.sort((a, b) => {
-        const orderA = typeOrder[a.type] ?? 3;
-        const orderB = typeOrder[b.type] ?? 3;
-        if (orderA !== orderB) return orderA - orderB;
-        return a.name.localeCompare(b.name);
-      });
-    case 'recent':
-    default:
-      return docs.sort((a, b) => 
-        new Date(b.createdAt || b.updatedAt).getTime() - new Date(a.createdAt || a.updatedAt).getTime()
-      );
-  }
-}, [documents, sortBy]);
-
   return (
     <SafeAreaView style={styles.container}>
       {/* Header */}
@@ -205,32 +271,32 @@ const sortedDocuments = useMemo(() => {
         <Text style={styles.headerTitle}>Mis Documentos</Text>
       </View>
 
-<ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filtersContainer}>
-  <TouchableOpacity 
-    style={[styles.filterChip, sortBy === 'recent' && styles.filterChipActive]} 
-    onPress={() => setSortBy('recent')}
-  >
-    <Text style={[styles.filterChipText, sortBy === 'recent' && styles.filterChipTextActive]}>Recientes</Text>
-  </TouchableOpacity>
-  <TouchableOpacity 
-    style={[styles.filterChip, sortBy === 'name' && styles.filterChipActive]} 
-    onPress={() => setSortBy('name')}
-  >
-    <Text style={[styles.filterChipText, sortBy === 'name' && styles.filterChipTextActive]}>Nombre A-Z</Text>
-  </TouchableOpacity>
-  <TouchableOpacity 
-    style={[styles.filterChip, sortBy === 'type' && styles.filterChipActive]} 
-    onPress={() => setSortBy('type')}
-  >
-    <Text style={[styles.filterChipText, sortBy === 'type' && styles.filterChipTextActive]}>Tipo</Text>
-  </TouchableOpacity>
-</ScrollView>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filtersContainer}>
+        <TouchableOpacity 
+          style={[styles.filterChip, sortBy === 'recent' && styles.filterChipActive]} 
+          onPress={() => setSortBy('recent')}
+        >
+          <Text style={[styles.filterChipText, sortBy === 'recent' && styles.filterChipTextActive]}>Recientes</Text>
+        </TouchableOpacity>
+        <TouchableOpacity 
+          style={[styles.filterChip, sortBy === 'name' && styles.filterChipActive]} 
+          onPress={() => setSortBy('name')}
+        >
+          <Text style={[styles.filterChipText, sortBy === 'name' && styles.filterChipTextActive]}>Nombre A-Z</Text>
+        </TouchableOpacity>
+        <TouchableOpacity 
+          style={[styles.filterChip, sortBy === 'type' && styles.filterChipActive]} 
+          onPress={() => setSortBy('type')}
+        >
+          <Text style={[styles.filterChipText, sortBy === 'type' && styles.filterChipTextActive]}>Tipo</Text>
+        </TouchableOpacity>
+      </ScrollView>
 
       {/* Lista de documentos */}
       <FlatList
         data={sortedDocuments}
         keyExtractor={(item) => item._id}
-        renderItem={({ item }) => <DocumentCard item={item} />}
+        renderItem={({ item }) => <DocumentCard item={item} onDownload={handleDownload} onPress={() => handleCardPress(item)} openingId={openingId} />}
         contentContainerStyle={styles.listContainer}
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
@@ -360,5 +426,8 @@ const styles = StyleSheet.create({
   },
   filterChipTextActive: {
     color: '#fff',
+  },
+  downloadButton: {
+    padding: 8,
   },
 });
