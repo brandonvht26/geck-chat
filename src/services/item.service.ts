@@ -1,55 +1,95 @@
-// src/services/item.service.ts
-import { api, getToken } from './api';
-import { Platform } from 'react-native';
+import axios from 'axios';
+import { api, ApiError } from './api';
 
 export interface DocumentItem {
   _id: string;
-  name: string;
-  type: string;
+  nombre?: string;
+  name?: string;
+  tipo?: string;
+  type?: string;
+  url: string;
   fileFormat?: string;
-  createdAt?: string;
-  updatedAt?: string;
 }
 
-export const getAllDocuments = async (): Promise<DocumentItem[]> => {
+export const getDesktopItems = async (): Promise<DocumentItem[]> => {
   try {
-    const response = await api.get('/api/items/all');
-    return response.data?.items || [];
-  } catch (error) {
-    console.error('Error fetching documents:', error);
+    // Pasar folderId y workspaceId como 'null' para obtener items raíz (según item_controller.js)
+    const response = await api.get<{ ok: boolean; items: DocumentItem[]; preferences?: any }>('/api/items/desktop', {
+      params: {
+        folderId: 'null',
+        workspaceId: 'null',
+      },
+    });
+
+    console.log('[getDesktopItems] Respuesta cruda del backend:', response.data);
+
+    // El backend devuelve { ok: true, items: [...] }
+    if (response.data && response.data.items) {
+      return response.data.items;
+    }
+
     return [];
+  } catch (error) {
+    if (axios.isAxiosError(error)) {
+      console.error('[getDesktopItems] Error Axios:', {
+        status: error.response?.status,
+        data: error.response?.data,
+        message: error.message,
+      });
+    } else {
+      console.error('[getDesktopItems] Error desconocido:', error);
+    }
+    throw error;
   }
 };
 
-export const uploadDocument = async (uri: string, name: string, mimeType: string) => {
-  const formData = new FormData();
+export const uploadDocument = async (fileUri: string, fileName: string, mimeType: string): Promise<DocumentItem> => {
+  try {
+    const formData = new FormData();
+    formData.append('archivo', {
+      uri: fileUri,
+      name: fileName,
+      type: mimeType || 'application/octet-stream',
+    } as any);
 
-  // A veces iOS o Android añaden prefijos raros a la URI, esta limpieza ayuda:
-  const cleanUri = Platform.OS === 'ios' ? uri.replace('file://', '') : uri;
+    // Campos opcionales que espera el backend
+    formData.append('parentId', 'null');
+    formData.append('x', '100');
+    formData.append('y', '100');
+    formData.append('workspaceId', 'null');
 
-  formData.append('archivo', {
-    uri: cleanUri,
-    name: name || 'documento.pdf', // Un fallback por si viene vacío
-    type: mimeType || 'application/octet-stream', // Fallback crucial
-  } as any);
+    console.log('[uploadDocument] FormData construido:', {
+      uri: fileUri,
+      name: fileName,
+      type: mimeType || 'application/octet-stream',
+    });
 
-  const token = await getToken();
-  const baseURL = api.defaults.baseURL || 'https://geck-core.onrender.com';
-  
-  const response = await fetch(`${baseURL}/api/items/upload`, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${token}`,
-      'Content-Type': 'multipart/form-data',
-    },
-    body: formData,
-  });
+    const response = await api.post<{ ok: boolean; msg: string; item: DocumentItem }>('/api/items/upload', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
 
-  const data = await response.json();
-  
-  if (!response.ok) {
-    throw new Error(data.message || 'Error al subir el documento');
+    console.log('[uploadDocument] Respuesta exitosa:', response.data);
+    // El backend devuelve { ok: true, msg: '...', item: newItem }
+    return response.data.item;
+  } catch (error) {
+    if (axios.isAxiosError(error)) {
+      console.error('[uploadDocument] Error Axios:', {
+        status: error.response?.status,
+        data: error.response?.data,
+        message: error.message,
+      });
+    } else {
+      console.error('[uploadDocument] Error desconocido:', error);
+    }
+    throw error;
   }
+};
 
-  return data;
+export const deleteDocument = async (id: string): Promise<void> => {
+  try {
+    await api.delete(`/api/items/${id}`);
+  } catch (error) {
+    const apiError = error as ApiError;
+    throw new Error(apiError.message);
+  }
 };

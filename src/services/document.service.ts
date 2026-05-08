@@ -1,4 +1,4 @@
-import api from './api';
+import { api } from './api';
 import { ShareDocumentPayload, ShareDocumentResponse } from '../types/document.types';
 import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
