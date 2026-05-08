@@ -3,6 +3,7 @@ import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import * as WebBrowser from 'expo-web-browser';
+// Si expo-web-browser no está instalado, ejecutar: npx expo install expo-web-browser
 import { 
   View, 
   Text, 
@@ -95,14 +96,12 @@ const formatDate = (dateString: string) => {
 };
 
 // Componente de tarjeta de documento
-const DocumentCard = ({ item, onDownload, onPress, openingId }: { 
+const DocumentCard = ({ item, onDownload, onPress, isOpening }: { 
   item: any; 
   onDownload: (doc: any) => void;
   onPress: () => void;
-  openingId: string | null;
+  isOpening: boolean;
 }) => {
-  const isOpening = openingId === item._id;
-
   return (
     <TouchableOpacity style={styles.card} activeOpacity={0.7} onPress={onPress}>
       {/* Ícono dinámico según tipo con ActivityIndicator superpuesto */}
@@ -147,12 +146,44 @@ export default function DocumentsScreen() {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const router = useRouter();
   const { user } = useAuth();
+  
+  // 1. Todos los useState
   const [documents, setDocuments] = useState<DocumentItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [sortBy, setSortBy] = useState<'recent' | 'name' | 'type'>('recent');
   const [openingId, setOpeningId] = useState<string | null>(null);
 
+  // 2. Todos los useEffect
+  useEffect(() => {
+    if (user) {
+      fetchDocuments();
+    }
+  }, [user]);
+
+  // 3. El useMemo de ordenamiento
+  const sortedDocuments = useMemo(() => {
+    const docs = [...documents];
+    switch (sortBy) {
+      case 'name':
+        return docs.sort((a, b) => a.name.localeCompare(b.name));
+      case 'type':
+        const typeOrder = { folder: 0, note: 1, file: 2 };
+        return docs.sort((a, b) => {
+          const orderA = typeOrder[a.type] ?? 3;
+          const orderB = typeOrder[b.type] ?? 3;
+          if (orderA !== orderB) return orderA - orderB;
+          return a.name.localeCompare(b.name);
+        });
+      case 'recent':
+      default:
+        return docs.sort((a, b) => 
+          new Date(b.createdAt || b.updatedAt).getTime() - new Date(a.createdAt || a.updatedAt).getTime()
+        );
+    }
+  }, [documents, sortBy]);
+
+  // 4. Funciones handler
   const fetchDocuments = async () => {
     try {
       setLoading(true);
@@ -212,7 +243,7 @@ export default function DocumentsScreen() {
     }
   };
 
-  const handleCardPress = async (item: DocumentItem) => {
+  const handleOpenDocument = async (item: DocumentItem) => {
     if (item.type === 'file' && item.url) {
       setOpeningId(item._id);
       try {
@@ -227,33 +258,7 @@ export default function DocumentsScreen() {
     }
   };
 
-  useEffect(() => {
-    if (user) {
-      fetchDocuments();
-    }
-  }, [user]);
-
-  const sortedDocuments = useMemo(() => {
-    const docs = [...documents];
-    switch (sortBy) {
-      case 'name':
-        return docs.sort((a, b) => a.name.localeCompare(b.name));
-      case 'type':
-        const typeOrder = { folder: 0, note: 1, file: 2 };
-        return docs.sort((a, b) => {
-          const orderA = typeOrder[a.type] ?? 3;
-          const orderB = typeOrder[b.type] ?? 3;
-          if (orderA !== orderB) return orderA - orderB;
-          return a.name.localeCompare(b.name);
-        });
-      case 'recent':
-      default:
-        return docs.sort((a, b) => 
-          new Date(b.createdAt || b.updatedAt).getTime() - new Date(a.createdAt || a.updatedAt).getTime()
-        );
-    }
-  }, [documents, sortBy]);
-
+  // 5. if (loading) return - ÚNICO return condicional
   if (loading) {
     return (
       <SafeAreaView style={styles.container}>
@@ -296,7 +301,7 @@ export default function DocumentsScreen() {
       <FlatList
         data={sortedDocuments}
         keyExtractor={(item) => item._id}
-        renderItem={({ item }) => <DocumentCard item={item} onDownload={handleDownload} onPress={() => handleCardPress(item)} openingId={openingId} />}
+        renderItem={({ item }) => <DocumentCard item={item} onDownload={handleDownload} onPress={() => handleOpenDocument(item)} isOpening={openingId === item._id} />}
         contentContainerStyle={styles.listContainer}
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
