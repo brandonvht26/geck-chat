@@ -104,3 +104,33 @@ export const accessUserChat = async (targetUserId: string): Promise<Chat> => {
     throw error;
   }
 };
+
+export const sendFileMessage = async (chatId: string, fileUri: string, fileName: string, mimeType: string) => {
+  const formData = new FormData();
+  formData.append('chatId', chatId);
+  formData.append('file', {
+    uri: fileUri,
+    name: fileName,
+    type: mimeType || 'application/octet-stream',
+  } as any);
+
+  try {
+    const response = await api.post('/api/chat/chat/file', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return response.data.message;
+  } catch (error) {
+    const apiError = error as ApiError;
+    console.error('Error sending file message:', apiError.message);
+    throw error;
+  }
+};
+
+export const editMessage = async (messageId: string, content: string): Promise<ChatMessage> => {
+  const response = await api.put<{ message: ChatMessage }>(`/api/chat/message/${messageId}`, { content });
+  return response.data.message;
+};
+
+export const deleteMessage = async (messageId: string, type: 'for_me' | 'for_all'): Promise<void> => {
+  await api.delete(`/api/chat/message/${messageId}`, { data: { type } });
+};
