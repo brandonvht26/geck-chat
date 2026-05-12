@@ -43,7 +43,7 @@ export const getDesktopItems = async (): Promise<DocumentItem[]> => {
   }
 };
 
-export const uploadDocument = async (fileUri: string, fileName: string, mimeType: string): Promise<DocumentItem> => {
+export const uploadDocument = async (fileUri: string, fileName: string, mimeType: string, parentId: string | null = null): Promise<DocumentItem> => {
   try {
     const formData = new FormData();
     formData.append('archivo', {
@@ -53,7 +53,7 @@ export const uploadDocument = async (fileUri: string, fileName: string, mimeType
     } as any);
 
     // Campos opcionales que espera el backend
-    formData.append('parentId', 'null');
+    formData.append('parentId', parentId || 'null');
     formData.append('x', '100');
     formData.append('y', '100');
     formData.append('workspaceId', 'null');
@@ -62,6 +62,7 @@ export const uploadDocument = async (fileUri: string, fileName: string, mimeType
       uri: fileUri,
       name: fileName,
       type: mimeType || 'application/octet-stream',
+      parentId: parentId || 'null',
     });
 
     const response = await api.post<{ ok: boolean; msg: string; item: DocumentItem }>('/api/items/upload', formData, {
@@ -83,6 +84,11 @@ export const uploadDocument = async (fileUri: string, fileName: string, mimeType
     }
     throw error;
   }
+};
+
+export const searchItems = async (query: string): Promise<DocumentItem[]> => {
+  const response = await api.get('/api/items/search', { params: { q: query } });
+  return response.data.items || [];
 };
 
 export const deleteDocument = async (id: string): Promise<void> => {

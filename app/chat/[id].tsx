@@ -211,7 +211,7 @@ export default function ChatRoomScreen() {
             <MessageBubble
               item={item}
               isMe={isMe}
-              senderName={typeof item.senderId === 'object' ? (item.senderId as any)?.name : 'Usuario'}
+              senderName={typeof item.senderId === 'object' && item.senderId !== null ? (item.senderId as any)?.name : 'Usuario'}
               isOnline={onlineUsers.includes(senderId)}
               onLongPress={handleLongPress}
               onOpenFile={handleOpenFile}

@@ -369,7 +369,8 @@ export default function WorkspaceScreen() {
 
   const renderMessage = ({ item }: { item: MessageMessageType }) => {
     const senderIdStr = extractId(item.senderId);
-    const senderNameStr = typeof item.senderId === 'object' ? (item.senderId as any).name : getMemberName(senderIdStr);
+    const isSenderObject = typeof item.senderId === 'object' && item.senderId !== null;
+    const senderNameStr = isSenderObject ? (item.senderId as any).name : getMemberName(senderIdStr);
     const isSent = senderIdStr === String(currentUserId);
     const isOnline = onlineUsers.includes(senderIdStr);
 
