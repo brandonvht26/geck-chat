@@ -2,7 +2,6 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
   Text,
-  TextInput,
   FlatList,
   TouchableOpacity,
   StyleSheet,
@@ -27,6 +26,8 @@ import { SocketService } from '@/src/services/socket.service';
 import { useSocket } from '@/src/context/SocketContext';
 import { getUserChats, getChatMessages, editMessage, deleteMessage, sendAudioMessage, ChatMessage as ChatMessageType } from '@/src/services/chat.service';
 import { sendFileMessage } from '@/src/services/chat.service';
+import MessageBubble from '@/src/components/chat/MessageBubble';
+import ChatInput from '@/src/components/chat/ChatInput';
 
 interface WorkspaceParams {
   id: string;
@@ -44,43 +45,40 @@ interface MessageReceivedPayload {
 const AudioPlayer = ({ fileUrl, isSent }: { fileUrl: string, isSent: boolean }) => {
   const [sound, setSound] = useState<Audio.Sound | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [durationText, setDurationText] = useState("0:00");
 
   async function playSound() {
     if (sound) {
-      if (isPlaying) {
-        await sound.pauseAsync();
-        setIsPlaying(false);
-      } else {
-        await sound.playAsync();
-        setIsPlaying(true);
-      }
+      if (isPlaying) { await sound.pauseAsync(); setIsPlaying(false); } 
+      else { await sound.playAsync(); setIsPlaying(true); }
     } else {
       const { sound: newSound } = await Audio.Sound.createAsync(
-        { uri: fileUrl },
-        { shouldPlay: true }
+        { uri: fileUrl }, 
+        { shouldPlay: true, isLooping: false }
       );
-      setSound(newSound);
-      setIsPlaying(true);
-      newSound.setOnPlaybackStatusUpdate((status) => {
-        if (status.isLoaded && status.didJustFinish) {
-          setIsPlaying(false);
-          newSound.setPositionAsync(0);
+      setSound(newSound); setIsPlaying(true);
+      newSound.setOnPlaybackStatusUpdate((status: any) => {
+        if (status.isLoaded) {
+          if (status.durationMillis) {
+            const totalSeconds = Math.floor(status.durationMillis / 1000);
+            const minutes = Math.floor(totalSeconds / 60);
+            const seconds = totalSeconds % 60;
+            setDurationText(`${minutes}:${seconds < 10 ? '0' : ''}${seconds}`);
+          }
+          if (status.didJustFinish) { 
+            setIsPlaying(false); 
+            newSound.setPositionAsync(0); 
+          }
         }
       });
     }
   }
-
-  useEffect(() => {
-    return sound ? () => { sound.unloadAsync(); } : undefined;
-  }, [sound]);
-
+  useEffect(() => { return sound ? () => { sound.unloadAsync(); } : undefined; }, [sound]);
   return (
-    <TouchableOpacity
-      style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: isSent ? 'rgba(255,255,255,0.2)' : '#f0f0f0', padding: 8, borderRadius: 20, width: 150 }}
-      onPress={playSound}
-    >
+    <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: isSent ? 'rgba(255,255,255,0.2)' : '#f0f0f0', padding: 8, borderRadius: 20, minWidth: 120 }} onPress={playSound}>
       <Feather name={isPlaying ? "pause" : "play"} size={24} color={isSent ? '#fff' : '#007AFF'} />
-      <View style={{ flex: 1, height: 2, backgroundColor: isSent ? '#fff' : '#007AFF', marginLeft: 8 }} />
+      <View style={{ flex: 1, height: 2, backgroundColor: isSent ? '#fff' : '#007AFF', marginHorizontal: 8 }} />
+      <Text style={{ fontSize: 12, color: isSent ? '#fff' : '#666', fontWeight: '500' }}>{durationText}</Text>
     </TouchableOpacity>
   );
 };
@@ -107,12 +105,13 @@ export default function WorkspaceScreen() {
   const [selectedMsgOptions, setSelectedMsgOptions] = useState<MessageMessageType | null>(null);
   const [recording, setRecording] = useState<Audio.Recording | null>(null);
   const [isRecording, setIsRecording] = useState(false);
+  const startTimeRef = useRef(0);
   const [showMembersModal, setShowMembersModal] = useState(false);
 
   const { user } = useAuth();
 
   const queryClient = useQueryClient();
-  const { data: messages = [] } = useChatMessages(currentChatId);
+  const { data: messages = [], isLoading: isMessagesLoading } = useChatMessages(currentChatId);
 
   useEffect(() => {
     if (user) {
@@ -329,6 +328,8 @@ export default function WorkspaceScreen() {
       const { recording } = await Audio.Recording.createAsync(Audio.RecordingOptionsPresets.HIGH_QUALITY);
       setRecording(recording);
       setIsRecording(true);
+      startTimeRef.current = Date.now();
+      try { require('expo-haptics').impactAsync(); } catch {}
     } catch (err) {
       console.error('Error al iniciar grabación', err);
     }
@@ -337,11 +338,19 @@ export default function WorkspaceScreen() {
   const stopRecording = async () => {
     if (!recording || !currentChatId) return;
     setIsRecording(false);
+    const elapsed = Date.now() - startTimeRef.current;
+    if (elapsed < 500) {
+      try { await recording.stopAndUnloadAsync(); } catch {}
+      setRecording(null);
+      return;
+    }
     try {
-      await recording.stopAndUnloadAsync();
+      try { await recording.stopAndUnloadAsync(); } catch (e) {
+        setRecording(null);
+        return;
+      }
       const uri = recording.getURI();
-      const status = await recording.getStatusAsync();
-      const duration = status.durationMillis / 1000;
+      const duration = elapsed / 1000;
 
       setRecording(null);
 
@@ -363,91 +372,36 @@ export default function WorkspaceScreen() {
     const senderNameStr = typeof item.senderId === 'object' ? (item.senderId as any).name : getMemberName(senderIdStr);
     const isSent = senderIdStr === String(currentUserId);
     const isOnline = onlineUsers.includes(senderIdStr);
-    const msgType = (item as any).type;
 
     const dbReadBy = Array.isArray((item as any).readBy) ? (item as any).readBy.map(extractId) : [];
     const otherMembers = members.filter(m => extractId(m._id) !== String(currentUserId));
-
     const isReadByAll = (otherMembers.length > 0 && otherMembers.every(m => dbReadBy.includes(extractId(m._id)))) || ((item as any).status === 'read');
 
-    const checkIcon = isReadByAll ? 'checkmark-done' : 'checkmark';
-    const checkColor = isReadByAll ? '#34b7f1' : (isSent ? 'rgba(255,255,255,0.7)' : '#999');
-
-    if (msgType === 'audio') {
-      return (
-        <TouchableOpacity activeOpacity={0.7} onLongPress={() => handleLongPress(item)} style={[styles.messageWrapper, isSent ? styles.sentWrapper : styles.receivedWrapper]}>
-          {!isSent && (
-            <View style={styles.senderRow}>
-              <Text style={styles.senderName}>{senderNameStr}</Text>
-              {isOnline && <View style={styles.senderOnlineDot} />}
-            </View>
-          )}
-          <View style={[styles.messageBubble, isSent ? styles.sentBubble : styles.receivedBubble]}>
-            <AudioPlayer fileUrl={(item as any).fileUrl} isSent={isSent} />
-            <View style={{ flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', marginTop: 4, gap: 4 }}>
-              <Text style={[styles.messageTime, !isSent && { color: '#999' }]}>
-                {new Date(item.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })}
-              </Text>
-              {isSent && <Ionicons name={checkIcon} size={16} color={checkColor} />}
-            </View>
-          </View>
-        </TouchableOpacity>
-      );
-    }
-
-    if (msgType === 'file') {
-      return (
-        <TouchableOpacity onPress={() => handleOpenFile(item)} onLongPress={() => handleLongPress(item)} style={[styles.messageWrapper, isSent ? styles.sentWrapper : styles.receivedWrapper]}>
-          <View style={[styles.messageBubble, isSent ? styles.sentBubble : styles.receivedBubble]}>
-            <Text style={{ fontSize: 24, marginBottom: 4 }}>📄</Text>
-            <Text style={[styles.messageText, isSent ? styles.sentText : styles.receivedText, { fontWeight: '500' }]}>
-              {item.contenido || item.content}
-            </Text>
-          </View>
-        </TouchableOpacity>
-      );
-    }
-
     return (
-      <TouchableOpacity
-        activeOpacity={0.7}
-        onLongPress={() => handleLongPress(item)}
-        style={[styles.messageWrapper, isSent ? styles.sentWrapper : styles.receivedWrapper]}
-      >
-        {!isSent && (
-          <View style={styles.senderRow}>
-            <Text style={styles.senderName}>{senderNameStr}</Text>
-            {isOnline && <View style={styles.senderOnlineDot} />}
-          </View>
-        )}
-        <View style={[styles.messageBubble, isSent ? styles.sentBubble : styles.receivedBubble]}>
-          <Text style={[styles.messageText, isSent ? styles.sentText : styles.receivedText]}>
-            {item.content || item.contenido}
-          </Text>
-          <View style={{ flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', marginTop: 4, gap: 4 }}>
-            <Text style={[styles.messageTime, !isSent && { color: '#999' }]}>
-              {new Date(item.createdAt).toLocaleTimeString([], {
-                hour: '2-digit',
-                minute: '2-digit',
-                hour12: false,
-              })}
-            </Text>
-            {isSent && (
-              <Ionicons name={checkIcon} size={16} color={checkColor} />
-            )}
-          </View>
-        </View>
-      </TouchableOpacity>
+      <MessageBubble
+        item={item}
+        isMe={isSent}
+        senderName={senderNameStr}
+        isOnline={isOnline}
+        onLongPress={handleLongPress}
+        onOpenFile={handleOpenFile}
+        checkIcon={isReadByAll ? 'checkmark-done' : 'checkmark'}
+        checkColor={isReadByAll ? '#34b7f1' : (isSent ? 'rgba(255,255,255,0.7)' : '#999')}
+        AudioPlayerComponent={AudioPlayer}
+      />
     );
   };
 
-  const renderEmpty = () => (
-    <View style={styles.emptyContainer}>
-      <Feather name="message-square" size={48} color="#ccc" />
-      <Text style={styles.emptyText}>Aún no hay mensajes en este escritorio</Text>
-      <Text style={styles.emptySubtext}>Sé el primero en escribir</Text>
-    </View>
-  );
+  const renderEmpty = () => {
+    if (isMessagesLoading) return <View style={[styles.emptyContainer, { transform: [{ scaleY: -1 }] }]}><ActivityIndicator size="large" color="#007AFF" /></View>;
+    return (
+      <View style={[styles.emptyContainer, { transform: [{ scaleY: -1 }] }]}>
+        <Feather name="message-square" size={48} color="#ccc" />
+        <Text style={styles.emptyText}>Aún no hay mensajes en este escritorio</Text>
+        <Text style={styles.emptySubtext}>Sé el primero en escribir</Text>
+      </View>
+    );
+  };
 
   return (
     <KeyboardAvoidingView
@@ -518,44 +472,17 @@ export default function WorkspaceScreen() {
         />
       )}
 
-      <View style={styles.inputContainer}>
-        <TouchableOpacity style={styles.attachButton} onPress={handleAttachFile}>
-          <Text style={styles.attachButtonText}>Adjuntar</Text>
-        </TouchableOpacity>
-        <TextInput
-          style={styles.textInput}
-          value={newMessage}
-          onChangeText={setNewMessage}
-          placeholder={editingMessage ? 'Editando mensaje...' : 'Escribe un mensaje...'}
-          placeholderTextColor="#999"
-          multiline
-          maxLength={500}
-        />
-        {editingMessage && (
-          <TouchableOpacity
-            onPress={() => { setEditingMessage(null); setNewMessage(''); }}
-            style={styles.cancelEditButton}
-          >
-            <Feather name="x" size={20} color="#666" />
-          </TouchableOpacity>
-        )}
-        {newMessage.trim().length > 0 ? (
-          <TouchableOpacity
-            onPress={sendMessage}
-            style={[styles.sendButton, !newMessage.trim() && styles.sendButtonDisabled]}
-            disabled={!newMessage.trim()}
-          >
-            <Feather name={editingMessage ? 'check' : 'send'} size={20} color="#fff" />
-          </TouchableOpacity>
-        ) : (
-          <TouchableOpacity
-            style={[styles.sendButton, { backgroundColor: isRecording ? '#FF3B30' : '#34C759' }]}
-            onPress={isRecording ? stopRecording : startRecording}
-          >
-            <Feather name={isRecording ? "square" : "mic"} size={20} color="#fff" />
-          </TouchableOpacity>
-        )}
-      </View>
+      <ChatInput
+        content={newMessage}
+        setContent={setNewMessage}
+        onSend={sendMessage}
+        onAttach={handleAttachFile}
+        isRecording={isRecording}
+        onStartRecord={startRecording}
+        onStopRecord={stopRecording}
+        isEditing={!!editingMessage}
+        onCancelEdit={() => { setEditingMessage(null); setNewMessage(''); }}
+      />
       <Toast />
 
       <Modal visible={!!selectedMsgOptions} transparent animationType="fade">
@@ -764,113 +691,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#bbb',
     marginTop: 4,
-  },
-  messageWrapper: {
-    marginBottom: 8,
-  },
-  sentWrapper: {
-    alignSelf: 'flex-end',
-  },
-  receivedWrapper: {
-    alignSelf: 'flex-start',
-  },
-  senderRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 4,
-    marginLeft: 4,
-  },
-  senderName: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#555',
-    marginRight: 6,
-  },
-  senderOnlineDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: '#4CAF50',
-  },
-  messageBubble: {
-    maxWidth: '80%',
-    padding: 12,
-    borderRadius: 16,
-  },
-  sentBubble: {
-    backgroundColor: '#007AFF',
-    borderBottomRightRadius: 4,
-  },
-  receivedBubble: {
-    backgroundColor: '#fff',
-    borderBottomLeftRadius: 4,
-  },
-  messageText: {
-    fontSize: 16,
-    lineHeight: 20,
-  },
-  sentText: {
-    color: '#fff',
-  },
-  receivedText: {
-    color: '#333',
-  },
-  messageTime: {
-    fontSize: 10,
-    color: 'rgba(255,255,255,0.7)',
-    marginTop: 4,
-    alignSelf: 'flex-end',
-  },
-  inputContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 12,
-    backgroundColor: '#fff',
-    borderTopWidth: 1,
-    borderTopColor: '#e0e0e0',
-  },
-  attachButton: {
-    marginRight: 8,
-    backgroundColor: '#34C759',
-    borderRadius: 20,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-  },
-  attachButtonText: {
-    color: '#fff',
-    fontWeight: '600',
-  },
-  textInput: {
-    flex: 1,
-    minHeight: 40,
-    maxHeight: 100,
-    backgroundColor: '#f0f0f0',
-    borderRadius: 20,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    fontSize: 16,
-    color: '#333',
-  },
-  sendButton: {
-    marginLeft: 12,
-    width: 40,
-    height: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#007AFF',
-    borderRadius: 20,
-  },
-  sendButtonDisabled: {
-    backgroundColor: '#ccc',
-  },
-  cancelEditButton: {
-    marginLeft: 8,
-    width: 36,
-    height: 36,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#e0e0e0',
-    borderRadius: 18,
   },
   modalOverlay: {
     flex: 1,
