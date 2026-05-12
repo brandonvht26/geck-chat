@@ -1,116 +1,90 @@
-import { useCallback } from 'react';
-import { View, Text, FlatList, TouchableOpacity, ActivityIndicator, StyleSheet, Image } from 'react-native';
-import { useFocusEffect, useRouter } from 'expo-router';
+import { View, Text, TouchableOpacity, ActivityIndicator, Image, FlatList } from 'react-native';
+import { useRouter } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
-import { useQuery } from '@tanstack/react-query';
-import { getUserChats, Chat } from '@/src/services/chat.service';
 import { useAuth } from '@/src/hooks/useAuth';
+import { useUserChats } from '@/src/hooks/queries/useUserChats';
 
 export default function ChatList() {
   const router = useRouter();
-  const authData = useAuth();
-  const user = authData?.user;
+  const { user } = useAuth();
+  
+  const { data: chats = [], isLoading, isRefetching, refetch } = useUserChats();
 
-  const { data: chats = [], isLoading, refetch } = useQuery({
-    queryKey: ['userChats'],
-    queryFn: async () => {
-      const response = await getUserChats();
-      return response?.sort((a, b) =>
-        new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
-      ) || [];
-    }
-  });
+  if (isLoading && !isRefetching) {
+    return (
+      <View className="flex-1 justify-center items-center bg-white dark:bg-authEnd-dark">
+        <ActivityIndicator size="large" className="text-primary dark:text-primary-dark" />
+      </View>
+    );
+  }
 
-  useFocusEffect(
-    useCallback(() => {
-      refetch();
-    }, [refetch])
-  );
-
-  // 3. LA FACHADA (Renderizado visual)
   return (
-    <View style={styles.container}>
+    <View className="flex-1 bg-white dark:bg-authEnd-dark">
+      <FlatList
+        data={chats}
+        refreshing={isRefetching}
+        onRefresh={refetch}
+        ListEmptyComponent={
+          <Text className="text-center mt-5 text-gray-500 dark:text-gray-400">
+            No tienes conversaciones
+          </Text>
+        }
+        keyExtractor={(item, index) => item._id ? item._id.toString() : index.toString()}
+        renderItem={({ item }) => {
+          const otherUser = item.isGroup ? null : item.participants?.find((p: any) =>
+            (p?._id || p) !== (user?._id)
+          );
 
-      {isLoading ? (
-        <ActivityIndicator size="large" color="#007AFF" style={{ marginTop: 20 }} />
-      ) : (
-        <FlatList
-          data={chats}
-          keyExtractor={(item, index) => item._id ? item._id.toString() : index.toString()}
-          ListEmptyComponent={<Text style={styles.emptyText}>No tienes conversaciones</Text>}
-          renderItem={({ item }) => {
-            // 1. SACAMOS AL USUARIO AL PASILLO (Variable Global de la tarjeta)
-            const otherUser = item.isGroup ? null : item.participants?.find(p =>
-              (p?._id || p) !== (user?._id)
-            );
+          const displayTitle = item.isGroup
+            ? item.workspaceId?.name || 'Grupo sin nombre'
+            : otherUser?.name || otherUser?.username || 'Usuario';
 
-            // 2. Lógica para determinar el título
-            let displayTitle = 'Chat';
-            if (item.isGroup) {
-              displayTitle = item.workspaceId?.name || 'Grupo sin nombre';
-            } else {
-              displayTitle = otherUser?.name || otherUser?.username || 'Usuario';
-            }
+          const imageUrl = item.isGroup
+            ? item.workspaceId?.imageUrl
+            : otherUser?.avatarUrl || otherUser?.profilePicture;
 
-            // 3. Determinar la URL de la imagen
-            const imageUrl = item.isGroup
-              ? item.workspaceId?.imageUrl
-              : otherUser?.avatarUrl || otherUser?.profilePicture;
+          const lastMsgText = typeof item.lastMessage === 'string'
+            ? item.lastMessage
+            : (item.lastMessage?.content || item.lastMessage?.contenido || 'Envía un mensaje para iniciar...');
 
-            return (
-              <TouchableOpacity
-                style={styles.chatCard}
-                onPress={() => {
-                  if (item.isGroup) {
-                    const wsId = typeof item.workspaceId === 'object' ? item.workspaceId._id : item.workspaceId;
-                    const wsName = typeof item.workspaceId === 'object' ? item.workspaceId.name : 'Grupo';
-                    router.push(`/workspace/${wsId}?name=${encodeURIComponent(wsName)}`);
-                  } else {
-                    router.push(`/chat/${item._id}`);
-                  }
-                }}
-              >
-                {/* 4. Renderizado condicional del Avatar */}
-                {imageUrl ? (
-                  <Image
-                    source={{ uri: imageUrl }}
-                    style={styles.avatar}
-                    resizeMode="cover"
-                  />
-                ) : (
-                  <View style={[styles.avatar, { backgroundColor: item.isGroup ? '#E3F2FD' : '#F5F5F5' }]}>
-                    <Feather name={item.isGroup ? "users" : "user"} size={24} color={item.isGroup ? "#1976D2" : "#757575"} />
-                  </View>
-                )}
-
-                {/* Textos */}
-                <View style={styles.textContainer}>
-                  <Text style={styles.chatTitle}>{displayTitle}</Text>
-                  <Text style={styles.lastMessage} numberOfLines={1}>
-                    {typeof item.lastMessage === 'string'
-                      ? item.lastMessage
-                      : (item.lastMessage?.content || item.lastMessage?.contenido || 'Envía un mensaje para iniciar...')}
-                  </Text>
+          return (
+            <TouchableOpacity
+              className="flex-row p-4 items-center border-b border-gray-200 dark:border-gray-800"
+              onPress={() => {
+                if (item.isGroup) {
+                  const wsId = typeof item.workspaceId === 'object' ? item.workspaceId._id : item.workspaceId;
+                  router.push(`/workspace/${wsId}?name=${encodeURIComponent(displayTitle)}`);
+                } else {
+                  router.push(`/chat/${item._id}`);
+                }
+              }}
+            >
+              {imageUrl ? (
+                <Image
+                  source={{ uri: imageUrl }}
+                  className="w-12 h-12 rounded-full mr-4"
+                  resizeMode="cover"
+                />
+              ) : (
+                <View className={`w-12 h-12 rounded-full justify-center items-center mr-4 ${item.isGroup ? 'bg-blue-100 dark:bg-blue-900/40' : 'bg-gray-100 dark:bg-gray-800'}`}>
+                  <Feather name={item.isGroup ? "users" : "user"} size={24} color={item.isGroup ? "#1976D2" : "#757575"} />
                 </View>
+              )}
 
-                <Feather name="chevron-right" size={20} color="#ccc" />
-              </TouchableOpacity>
-            );
-          }}
-        />
-      )}
+              <View className="flex-1">
+                <Text className="text-base font-semibold text-textMain dark:text-textMain-dark">
+                  {displayTitle}
+                </Text>
+                <Text className="text-sm text-gray-500 dark:text-gray-400 mt-1" numberOfLines={1}>
+                  {lastMsgText}
+                </Text>
+              </View>
+
+              <Feather name="chevron-right" size={20} className="text-gray-400 dark:text-gray-600" />
+            </TouchableOpacity>
+          );
+        }}
+      />
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#fff' },
-  reloadButton: { backgroundColor: '#007AFF', padding: 10, margin: 10, borderRadius: 8 },
-  reloadText: { color: 'white', textAlign: 'center', fontWeight: '600' },
-  emptyText: { textAlign: 'center', marginTop: 20, color: '#888' },
-  chatCard: { flexDirection: 'row', padding: 16, borderBottomWidth: 1, borderBottomColor: '#f0f0f0', alignItems: 'center' },
-  avatar: { width: 50, height: 50, borderRadius: 25, justifyContent: 'center', alignItems: 'center', marginRight: 15 },
-  textContainer: { flex: 1 },
-  chatTitle: { fontSize: 16, fontWeight: '600', color: '#333' },
-  lastMessage: { fontSize: 14, color: '#888', marginTop: 4 }
-});

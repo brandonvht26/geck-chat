@@ -19,6 +19,8 @@ import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import Toast from 'react-native-toast-message';
+import { useQueryClient } from '@tanstack/react-query';
+import { useChatMessages } from '@/src/hooks/queries/useChatMessages';
 import { useAuth } from '@/src/hooks/useAuth';
 import { api } from '@/src/services/api';
 import { SocketService } from '@/src/services/socket.service';
@@ -95,7 +97,6 @@ export default function WorkspaceScreen() {
   const router = useRouter();
   const flatListRef = useRef<FlatList<MessageMessageType>>(null);
 
-  const [messages, setMessages] = useState<MessageMessageType[]>([]);
   const [currentChatId, setCurrentChatId] = useState<string | null>(null);
   const [newMessage, setNewMessage] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -109,6 +110,9 @@ export default function WorkspaceScreen() {
   const [showMembersModal, setShowMembersModal] = useState(false);
 
   const { user } = useAuth();
+
+  const queryClient = useQueryClient();
+  const { data: messages = [] } = useChatMessages(currentChatId);
 
   useEffect(() => {
     if (user) {
@@ -138,14 +142,7 @@ export default function WorkspaceScreen() {
       if (foundChat) {
         setCurrentChatId(foundChat._id);
         setMembers(foundChat.participants || []);
-        const messagesData = await getChatMessages(foundChat._id);
-        const sortedHistory = messagesData.sort((a: any, b: any) =>
-          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-        );
-        setMessages(sortedHistory);
         SocketService.emit('join_chat', foundChat._id);
-      } else {
-        setMessages([]);
       }
     } catch (error) {
       Toast.show({
@@ -177,30 +174,31 @@ export default function WorkspaceScreen() {
           contenido: payload.content,
           createdAt: payload.createdAt,
         };
-        setMessages((prev) => [message, ...prev]);
+        queryClient.setQueryData(['chatMessages', currentChatId], (old: MessageMessageType[] | undefined) => {
+          if (!old) return [message];
+          const exists = old.some(msg => msg._id === message._id);
+          return exists ? old : [message, ...old];
+        });
       }
     };
 
     const handleChatRead = (payload: any) => {
-      setMessages(prev => prev.map(msg => {
-        const isMatch = payload.messageId
-          ? msg._id === payload.messageId
-          : ((msg as any).chatId === payload.chatId || payload.chatId === currentChatId);
-
-        if (isMatch) {
-          const currentReadBy = Array.isArray((msg as any).readBy) ? (msg as any).readBy : [];
-          const newReadBy = payload.userId
-            ? [...new Set([...currentReadBy, payload.userId])]
-            : currentReadBy;
-
-          return {
-            ...msg,
-            readBy: newReadBy,
-            status: 'read'
-          };
-        }
-        return msg;
-      }));
+      queryClient.setQueryData(['chatMessages', currentChatId], (old: MessageMessageType[] | undefined) => {
+        if (!old) return [];
+        return old.map(msg => {
+          const isMatch = payload.messageId 
+            ? msg._id === payload.messageId 
+            : ((msg as any).chatId === payload.chatId || payload.chatId === currentChatId);
+          if (isMatch) {
+            const currentReadBy = Array.isArray((msg as any).readBy) ? (msg as any).readBy : [];
+            const newReadBy = payload.userId 
+              ? [...new Set([...currentReadBy, payload.userId])] 
+              : currentReadBy;
+            return { ...msg, readBy: newReadBy, status: 'read' };
+          }
+          return msg;
+        });
+      });
     };
 
     SocketService.on('message_received', handleMessageReceived);
@@ -229,7 +227,6 @@ export default function WorkspaceScreen() {
 
     let infoText = '';
 
-    // Si el backend mandó el status 'read' global pero NO mandó los IDs en readBy
     if (msgStatus === 'read' && dbReadBy.length === 0) {
       infoText = '✓✓ Visto (El servidor no guardó quién lo leyó)\n\n';
       infoText += otherMembers.map(m => `○ (Desconocido) ${m.name || m.username || 'Usuario'}`).join('\n');
@@ -253,7 +250,11 @@ export default function WorkspaceScreen() {
       if (result.canceled) return;
       const asset = result.assets[0];
       const newMsg = await sendFileMessage(currentChatId as string, asset.uri, asset.name, asset.mimeType || 'application/octet-stream');
-      setMessages(prev => [newMsg, ...prev]);
+      queryClient.setQueryData(['chatMessages', currentChatId], (old: MessageMessageType[] | undefined) => {
+        if (!old) return [newMsg];
+        const exists = old.some(msg => msg._id === newMsg._id);
+        return exists ? old : [newMsg, ...old];
+      });
     } catch (error) {
       console.error('Error attaching file:', error);
     }
@@ -283,9 +284,9 @@ export default function WorkspaceScreen() {
     if (editingMessage) {
       try {
         const updated = await editMessage(editingMessage._id, cleanedMessage);
-        setMessages(prev => prev.map(msg =>
-          msg._id === editingMessage._id ? updated : msg
-        ));
+        queryClient.setQueryData(['chatMessages', currentChatId], (old: MessageMessageType[] | undefined) => 
+          old ? old.map(msg => msg._id === editingMessage._id ? updated : msg) : []
+        );
         setNewMessage('');
         setEditingMessage(null);
       } catch {
@@ -308,19 +309,18 @@ export default function WorkspaceScreen() {
       createdAt: new Date().toISOString(),
     };
 
-    setMessages(prev => [localMsg, ...prev]);
+    queryClient.setQueryData(['chatMessages', currentChatId], (old: MessageMessageType[] | undefined) => 
+      old ? [localMsg, ...old] : [localMsg]
+    );
 
     try {
       await api.post('/api/chat/message', msgData);
       SocketService.emit('new_message', msgData);
       setNewMessage('');
     } catch (error) {
-      Toast.show({
-        type: 'error',
-        text1: 'Error enviando mensaje',
-      });
+      Toast.show({ type: 'error', text1: 'Error enviando mensaje' });
     }
-  }, [newMessage, currentChatId, editingMessage, currentUserId]);
+  }, [newMessage, currentChatId, editingMessage, currentUserId, queryClient]);
 
   const startRecording = async () => {
     try {
@@ -347,9 +347,10 @@ export default function WorkspaceScreen() {
 
       if (uri) {
         const newMsg = await sendAudioMessage(currentChatId, uri, duration);
-        setMessages(prev => {
-          const exists = prev.some(msg => msg._id === newMsg._id);
-          return exists ? prev : [newMsg, ...prev];
+        queryClient.setQueryData(['chatMessages', currentChatId], (old: MessageMessageType[] | undefined) => {
+          if (!old) return [newMsg];
+          const exists = old.some(msg => msg._id === newMsg._id);
+          return exists ? old : [newMsg, ...old];
         });
       }
     } catch (error) {
@@ -367,7 +368,6 @@ export default function WorkspaceScreen() {
     const dbReadBy = Array.isArray((item as any).readBy) ? (item as any).readBy.map(extractId) : [];
     const otherMembers = members.filter(m => extractId(m._id) !== String(currentUserId));
 
-    // Verifica si TODOS los demás están en el arreglo readBy, O si el status global es 'read'
     const isReadByAll = (otherMembers.length > 0 && otherMembers.every(m => dbReadBy.includes(extractId(m._id)))) || ((item as any).status === 'read');
 
     const checkIcon = isReadByAll ? 'checkmark-done' : 'checkmark';
@@ -581,7 +581,10 @@ export default function WorkspaceScreen() {
               const msgId = selectedMsgOptions!._id;
               setSelectedMsgOptions(null);
               await deleteMessage(msgId, 'for_me');
-              setMessages(prev => prev.filter(msg => msg._id !== msgId));
+              queryClient.setQueryData(['chatMessages', currentChatId], (old: MessageMessageType[] | undefined) => {
+                if (!old) return [];
+                return old.filter(msg => msg._id !== msgId);
+              });
             }}>
               <Feather name="trash" size={20} color="#FF3B30" />
               <Text style={[styles.modalButtonText, { color: '#FF3B30' }]}>Eliminar para mí</Text>
@@ -591,7 +594,10 @@ export default function WorkspaceScreen() {
               const msgId = selectedMsgOptions!._id;
               setSelectedMsgOptions(null);
               await deleteMessage(msgId, 'for_all');
-              setMessages(prev => prev.map(msg => msg._id === msgId ? { ...msg, contenido: 'Mensaje eliminado' } : msg));
+              queryClient.setQueryData(['chatMessages', currentChatId], (old: MessageMessageType[] | undefined) => {
+                if (!old) return [];
+                return old.map(msg => msg._id === msgId ? { ...msg, contenido: 'Mensaje eliminado' } : msg);
+              });
             }}>
               <Feather name="trash-2" size={20} color="#FF3B30" />
               <Text style={[styles.modalButtonText, { color: '#FF3B30' }]}>Eliminar para todos</Text>

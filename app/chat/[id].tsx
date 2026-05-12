@@ -6,7 +6,9 @@ import { useLocalSearchParams } from 'expo-router';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
-import { getChatMessages, sendMessage, sendFileMessage, sendAudioMessage, editMessage, deleteMessage, ChatMessage } from '@/src/services/chat.service';
+import { useQueryClient } from '@tanstack/react-query';
+import { useChatMessages } from '@/src/hooks/queries/useChatMessages';
+import { sendMessage, sendFileMessage, sendAudioMessage, editMessage, deleteMessage, ChatMessage } from '@/src/services/chat.service';
 import { SocketService } from '@/src/services/socket.service';
 import { useAuth } from '@/src/hooks/useAuth';
 import { useSocket } from '@/src/context/SocketContext';
@@ -57,7 +59,6 @@ const AudioPlayer = ({ fileUrl, isMyMessage }: { fileUrl: string, isMyMessage: b
 
 export default function ChatRoomScreen() {
   const { id } = useLocalSearchParams();
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [content, setContent] = useState('');
   const [currentUserId, setCurrentUserId] = useState<string>('');
   const flatListRef = useRef<FlatList>(null);
@@ -68,6 +69,9 @@ export default function ChatRoomScreen() {
   const [recording, setRecording] = useState<Audio.Recording | null>(null);
   const [isRecording, setIsRecording] = useState(false);
 
+  const queryClient = useQueryClient();
+  const { data: messages = [] } = useChatMessages(id as string);
+
   useEffect(() => {
     if (user) {
       setCurrentUserId(user._id);
@@ -75,23 +79,9 @@ export default function ChatRoomScreen() {
   }, [user]);
 
   useEffect(() => {
-    const init = async () => {
-      try {
-        if (id) {
-          const history = await getChatMessages(id as string);
-          const sortedHistory = history.sort((a, b) =>
-            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-          );
-          setMessages(sortedHistory);
-
-          SocketService.emit('join_chat', id as string);
-        }
-      } catch (error) {
-        console.error('Error initializing chat:', error);
-      }
-    };
-    init();
-
+    if (id) {
+      SocketService.emit('join_chat', id as string);
+    }
     return () => {
       if (id) {
         SocketService.emit('leave_chat', id as string);
@@ -108,26 +98,27 @@ export default function ChatRoomScreen() {
   useEffect(() => {
     const handleNewMessage = (newMessage: ChatMessage) => {
       const chatId = (newMessage as any).chatId || (newMessage as any).workspaceId || (newMessage as any).roomId;
-      if (chatId?.toString() !== id?.toString()) {
-        return;
-      }
-      setMessages(prev => {
-        const exists = prev.some(msg => msg._id === newMessage._id);
-        if (exists) return prev;
-        return [newMessage, ...prev];
+      if (chatId?.toString() !== id?.toString()) return;
+      
+      queryClient.setQueryData(['chatMessages', id], (oldData: ChatMessage[] | undefined) => {
+        if (!oldData) return [newMessage];
+        const exists = oldData.some(msg => msg._id === newMessage._id);
+        return exists ? oldData : [newMessage, ...oldData];
       });
     };
 
     const handleStatusUpdate = (payload: any) => {
-      setMessages(prev => prev.map(m =>
-        m._id === payload.messageId ? { ...m, status: payload.status } : m
-      ));
+      queryClient.setQueryData(['chatMessages', id], (oldData: ChatMessage[] | undefined) => {
+        if (!oldData) return [];
+        return oldData.map(m => m._id === payload.messageId ? { ...m, status: payload.status } : m);
+      });
     };
 
     const handleChatRead = (payload: any) => {
-      setMessages(prev => prev.map(m =>
-        (m as any).chatId === payload.chatId ? { ...m, status: 'read' } : m
-      ));
+      queryClient.setQueryData(['chatMessages', id], (oldData: ChatMessage[] | undefined) => {
+        if (!oldData) return [];
+        return oldData.map(m => (m as any).chatId === payload.chatId ? { ...m, status: 'read' } : m);
+      });
     };
 
     SocketService.on('receive_message', handleNewMessage);
@@ -142,17 +133,22 @@ export default function ChatRoomScreen() {
   }, [id]);
 
   const handleSendMessage = async () => {
-    if (!content.trim() || !id) return;
+    const cleanedMessage = content.trim();
+    if (!cleanedMessage || !id) return;
+    
     try {
       if (editingMessage) {
-        const updatedMsg = await editMessage(editingMessage._id, content);
-        setMessages(prev => prev.map(m => m._id === editingMessage._id ? { ...m, content: updatedMsg.content || updatedMsg.contenido } : m));
+        const updatedMsg = await editMessage(editingMessage._id, cleanedMessage);
+        queryClient.setQueryData(['chatMessages', id], (old: ChatMessage[] | undefined) => 
+          old ? old.map(m => m._id === editingMessage._id ? { ...m, content: updatedMsg.content || updatedMsg.contenido } : m) : []
+        );
         setEditingMessage(null);
       } else {
-        const newMsg = await sendMessage(id as string, content);
-        setMessages(prev => {
-          const exists = prev.some(msg => msg._id === newMsg._id);
-          return exists ? prev : [newMsg, ...prev];
+        const newMsg = await sendMessage(id as string, cleanedMessage);
+        queryClient.setQueryData(['chatMessages', id], (old: ChatMessage[] | undefined) => {
+          if (!old) return [newMsg];
+          const exists = old.some(msg => msg._id === newMsg._id);
+          return exists ? old : [newMsg, ...old];
         });
       }
       setContent('');
@@ -172,10 +168,10 @@ export default function ChatRoomScreen() {
 
       const asset = result.assets[0];
       const newMsg = await sendFileMessage(id as string, asset.uri, asset.name, asset.mimeType);
-      setMessages(prev => {
-        const exists = prev.some(msg => msg._id === newMsg._id);
-        if (exists) return prev;
-        return [newMsg, ...prev];
+      queryClient.setQueryData(['chatMessages', id], (old: ChatMessage[] | undefined) => {
+        if (!old) return [newMsg];
+        const exists = old.some(msg => msg._id === newMsg._id);
+        return exists ? old : [newMsg, ...old];
       });
     } catch (error) {
       console.error('Error attaching file:', error);
@@ -240,9 +236,10 @@ export default function ChatRoomScreen() {
 
       if (uri && id) {
         const newMsg = await sendAudioMessage(id as string, uri, duration);
-        setMessages(prev => {
-          const exists = prev.some(msg => msg._id === newMsg._id);
-          return exists ? prev : [newMsg, ...prev];
+        queryClient.setQueryData(['chatMessages', id], (old: ChatMessage[] | undefined) => {
+          if (!old) return [newMsg];
+          const exists = old.some(msg => msg._id === newMsg._id);
+          return exists ? old : [newMsg, ...old];
         });
       }
     } catch (error) {
@@ -382,7 +379,10 @@ export default function ChatRoomScreen() {
               const msgId = selectedMsgOptions!._id;
               setSelectedMsgOptions(null);
               await deleteMessage(msgId, 'for_me');
-              setMessages(prev => prev.filter(msg => msg._id !== msgId));
+              queryClient.setQueryData(['chatMessages', id], (old: ChatMessage[] | undefined) => {
+                if (!old) return [];
+                return old.filter(msg => msg._id !== msgId);
+              });
             }}>
               <Feather name="trash" size={20} color="#FF3B30" />
               <Text style={[styles.modalButtonText, { color: '#FF3B30' }]}>Eliminar para mí</Text>
@@ -392,7 +392,10 @@ export default function ChatRoomScreen() {
               const msgId = selectedMsgOptions!._id;
               setSelectedMsgOptions(null);
               await deleteMessage(msgId, 'for_all');
-              setMessages(prev => prev.map(msg => msg._id === msgId ? { ...msg, content: 'Mensaje eliminado', isDeleted: true } : msg));
+              queryClient.setQueryData(['chatMessages', id], (old: ChatMessage[] | undefined) => {
+                if (!old) return [];
+                return old.map(msg => msg._id === msgId ? { ...msg, content: 'Mensaje eliminado', isDeleted: true } : msg);
+              });
             }}>
               <Feather name="trash-2" size={20} color="#FF3B30" />
               <Text style={[styles.modalButtonText, { color: '#FF3B30' }]}>Eliminar para todos</Text>
