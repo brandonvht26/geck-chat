@@ -1,14 +1,59 @@
 import { useEffect, useState, useRef } from 'react';
 import { View, Text, FlatList, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform, Alert, Modal } from 'react-native';
 import { Ionicons, Feather } from '@expo/vector-icons';
+import { Audio } from 'expo-av';
 import { useLocalSearchParams } from 'expo-router';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
-import { getChatMessages, sendMessage, sendFileMessage, editMessage, deleteMessage, ChatMessage } from '@/src/services/chat.service';
+import { getChatMessages, sendMessage, sendFileMessage, sendAudioMessage, editMessage, deleteMessage, ChatMessage } from '@/src/services/chat.service';
 import { SocketService } from '@/src/services/socket.service';
 import { useAuth } from '@/src/hooks/useAuth';
 import { useSocket } from '@/src/context/SocketContext';
+
+const AudioPlayer = ({ fileUrl, isMyMessage }: { fileUrl: string, isMyMessage: boolean }) => {
+  const [sound, setSound] = useState<Audio.Sound | null>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+
+  async function playSound() {
+    if (sound) {
+      if (isPlaying) {
+        await sound.pauseAsync();
+        setIsPlaying(false);
+      } else {
+        await sound.playAsync();
+        setIsPlaying(true);
+      }
+    } else {
+      const { sound: newSound } = await Audio.Sound.createAsync(
+        { uri: fileUrl },
+        { shouldPlay: true }
+      );
+      setSound(newSound);
+      setIsPlaying(true);
+      newSound.setOnPlaybackStatusUpdate((status) => {
+        if (status.isLoaded && status.didJustFinish) {
+          setIsPlaying(false);
+          newSound.setPositionAsync(0);
+        }
+      });
+    }
+  }
+
+  useEffect(() => {
+    return sound ? () => { sound.unloadAsync(); } : undefined;
+  }, [sound]);
+
+  return (
+    <TouchableOpacity 
+      style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: isMyMessage ? 'rgba(255,255,255,0.2)' : '#f0f0f0', padding: 8, borderRadius: 20, width: 150 }} 
+      onPress={playSound}
+    >
+      <Feather name={isPlaying ? "pause" : "play"} size={24} color={isMyMessage ? '#fff' : '#007AFF'} />
+      <View style={{ flex: 1, height: 2, backgroundColor: isMyMessage ? '#fff' : '#007AFF', marginLeft: 8 }} />
+    </TouchableOpacity>
+  );
+};
 
 export default function ChatRoomScreen() {
   const { id } = useLocalSearchParams();
@@ -20,6 +65,8 @@ export default function ChatRoomScreen() {
   const { onlineUsers } = useSocket();
   const [editingMessage, setEditingMessage] = useState<any | null>(null);
   const [selectedMsgOptions, setSelectedMsgOptions] = useState<any | null>(null);
+  const [recording, setRecording] = useState<Audio.Recording | null>(null);
+  const [isRecording, setIsRecording] = useState(false);
 
   useEffect(() => {
     if (user) {
@@ -168,6 +215,41 @@ export default function ChatRoomScreen() {
     }
   };
 
+  const startRecording = async () => {
+    try {
+      await Audio.requestPermissionsAsync();
+      await Audio.setAudioModeAsync({ allowsRecordingIOS: true, playsInSilentModeIOS: true });
+      const { recording } = await Audio.Recording.createAsync(Audio.RecordingOptionsPresets.HIGH_QUALITY);
+      setRecording(recording);
+      setIsRecording(true);
+    } catch (err) {
+      console.error('Failed to start recording', err);
+    }
+  };
+
+  const stopRecording = async () => {
+    if (!recording) return;
+    setIsRecording(false);
+    try {
+      await recording.stopAndUnloadAsync();
+      const uri = recording.getURI();
+      const status = await recording.getStatusAsync();
+      const duration = status.durationMillis / 1000;
+
+      setRecording(null);
+
+      if (uri && id) {
+        const newMsg = await sendAudioMessage(id as string, uri, duration);
+        setMessages(prev => {
+          const exists = prev.some(msg => msg._id === newMsg._id);
+          return exists ? prev : [newMsg, ...prev];
+        });
+      }
+    } catch (error) {
+      console.error('Error enviando audio', error);
+    }
+  };
+
   return (
     <KeyboardAvoidingView
       style={styles.container}
@@ -192,6 +274,19 @@ export default function ChatRoomScreen() {
               <TouchableOpacity onPress={() => Alert.alert('Archivo expirado', 'Este archivo ha superado el límite de 24 horas y fue eliminado del servidor por seguridad.')} style={[styles.messageBubble, isMyMessage ? styles.myMessageExpired : styles.otherMessageExpired]}>
                 <Ionicons name="document-outline" size={24} color="gray" />
                 <Text style={styles.expiredText}>Archivo no disponible / expirado</Text>
+              </TouchableOpacity>
+            );
+          }
+
+          if (msg.type === 'audio') {
+            return (
+              <TouchableOpacity onLongPress={() => handleLongPress(item)} style={[styles.messageBubble, isMyMessage ? styles.myMessage : styles.otherMessage]}>
+                <AudioPlayer fileUrl={msg.fileUrl} isMyMessage={isMyMessage} />
+                <View style={{ flexDirection: 'row', justifyContent: 'flex-end', marginTop: 4 }}>
+                  <Text style={[styles.messageTime, isMyMessage ? { color: 'rgba(255,255,255,0.7)' } : { color: '#999' }]}>
+                    {new Date(item.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })}
+                  </Text>
+                </View>
               </TouchableOpacity>
             );
           }
@@ -255,9 +350,18 @@ export default function ChatRoomScreen() {
           placeholder="Escribe un mensaje..."
           multiline
         />
-        <TouchableOpacity style={styles.sendButton} onPress={handleSendMessage}>
-          <Text style={styles.sendButtonText}>Enviar</Text>
-        </TouchableOpacity>
+        {content.trim().length > 0 ? (
+          <TouchableOpacity style={styles.sendButton} onPress={handleSendMessage}>
+            <Text style={styles.sendButtonText}>Enviar</Text>
+          </TouchableOpacity>
+        ) : (
+          <TouchableOpacity 
+            style={[styles.sendButton, { backgroundColor: isRecording ? '#FF3B30' : '#34C759' }]} 
+            onPress={isRecording ? stopRecording : startRecording}
+          >
+            <Feather name={isRecording ? "square" : "mic"} size={20} color="#fff" />
+          </TouchableOpacity>
+        )}
       </View>
 
       <Modal visible={!!selectedMsgOptions} transparent animationType="fade">

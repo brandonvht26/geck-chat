@@ -1,44 +1,30 @@
-import { useState, useCallback } from 'react';
+import { useCallback } from 'react';
 import { View, Text, FlatList, TouchableOpacity, ActivityIndicator, StyleSheet, Image } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
+import { useQuery } from '@tanstack/react-query';
 import { getUserChats, Chat } from '@/src/services/chat.service';
-import { useAuth } from '@/src/hooks/useAuth'; // Ajusta esta ruta si es diferente
+import { useAuth } from '@/src/hooks/useAuth';
 
 export default function ChatList() {
-  const [chats, setChats] = useState<Chat[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
   const authData = useAuth();
-  console.log("🔑 RADAR HOOK AUTH:", JSON.stringify(authData, null, 2));
-  const user = authData?.user; // Mantenemos esto por si acaso, pero el log nos dirá la verdad
+  const user = authData?.user;
 
-  // 1. LA PLOMERÍA (Lógica de obtención de datos)
-  const fetchChats = useCallback(async () => {
-    console.log("📡 [ChatList] Pidiendo chats al servidor...");
-    setIsLoading(true);
-    try {
+  const { data: chats = [], isLoading, refetch } = useQuery({
+    queryKey: ['userChats'],
+    queryFn: async () => {
       const response = await getUserChats();
-      console.log("✅ [ChatList] Chats recibidos:", response?.length);
-
-      // Ordenamos para que el más reciente salga arriba
-      const sortedChats = response?.sort((a, b) =>
+      return response?.sort((a, b) =>
         new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
       ) || [];
-
-      setChats(sortedChats);
-    } catch (error) {
-      console.error("❌ [ChatList] Error obteniendo chats:", error);
-    } finally {
-      setIsLoading(false);
     }
-  }, []);
+  });
 
-  // 2. EL TIMBRE (Ciclo de vida al volver a la pantalla)
   useFocusEffect(
     useCallback(() => {
-      fetchChats();
-    }, [fetchChats])
+      refetch();
+    }, [refetch])
   );
 
   // 3. LA FACHADA (Renderizado visual)
@@ -74,7 +60,15 @@ export default function ChatList() {
             return (
               <TouchableOpacity
                 style={styles.chatCard}
-                onPress={() => router.push(`/chat/${item._id}`)}
+                onPress={() => {
+                  if (item.isGroup) {
+                    const wsId = typeof item.workspaceId === 'object' ? item.workspaceId._id : item.workspaceId;
+                    const wsName = typeof item.workspaceId === 'object' ? item.workspaceId.name : 'Grupo';
+                    router.push(`/workspace/${wsId}?name=${encodeURIComponent(wsName)}`);
+                  } else {
+                    router.push(`/chat/${item._id}`);
+                  }
+                }}
               >
                 {/* 4. Renderizado condicional del Avatar */}
                 {imageUrl ? (

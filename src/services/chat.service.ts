@@ -134,3 +134,24 @@ export const editMessage = async (messageId: string, content: string): Promise<C
 export const deleteMessage = async (messageId: string, type: 'for_me' | 'for_all'): Promise<void> => {
   await api.delete(`/api/chat/message/${messageId}`, { data: { type } });
 };
+
+export const sendAudioMessage = async (chatId: string, audioUri: string, duration: number) => {
+  const formData = new FormData();
+  formData.append('chatId', chatId);
+  formData.append('duration', Math.floor(duration).toString());
+  formData.append('audio', {
+    uri: audioUri,
+    name: 'voice_note.m4a',
+    type: 'audio/m4a',
+  } as any);
+
+  try {
+    const response = await api.post('/api/chat/chat/audio', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return response.data.message;
+  } catch (error) {
+    console.error('Error sending audio message:', error);
+    throw error;
+  }
+};

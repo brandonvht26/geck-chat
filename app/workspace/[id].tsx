@@ -13,13 +13,18 @@ import {
   Modal,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { Audio } from 'expo-av';
 import { Feather, Ionicons } from '@expo/vector-icons';
+import * as DocumentPicker from 'expo-document-picker';
+import * as FileSystem from 'expo-file-system/legacy';
+import * as Sharing from 'expo-sharing';
 import Toast from 'react-native-toast-message';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useAuth } from '@/src/hooks/useAuth';
 import { api } from '@/src/services/api';
 import { SocketService } from '@/src/services/socket.service';
 import { useSocket } from '@/src/context/SocketContext';
-import { getUserChats, getChatMessages, editMessage, deleteMessage, ChatMessage as ChatMessageType } from '@/src/services/chat.service';
+import { getUserChats, getChatMessages, editMessage, deleteMessage, sendAudioMessage, ChatMessage as ChatMessageType } from '@/src/services/chat.service';
+import { sendFileMessage } from '@/src/services/chat.service';
 
 interface WorkspaceParams {
   id: string;
@@ -34,7 +39,56 @@ interface MessageReceivedPayload {
   _id?: string;
 }
 
-const CURRENT_USER_ID_KEY = '@geckchat_user_id';
+const AudioPlayer = ({ fileUrl, isSent }: { fileUrl: string, isSent: boolean }) => {
+  const [sound, setSound] = useState<Audio.Sound | null>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+
+  async function playSound() {
+    if (sound) {
+      if (isPlaying) {
+        await sound.pauseAsync();
+        setIsPlaying(false);
+      } else {
+        await sound.playAsync();
+        setIsPlaying(true);
+      }
+    } else {
+      const { sound: newSound } = await Audio.Sound.createAsync(
+        { uri: fileUrl },
+        { shouldPlay: true }
+      );
+      setSound(newSound);
+      setIsPlaying(true);
+      newSound.setOnPlaybackStatusUpdate((status) => {
+        if (status.isLoaded && status.didJustFinish) {
+          setIsPlaying(false);
+          newSound.setPositionAsync(0);
+        }
+      });
+    }
+  }
+
+  useEffect(() => {
+    return sound ? () => { sound.unloadAsync(); } : undefined;
+  }, [sound]);
+
+  return (
+    <TouchableOpacity
+      style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: isSent ? 'rgba(255,255,255,0.2)' : '#f0f0f0', padding: 8, borderRadius: 20, width: 150 }}
+      onPress={playSound}
+    >
+      <Feather name={isPlaying ? "pause" : "play"} size={24} color={isSent ? '#fff' : '#007AFF'} />
+      <View style={{ flex: 1, height: 2, backgroundColor: isSent ? '#fff' : '#007AFF', marginLeft: 8 }} />
+    </TouchableOpacity>
+  );
+};
+
+const extractId = (obj: any): string => {
+  if (!obj) return '';
+  if (typeof obj === 'string') return obj;
+  if (typeof obj === 'object' && obj._id) return String(obj._id);
+  return String(obj);
+};
 
 export default function WorkspaceScreen() {
   const { id, name } = useLocalSearchParams<WorkspaceParams>();
@@ -50,6 +104,17 @@ export default function WorkspaceScreen() {
   const [editingMessage, setEditingMessage] = useState<MessageMessageType | null>(null);
   const [readBy, setReadBy] = useState<Record<string, string[]>>({});
   const [selectedMsgOptions, setSelectedMsgOptions] = useState<MessageMessageType | null>(null);
+  const [recording, setRecording] = useState<Audio.Recording | null>(null);
+  const [isRecording, setIsRecording] = useState(false);
+  const [showMembersModal, setShowMembersModal] = useState(false);
+
+  const { user } = useAuth();
+
+  useEffect(() => {
+    if (user) {
+      setCurrentUserId(user._id);
+    }
+  }, [user]);
 
   const { onlineUsers } = useSocket();
   const onlineCount = members.filter(m => onlineUsers.includes(m._id)).length;
@@ -74,7 +139,10 @@ export default function WorkspaceScreen() {
         setCurrentChatId(foundChat._id);
         setMembers(foundChat.participants || []);
         const messagesData = await getChatMessages(foundChat._id);
-        setMessages(messagesData);
+        const sortedHistory = messagesData.sort((a: any, b: any) =>
+          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        );
+        setMessages(sortedHistory);
         SocketService.emit('join_chat', foundChat._id);
       } else {
         setMessages([]);
@@ -90,11 +158,6 @@ export default function WorkspaceScreen() {
   }, [id]);
 
   useEffect(() => {
-    const initUser = async () => {
-      const userId = await AsyncStorage.getItem(CURRENT_USER_ID_KEY);
-      setCurrentUserId(userId);
-    };
-    initUser();
     loadWorkspaceChat();
   }, [loadWorkspaceChat]);
 
@@ -114,17 +177,30 @@ export default function WorkspaceScreen() {
           contenido: payload.content,
           createdAt: payload.createdAt,
         };
-        setMessages((prev) => [...prev, message]);
+        setMessages((prev) => [message, ...prev]);
       }
     };
 
     const handleChatRead = (payload: any) => {
-      if (payload.messageId) {
-        setReadBy(prev => ({
-          ...prev,
-          [payload.messageId]: [...new Set([...(prev[payload.messageId] || []), payload.userId])],
-        }));
-      }
+      setMessages(prev => prev.map(msg => {
+        const isMatch = payload.messageId
+          ? msg._id === payload.messageId
+          : ((msg as any).chatId === payload.chatId || payload.chatId === currentChatId);
+
+        if (isMatch) {
+          const currentReadBy = Array.isArray((msg as any).readBy) ? (msg as any).readBy : [];
+          const newReadBy = payload.userId
+            ? [...new Set([...currentReadBy, payload.userId])]
+            : currentReadBy;
+
+          return {
+            ...msg,
+            readBy: newReadBy,
+            status: 'read'
+          };
+        }
+        return msg;
+      }));
     };
 
     SocketService.on('message_received', handleMessageReceived);
@@ -145,32 +221,68 @@ export default function WorkspaceScreen() {
 
   const showInfoAction = useCallback(() => {
     if (!selectedMsgOptions) return;
-    const readUserIds = readBy[selectedMsgOptions._id] || [];
+
+    const dbReadBy = Array.isArray((selectedMsgOptions as any).readBy) ? (selectedMsgOptions as any).readBy.map(extractId) : [];
     const msgStatus = (selectedMsgOptions as any).status;
+    const otherMembers = members.filter(m => extractId(m._id) !== String(currentUserId));
+    const hasEveryoneRead = otherMembers.length > 0 && otherMembers.every(m => dbReadBy.includes(extractId(m._id)));
+
     let infoText = '';
 
-    if (msgStatus === 'read') {
-      infoText = '✓✓ Visto por todos los miembros';
+    // Si el backend mandó el status 'read' global pero NO mandó los IDs en readBy
+    if (msgStatus === 'read' && dbReadBy.length === 0) {
+      infoText = '✓✓ Visto (El servidor no guardó quién lo leyó)\n\n';
+      infoText += otherMembers.map(m => `○ (Desconocido) ${m.name || m.username || 'Usuario'}`).join('\n');
     } else {
-      const readCount = readUserIds.length;
-      infoText = members.map(m => {
-        const hasRead = readUserIds.includes(m._id);
-        return `${hasRead ? '✓' : '○'} ${m.name || m.username || 'Usuario'}`;
-      }).join('\n');
-      if (readCount > 0) {
-        infoText = `${readCount} de ${members.length} lo han visto\n\n${infoText}`;
+      if (hasEveryoneRead && otherMembers.length > 0) {
+        infoText = '✓✓ Visto por todos los miembros\n\n';
       }
+      infoText += otherMembers.map(m => {
+        const hasRead = dbReadBy.includes(extractId(m._id));
+        return `${hasRead ? '✓✓ (Visto)' : '✓ (Enviado)'} ${m.name || m.username || 'Usuario'}`;
+      }).join('\n');
     }
+
     setSelectedMsgOptions(null);
     Alert.alert('Info. del mensaje', infoText, [{ text: 'Cerrar' }]);
-  }, [selectedMsgOptions, readBy, members]);
+  }, [selectedMsgOptions, members, currentUserId]);
+
+  const handleAttachFile = async () => {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({ type: '*/*', copyToCacheDirectory: true });
+      if (result.canceled) return;
+      const asset = result.assets[0];
+      const newMsg = await sendFileMessage(currentChatId as string, asset.uri, asset.name, asset.mimeType || 'application/octet-stream');
+      setMessages(prev => [newMsg, ...prev]);
+    } catch (error) {
+      console.error('Error attaching file:', error);
+    }
+  };
+
+  const handleOpenFile = async (message: any) => {
+    try {
+      const fileName: string = message.content || message.contenido || '';
+      const safeFileName = fileName.replace(/[^a-zA-Z0-9.]/g, '_');
+      const fileUri = `${FileSystem.documentDirectory}${safeFileName}`;
+      const cachedFileInfo = await FileSystem.getInfoAsync(fileUri);
+      if (cachedFileInfo.exists) {
+        await Sharing.shareAsync(fileUri, { UTI: 'public.item' });
+      } else {
+        await FileSystem.downloadAsync(message.fileUrl, fileUri);
+        await Sharing.shareAsync(fileUri, { UTI: 'public.item' });
+      }
+    } catch (error) {
+      console.error('Error opening file:', error);
+    }
+  };
 
   const sendMessage = useCallback(async () => {
-    if (!newMessage.trim() || !currentChatId) return;
+    const cleanedMessage = newMessage.trim();
+    if (!cleanedMessage || !currentChatId) return;
 
     if (editingMessage) {
       try {
-        const updated = await editMessage(editingMessage._id, newMessage.trim());
+        const updated = await editMessage(editingMessage._id, cleanedMessage);
         setMessages(prev => prev.map(msg =>
           msg._id === editingMessage._id ? updated : msg
         ));
@@ -184,9 +296,19 @@ export default function WorkspaceScreen() {
 
     const msgData = {
       chatId: currentChatId,
-      content: newMessage.trim(),
+      content: cleanedMessage,
       clientTimestamp: new Date().toISOString(),
     };
+
+    const localMsg: MessageMessageType = {
+      _id: Date.now().toString(),
+      senderId: currentUserId!,
+      receiverId: currentChatId,
+      contenido: cleanedMessage,
+      createdAt: new Date().toISOString(),
+    };
+
+    setMessages(prev => [localMsg, ...prev]);
 
     try {
       await api.post('/api/chat/message', msgData);
@@ -198,16 +320,93 @@ export default function WorkspaceScreen() {
         text1: 'Error enviando mensaje',
       });
     }
-  }, [newMessage, currentChatId, editingMessage]);
+  }, [newMessage, currentChatId, editingMessage, currentUserId]);
+
+  const startRecording = async () => {
+    try {
+      await Audio.requestPermissionsAsync();
+      await Audio.setAudioModeAsync({ allowsRecordingIOS: true, playsInSilentModeIOS: true });
+      const { recording } = await Audio.Recording.createAsync(Audio.RecordingOptionsPresets.HIGH_QUALITY);
+      setRecording(recording);
+      setIsRecording(true);
+    } catch (err) {
+      console.error('Error al iniciar grabación', err);
+    }
+  };
+
+  const stopRecording = async () => {
+    if (!recording || !currentChatId) return;
+    setIsRecording(false);
+    try {
+      await recording.stopAndUnloadAsync();
+      const uri = recording.getURI();
+      const status = await recording.getStatusAsync();
+      const duration = status.durationMillis / 1000;
+
+      setRecording(null);
+
+      if (uri) {
+        const newMsg = await sendAudioMessage(currentChatId, uri, duration);
+        setMessages(prev => {
+          const exists = prev.some(msg => msg._id === newMsg._id);
+          return exists ? prev : [newMsg, ...prev];
+        });
+      }
+    } catch (error) {
+      console.error('Error enviando audio grupal', error);
+    }
+  };
 
   const renderMessage = ({ item }: { item: MessageMessageType }) => {
-    const senderIdStr = typeof item.senderId === 'object' ? (item.senderId as any)._id : item.senderId;
+    const senderIdStr = extractId(item.senderId);
     const senderNameStr = typeof item.senderId === 'object' ? (item.senderId as any).name : getMemberName(senderIdStr);
-    const isSent = senderIdStr === currentUserId;
+    const isSent = senderIdStr === String(currentUserId);
     const isOnline = onlineUsers.includes(senderIdStr);
-    const messageStatus = (item as any).status;
-    const checkIcon = messageStatus === 'read' ? 'checkmark-done' : 'checkmark';
-    const checkColor = messageStatus === 'read' ? '#34b7f1' : (isSent ? 'rgba(255,255,255,0.7)' : '#999');
+    const msgType = (item as any).type;
+
+    const dbReadBy = Array.isArray((item as any).readBy) ? (item as any).readBy.map(extractId) : [];
+    const otherMembers = members.filter(m => extractId(m._id) !== String(currentUserId));
+
+    // Verifica si TODOS los demás están en el arreglo readBy, O si el status global es 'read'
+    const isReadByAll = (otherMembers.length > 0 && otherMembers.every(m => dbReadBy.includes(extractId(m._id)))) || ((item as any).status === 'read');
+
+    const checkIcon = isReadByAll ? 'checkmark-done' : 'checkmark';
+    const checkColor = isReadByAll ? '#34b7f1' : (isSent ? 'rgba(255,255,255,0.7)' : '#999');
+
+    if (msgType === 'audio') {
+      return (
+        <TouchableOpacity activeOpacity={0.7} onLongPress={() => handleLongPress(item)} style={[styles.messageWrapper, isSent ? styles.sentWrapper : styles.receivedWrapper]}>
+          {!isSent && (
+            <View style={styles.senderRow}>
+              <Text style={styles.senderName}>{senderNameStr}</Text>
+              {isOnline && <View style={styles.senderOnlineDot} />}
+            </View>
+          )}
+          <View style={[styles.messageBubble, isSent ? styles.sentBubble : styles.receivedBubble]}>
+            <AudioPlayer fileUrl={(item as any).fileUrl} isSent={isSent} />
+            <View style={{ flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', marginTop: 4, gap: 4 }}>
+              <Text style={[styles.messageTime, !isSent && { color: '#999' }]}>
+                {new Date(item.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })}
+              </Text>
+              {isSent && <Ionicons name={checkIcon} size={16} color={checkColor} />}
+            </View>
+          </View>
+        </TouchableOpacity>
+      );
+    }
+
+    if (msgType === 'file') {
+      return (
+        <TouchableOpacity onPress={() => handleOpenFile(item)} onLongPress={() => handleLongPress(item)} style={[styles.messageWrapper, isSent ? styles.sentWrapper : styles.receivedWrapper]}>
+          <View style={[styles.messageBubble, isSent ? styles.sentBubble : styles.receivedBubble]}>
+            <Text style={{ fontSize: 24, marginBottom: 4 }}>📄</Text>
+            <Text style={[styles.messageText, isSent ? styles.sentText : styles.receivedText, { fontWeight: '500' }]}>
+              {item.contenido || item.content}
+            </Text>
+          </View>
+        </TouchableOpacity>
+      );
+    }
 
     return (
       <TouchableOpacity
@@ -223,7 +422,7 @@ export default function WorkspaceScreen() {
         )}
         <View style={[styles.messageBubble, isSent ? styles.sentBubble : styles.receivedBubble]}>
           <Text style={[styles.messageText, isSent ? styles.sentText : styles.receivedText]}>
-            {item.contenido}
+            {item.content || item.contenido}
           </Text>
           <View style={{ flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', marginTop: 4, gap: 4 }}>
             <Text style={[styles.messageTime, !isSent && { color: '#999' }]}>
@@ -278,7 +477,7 @@ export default function WorkspaceScreen() {
       </View>
 
       {members.length > 0 && (
-        <View style={styles.membersBar}>
+        <TouchableOpacity style={styles.membersBar} activeOpacity={0.7} onPress={() => setShowMembersModal(true)}>
           <View style={styles.membersAvatars}>
             {members.slice(0, 5).map((member) => {
               const isOnline = onlineUsers.includes(member._id);
@@ -297,8 +496,8 @@ export default function WorkspaceScreen() {
               </View>
             )}
           </View>
-          <Text style={styles.onlineText}>{onlineCount} en línea</Text>
-        </View>
+          <Text style={styles.onlineText}>{onlineCount} en línea <Feather name="chevron-down" size={14} /></Text>
+        </TouchableOpacity>
       )}
 
       {isLoading ? (
@@ -308,17 +507,21 @@ export default function WorkspaceScreen() {
       ) : (
         <FlatList
           ref={flatListRef}
+          style={{ flex: 1 }}
           data={messages}
           keyExtractor={(item) => item._id}
           renderItem={renderMessage}
           ListEmptyComponent={renderEmpty}
           contentContainerStyle={styles.messagesList}
-          inverted={false}
+          inverted={messages.length > 0}
           showsVerticalScrollIndicator={false}
         />
       )}
 
       <View style={styles.inputContainer}>
+        <TouchableOpacity style={styles.attachButton} onPress={handleAttachFile}>
+          <Text style={styles.attachButtonText}>Adjuntar</Text>
+        </TouchableOpacity>
         <TextInput
           style={styles.textInput}
           value={newMessage}
@@ -336,13 +539,22 @@ export default function WorkspaceScreen() {
             <Feather name="x" size={20} color="#666" />
           </TouchableOpacity>
         )}
-        <TouchableOpacity
-          onPress={sendMessage}
-          style={[styles.sendButton, !newMessage.trim() && styles.sendButtonDisabled]}
-          disabled={!newMessage.trim()}
-        >
-          <Feather name={editingMessage ? 'check' : 'send'} size={20} color="#fff" />
-        </TouchableOpacity>
+        {newMessage.trim().length > 0 ? (
+          <TouchableOpacity
+            onPress={sendMessage}
+            style={[styles.sendButton, !newMessage.trim() && styles.sendButtonDisabled]}
+            disabled={!newMessage.trim()}
+          >
+            <Feather name={editingMessage ? 'check' : 'send'} size={20} color="#fff" />
+          </TouchableOpacity>
+        ) : (
+          <TouchableOpacity
+            style={[styles.sendButton, { backgroundColor: isRecording ? '#FF3B30' : '#34C759' }]}
+            onPress={isRecording ? stopRecording : startRecording}
+          >
+            <Feather name={isRecording ? "square" : "mic"} size={20} color="#fff" />
+          </TouchableOpacity>
+        )}
       </View>
       <Toast />
 
@@ -384,6 +596,54 @@ export default function WorkspaceScreen() {
               <Feather name="trash-2" size={20} color="#FF3B30" />
               <Text style={[styles.modalButtonText, { color: '#FF3B30' }]}>Eliminar para todos</Text>
             </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
+      <Modal visible={showMembersModal} transparent animationType="slide">
+        <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setShowMembersModal(false)}>
+          <View style={[styles.modalContent, { maxHeight: '60%' }]}>
+            <Text style={styles.modalTitle}>Miembros del Grupo</Text>
+            <FlatList
+              data={members}
+              keyExtractor={item => item._id}
+              renderItem={({ item }) => {
+                const isOnline = onlineUsers.includes(item._id);
+                return (
+                  <TouchableOpacity
+                    style={styles.modalButton}
+                    onPress={() => {
+                      setShowMembersModal(false);
+                      if (String(item._id) !== String(currentUserId)) {
+                        router.push({
+                          pathname: '/user/[id]',
+                          params: { id: item._id, name: item.name || item.username, email: item.email || '' }
+                        });
+                      }
+                    }}
+                  >
+                    <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
+                      <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: isOnline ? '#E8F5E9' : '#f0f0f0', justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
+                        <Feather name="user" size={20} color={isOnline ? '#2E7D32' : '#999'} />
+                        {isOnline && <View style={[styles.onlineDot, { right: 0, bottom: 0 }]} />}
+                      </View>
+                      <View>
+                        <Text style={{ fontSize: 16, fontWeight: '500', color: '#333' }}>
+                          {item.name || item.username || 'Usuario'}
+                          {String(item._id) === String(currentUserId) && ' (Tú)'}
+                        </Text>
+                        <Text style={{ fontSize: 12, color: isOnline ? '#2E7D32' : '#999' }}>
+                          {isOnline ? 'En línea' : 'Desconectado'}
+                        </Text>
+                      </View>
+                    </View>
+                    {String(item._id) !== String(currentUserId) && (
+                      <Feather name="message-circle" size={20} color="#007AFF" />
+                    )}
+                  </TouchableOpacity>
+                );
+              }}
+            />
           </View>
         </TouchableOpacity>
       </Modal>
@@ -475,8 +735,9 @@ const styles = StyleSheet.create({
     color: '#666',
   },
   messagesList: {
-    flex: 1,
-    padding: 16,
+    paddingHorizontal: 16,
+    paddingBottom: 16,
+    flexGrow: 1,
   },
   loadingContainer: {
     flex: 1,
@@ -561,6 +822,17 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     borderTopWidth: 1,
     borderTopColor: '#e0e0e0',
+  },
+  attachButton: {
+    marginRight: 8,
+    backgroundColor: '#34C759',
+    borderRadius: 20,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+  },
+  attachButtonText: {
+    color: '#fff',
+    fontWeight: '600',
   },
   textInput: {
     flex: 1,
