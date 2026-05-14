@@ -38,7 +38,7 @@ export default function ProfileScreen() {
   const handleEditProfile = () => {
     if (profileData) {
       router.push({
-        pathname: '/edit-profile',
+        pathname: '/profile/edit',
         params: {
           id: profileData._id,
           nombre: profileData.nombre,
@@ -162,7 +162,7 @@ export default function ProfileScreen() {
             <Text style={styles.editButtonText}>Editar Información</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.passwordButton} onPress={() => router.push('/change-password')}>
+          <TouchableOpacity style={styles.passwordButton} onPress={() => router.push('/profile/change-password')}>
             <Text style={styles.passwordButtonText}>Cambiar Contraseña</Text>
           </TouchableOpacity>
 

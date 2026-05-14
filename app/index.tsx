@@ -14,10 +14,10 @@ const App = () => {
         if (token) {
           router.replace('/home');
         } else {
-          router.replace('/login');
+          router.replace('/auth/login');
         }
       } catch {
-        router.replace('/login');
+        router.replace('/auth/login');
       } finally {
         setLoading(false);
       }

@@ -17,7 +17,7 @@ export default function HomeScreen() {
         {isMenuOpen && <SideMenu />}
       </View>
       <ChatList />
-      <Pressable style={styles.fab} onPress={() => router.push('/create-workspace')}>
+      <Pressable style={styles.fab} onPress={() => router.push('/workspace/create')}>
         <Feather name="plus" size={28} color="#fff" />
       </Pressable>
     </View>

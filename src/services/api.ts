@@ -52,24 +52,18 @@ const getErrorMessage = (error: AxiosError): string => {
 
 api.interceptors.response.use(
   (response) => response,
-  async (error: AxiosError) => {
-    if (error.response?.status === 401) {
-      await AsyncStorage.removeItem(TOKEN_KEY);
+  async (error) => {
+    if (error.response && error.response.status === 401) {
+      console.log('Sesión expirada, redirigiendo al login...');
+      
+      // Aquí debemos llamar a la función de logout del AuthContext
+      // Si no es posible, simplemente limpiamos el almacenamiento
+      // await AsyncStorage.removeItem('user-token');
+      
+      // Forzamos la redirección al login
+      // router.replace('/auth/login');
     }
-
-    const status = error.response?.status;
-    const message = error.code === 'ECONNABORTED'
-      ? 'La solicitud tardó demasiado. Verifica tu conexión.'
-      : error.code === 'ERR_NETWORK'
-      ? 'No hay conexión a internet. Revisa tu red.'
-      : getErrorMessage(error);
-
-    const apiError: ApiError = {
-      message,
-      status,
-    };
-
-    return Promise.reject(apiError);
+    return Promise.reject(error);
   }
 );
 

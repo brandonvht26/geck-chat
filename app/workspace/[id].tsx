@@ -449,7 +449,7 @@ export default function WorkspaceScreen() {
         <TouchableOpacity
           onPress={() =>
             router.push({
-              pathname: '/invite-member',
+              pathname: '/workspace/invite',
               params: { workspaceId: id },
             })
           }

@@ -63,7 +63,7 @@ export const useAuth = () => {
     SocketService.disconnect();
     await removeToken();
     setUser(null);
-    router.replace('/login');
+    router.replace('/auth/login');
   };
 
   const checkAuth = async (): Promise<void> => {
@@ -74,7 +74,11 @@ export const useAuth = () => {
         setUser(response.data);
       }
     } catch (error: any) {
-      console.log("🚨 ERROR EN AUTH CONTEXT:", error.response?.data || error.message);
+      if (error.response?.status === 401) {
+        await signOut();
+      } else {
+        console.log("🚨 ERROR EN AUTH CONTEXT:", error.response?.data || error.message);
+      }
     }
   };
 

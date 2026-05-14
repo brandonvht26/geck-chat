@@ -33,7 +33,7 @@ export default function ForgotPasswordScreen() {
         text1: '¡Logrado!',
         text2: 'Se ha enviado un correo con instrucciones. Por favor, revísalo para restablecer tu contraseña.',
       });
-      setTimeout(() => router.replace('/login'), 3000);
+      setTimeout(() => router.replace('/auth/login'), 3000);
     } catch (error) {
       const apiError = error as ApiError;
       Toast.show({
@@ -76,7 +76,7 @@ export default function ForgotPasswordScreen() {
         disabled={loading}
       />
 
-      <Pressable onPress={() => router.push('/login')} style={styles.link}>
+      <Pressable onPress={() => router.push('/auth/login')} style={styles.link}>
         <Text style={styles.linkText}>Volver a iniciar sesión</Text>
       </Pressable>
 

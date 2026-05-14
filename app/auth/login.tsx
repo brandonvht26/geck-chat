@@ -1,110 +1,87 @@
 import { useState } from 'react';
 import { View, TextInput, Button, StyleSheet, Text, Pressable } from 'react-native';
-import { useForm, Controller } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
+import { useForm } from '@tanstack/react-form';
 import { Feather } from '@expo/vector-icons';
 import Toast from 'react-native-toast-message';
 import { useRouter } from 'expo-router';
 import { useAuth } from '@/src/hooks/useAuth';
-import { ApiError } from '@/src/services/api';
-
-const loginSchema = z.object({
-  email: z.string().email('Ingresa un correo electrónico válido'),
-  password: z.string().min(6, 'La contraseña debe tener al menos 6 caracteres'),
-});
-
-type LoginFormData = z.infer<typeof loginSchema>;
+import { loginSchema } from '@/src/schemas/auth.schema';
 
 export default function LoginScreen() {
   const router = useRouter();
   const { signIn, loading } = useAuth();
   const [showPassword, setShowPassword] = useState(false);
 
-  const { control, handleSubmit, formState: { errors } } = useForm<LoginFormData>({
-    resolver: zodResolver(loginSchema),
-    defaultValues: {
-      email: '',
-      password: '',
+  const form = useForm({
+    defaultValues: { email: '', password: '' },
+    onSubmit: async ({ value }) => {
+      try {
+        const parsedData = loginSchema.parse(value);
+        await signIn(parsedData.email, parsedData.password);
+        router.replace('/home');
+      } catch (error: any) {
+        Toast.show({ type: 'error', text1: error.errors ? error.errors[0].message : 'Error al iniciar sesión' });
+      }
     },
   });
-
-  const onSubmit = async (data: LoginFormData) => {
-    try {
-      await signIn(data.email, data.password);
-      Toast.show({
-        type: 'success',
-        text1: '¡Logrado!',
-        text2: 'Has iniciado sesión correctamente',
-      });
-      router.replace('/home');
-    } catch (error) {
-      const apiError = error as ApiError;
-      Toast.show({
-        type: 'error',
-        text1: 'Algo salió mal',
-        text2: apiError.message,
-      });
-    }
-  };
 
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Iniciar sesión</Text>
 
-      <Controller
-        control={control}
-        name="email"
-        render={({ field: { onChange, onBlur, value } }) => (
+      <form.Field name="email">
+        {(field) => (
           <View>
             <TextInput
               placeholder="Correo electrónico"
               autoCapitalize="none"
               keyboardType="email-address"
-              style={[styles.input, errors.email && styles.inputError]}
-              onBlur={onBlur}
-              onChangeText={onChange}
-              value={value}
+              style={[styles.input, field.state.meta.errors.length > 0 && styles.inputError]}
+              onBlur={field.handleBlur}
+              onChangeText={field.handleChange}
+              value={field.state.value}
             />
-            {errors.email && <Text style={styles.errorText}>{errors.email.message}</Text>}
+            {field.state.meta.errors.length > 0 && (
+              <Text style={styles.errorText}>{field.state.meta.errors[0]}</Text>
+            )}
           </View>
         )}
-      />
+      </form.Field>
 
-      <Controller
-        control={control}
-        name="password"
-        render={({ field: { onChange, onBlur, value } }) => (
+      <form.Field name="password">
+        {(field) => (
           <View>
             <View style={styles.passwordContainer}>
               <TextInput
                 placeholder="Contraseña"
                 secureTextEntry={!showPassword}
-                style={[styles.input, styles.passwordInput, errors.password && styles.inputError]}
-                onBlur={onBlur}
-                onChangeText={onChange}
-                value={value}
+                style={[styles.input, styles.passwordInput, field.state.meta.errors.length > 0 && styles.inputError]}
+                onBlur={field.handleBlur}
+                onChangeText={field.handleChange}
+                value={field.state.value}
               />
               <Pressable style={styles.eyeIcon} onPress={() => setShowPassword(!showPassword)}>
                 <Feather name={showPassword ? 'eye' : 'eye-off'} size={20} color="#666" />
               </Pressable>
             </View>
-            {errors.password && <Text style={styles.errorText}>{errors.password.message}</Text>}
+            {field.state.meta.errors.length > 0 && (
+              <Text style={styles.errorText}>{field.state.meta.errors[0]}</Text>
+            )}
           </View>
         )}
-      />
+      </form.Field>
 
-      <Pressable onPress={() => router.push('/forgot-password')} style={styles.forgotLink}>
+      <Pressable onPress={() => router.push('/auth/forgot-password')} style={styles.forgotLink}>
         <Text style={styles.forgotLinkText}>¿Olvidaste tu contraseña?</Text>
       </Pressable>
 
       <Button
         title={loading ? 'Ingresando...' : 'Iniciar sesión'}
-        onPress={handleSubmit(onSubmit)}
+        onPress={form.handleSubmit}
         disabled={loading}
       />
 
-      <Pressable onPress={() => router.push('/register')} style={styles.link}>
+      <Pressable onPress={() => router.push('/auth/register')} style={styles.link}>
         <Text style={styles.linkText}>¿No tienes cuenta? Regístrate</Text>
       </Pressable>
 
