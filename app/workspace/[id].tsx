@@ -48,32 +48,52 @@ const AudioPlayer = ({ fileUrl, isSent }: { fileUrl: string, isSent: boolean }) 
   const [durationText, setDurationText] = useState("0:00");
 
   async function playSound() {
-    if (sound) {
-      if (isPlaying) { await sound.pauseAsync(); setIsPlaying(false); } 
-      else { await sound.playAsync(); setIsPlaying(true); }
-    } else {
-      const { sound: newSound } = await Audio.Sound.createAsync(
-        { uri: fileUrl }, 
-        { shouldPlay: true, isLooping: false }
-      );
-      setSound(newSound); setIsPlaying(true);
-      newSound.setOnPlaybackStatusUpdate((status: any) => {
-        if (status.isLoaded) {
-          if (status.durationMillis) {
-            const totalSeconds = Math.floor(status.durationMillis / 1000);
-            const minutes = Math.floor(totalSeconds / 60);
-            const seconds = totalSeconds % 60;
-            setDurationText(`${minutes}:${seconds < 10 ? '0' : ''}${seconds}`);
+    try {
+      if (sound) {
+        if (isPlaying) { 
+          await sound.pauseAsync(); 
+          setIsPlaying(false); 
+        } else { 
+          const status = await sound.getStatusAsync();
+          if (status.isLoaded && status.positionMillis === status.durationMillis) {
+            await sound.setPositionAsync(0);
           }
-          if (status.didJustFinish) { 
-            setIsPlaying(false); 
-            newSound.setPositionAsync(0); 
-          }
+          await sound.playAsync(); 
+          setIsPlaying(true); 
         }
-      });
+      } else {
+        const { sound: newSound } = await Audio.Sound.createAsync(
+          { uri: fileUrl }, 
+          { shouldPlay: true, isLooping: false }
+        );
+        setSound(newSound); 
+        setIsPlaying(true);
+        
+        newSound.setOnPlaybackStatusUpdate((status: any) => {
+          if (status.isLoaded) {
+            if (status.durationMillis) {
+              const totalSeconds = Math.floor(status.durationMillis / 1000);
+              const minutes = Math.floor(totalSeconds / 60);
+              const seconds = totalSeconds % 60;
+              setDurationText(`${minutes}:${seconds < 10 ? '0' : ''}${seconds}`);
+            }
+            if (status.didJustFinish) { 
+              setIsPlaying(false); 
+              newSound.setPositionAsync(0);
+              newSound.pauseAsync();
+            }
+          }
+        });
+      }
+    } catch (error) {
+      console.error("Error reproduciendo audio:", error);
     }
   }
-  useEffect(() => { return sound ? () => { sound.unloadAsync(); } : undefined; }, [sound]);
+
+  useEffect(() => { 
+    return () => { if (sound) { sound.unloadAsync(); } }; 
+  }, [sound]);
+
   return (
     <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: isSent ? 'rgba(255,255,255,0.2)' : '#f0f0f0', padding: 8, borderRadius: 20, minWidth: 120 }} onPress={playSound}>
       <Feather name={isPlaying ? "pause" : "play"} size={24} color={isSent ? '#fff' : '#007AFF'} />
@@ -111,7 +131,7 @@ export default function WorkspaceScreen() {
   const { user } = useAuth();
 
   const queryClient = useQueryClient();
-  const { data: messages = [], isLoading: isMessagesLoading } = useChatMessages(currentChatId);
+  const { data: messages = [], isLoading: isChatLoading } = useChatMessages(currentChatId);
 
   useEffect(() => {
     if (user) {
@@ -164,8 +184,9 @@ export default function WorkspaceScreen() {
   }, [currentChatId, currentUserId]);
 
   useEffect(() => {
-    const handleMessageReceived = (payload: MessageReceivedPayload) => {
-      if (payload.chatId === currentChatId) {
+    const handleMessageReceived = (payload: any) => {
+      const incomingChatId = extractId(payload.chatId || payload.workspaceId || payload.roomId);
+      if (incomingChatId === String(currentChatId)) {
         const message: MessageMessageType = {
           _id: payload._id || Date.now().toString(),
           senderId: payload.senderId,
@@ -179,6 +200,7 @@ export default function WorkspaceScreen() {
           return exists ? old : [message, ...old];
         });
       }
+      queryClient.invalidateQueries({ queryKey: ['userChats'] });
     };
 
     const handleChatRead = (payload: any) => {
@@ -200,11 +222,15 @@ export default function WorkspaceScreen() {
       });
     };
 
+    SocketService.on('new_message', handleMessageReceived);
     SocketService.on('message_received', handleMessageReceived);
+    SocketService.on('message_status_update', handleChatRead);
     SocketService.on('chat_read', handleChatRead);
 
     return () => {
+      SocketService.off('new_message', handleMessageReceived);
       SocketService.off('message_received', handleMessageReceived);
+      SocketService.off('message_status_update', handleChatRead);
       SocketService.off('chat_read', handleChatRead);
     };
   }, [currentChatId]);
@@ -247,15 +273,26 @@ export default function WorkspaceScreen() {
     try {
       const result = await DocumentPicker.getDocumentAsync({ type: '*/*', copyToCacheDirectory: true });
       if (result.canceled) return;
+      
       const asset = result.assets[0];
-      const newMsg = await sendFileMessage(currentChatId as string, asset.uri, asset.name, asset.mimeType || 'application/octet-stream');
+      
+      if (asset.size && asset.size > 5 * 1024 * 1024) {
+        Alert.alert('Archivo muy pesado', 'Por favor, selecciona un archivo menor a 5MB.');
+        return;
+      }
+
+      const safeFileName = asset.name.replace(/[^a-zA-Z0-9.-]/g, '_');
+      const safeMimeType = asset.mimeType || 'application/octet-stream';
+
+      const newMsg = await sendFileMessage(currentChatId, asset.uri, safeFileName, safeMimeType);
+      
       queryClient.setQueryData(['chatMessages', currentChatId], (old: MessageMessageType[] | undefined) => {
         if (!old) return [newMsg];
-        const exists = old.some(msg => msg._id === newMsg._id);
-        return exists ? old : [newMsg, ...old];
+        return old.some(msg => msg._id === newMsg._id) ? old : [newMsg, ...old];
       });
-    } catch (error) {
-      console.error('Error attaching file:', error);
+    } catch (error) { 
+      console.error('Error attaching file:', error); 
+      Alert.alert('Error', 'No se pudo adjuntar el archivo al grupo.');
     }
   };
 
@@ -314,8 +351,8 @@ export default function WorkspaceScreen() {
 
     try {
       await api.post('/api/chat/message', msgData);
-      SocketService.emit('new_message', msgData);
       setNewMessage('');
+      queryClient.invalidateQueries({ queryKey: ['userChats'] });
     } catch (error) {
       Toast.show({ type: 'error', text1: 'Error enviando mensaje' });
     }
@@ -393,16 +430,7 @@ export default function WorkspaceScreen() {
     );
   };
 
-  const renderEmpty = () => {
-    if (isMessagesLoading) return <View style={[styles.emptyContainer, { transform: [{ scaleY: -1 }] }]}><ActivityIndicator size="large" color="#007AFF" /></View>;
-    return (
-      <View style={[styles.emptyContainer, { transform: [{ scaleY: -1 }] }]}>
-        <Feather name="message-square" size={48} color="#ccc" />
-        <Text style={styles.emptyText}>Aún no hay mensajes en este escritorio</Text>
-        <Text style={styles.emptySubtext}>Sé el primero en escribir</Text>
-      </View>
-    );
-  };
+
 
   return (
     <KeyboardAvoidingView
@@ -466,7 +494,22 @@ export default function WorkspaceScreen() {
           data={messages}
           keyExtractor={(item) => item._id}
           renderItem={renderMessage}
-          ListEmptyComponent={renderEmpty}
+          ListEmptyComponent={
+            isChatLoading ? (
+              <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+                <ActivityIndicator size="large" color="#007AFF" />
+              </View>
+            ) : (
+              <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+                <Text style={{ color: '#999', fontSize: 16, textAlign: 'center' }}>
+                  Aún no hay mensajes en este escritorio
+                </Text>
+                <View style={{ marginTop: 10 }}>
+                  <Feather name="message-square" size={32} color="#ccc" />
+                </View>
+              </View>
+            )
+          }
           contentContainerStyle={styles.messagesList}
           inverted={messages.length > 0}
           showsVerticalScrollIndicator={false}

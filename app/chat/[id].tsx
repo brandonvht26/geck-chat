@@ -2,6 +2,7 @@ import { useEffect, useState, useRef } from 'react';
 import { View, FlatList, KeyboardAvoidingView, Platform, Alert, Modal, TouchableOpacity, Text, StyleSheet, ActivityIndicator } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { Audio } from 'expo-av';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams } from 'expo-router';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
@@ -21,32 +22,52 @@ const AudioPlayer = ({ fileUrl, isSent }: { fileUrl: string, isSent: boolean }) 
   const [durationText, setDurationText] = useState("0:00");
 
   async function playSound() {
-    if (sound) {
-      if (isPlaying) { await sound.pauseAsync(); setIsPlaying(false); } 
-      else { await sound.playAsync(); setIsPlaying(true); }
-    } else {
-      const { sound: newSound } = await Audio.Sound.createAsync(
-        { uri: fileUrl }, 
-        { shouldPlay: true, isLooping: false }
-      );
-      setSound(newSound); setIsPlaying(true);
-      newSound.setOnPlaybackStatusUpdate((status: any) => {
-        if (status.isLoaded) {
-          if (status.durationMillis) {
-            const totalSeconds = Math.floor(status.durationMillis / 1000);
-            const minutes = Math.floor(totalSeconds / 60);
-            const seconds = totalSeconds % 60;
-            setDurationText(`${minutes}:${seconds < 10 ? '0' : ''}${seconds}`);
+    try {
+      if (sound) {
+        if (isPlaying) { 
+          await sound.pauseAsync(); 
+          setIsPlaying(false); 
+        } else { 
+          const status = await sound.getStatusAsync();
+          if (status.isLoaded && status.positionMillis === status.durationMillis) {
+            await sound.setPositionAsync(0);
           }
-          if (status.didJustFinish) { 
-            setIsPlaying(false); 
-            newSound.setPositionAsync(0); 
-          }
+          await sound.playAsync(); 
+          setIsPlaying(true); 
         }
-      });
+      } else {
+        const { sound: newSound } = await Audio.Sound.createAsync(
+          { uri: fileUrl }, 
+          { shouldPlay: true, isLooping: false }
+        );
+        setSound(newSound); 
+        setIsPlaying(true);
+        
+        newSound.setOnPlaybackStatusUpdate((status: any) => {
+          if (status.isLoaded) {
+            if (status.durationMillis) {
+              const totalSeconds = Math.floor(status.durationMillis / 1000);
+              const minutes = Math.floor(totalSeconds / 60);
+              const seconds = totalSeconds % 60;
+              setDurationText(`${minutes}:${seconds < 10 ? '0' : ''}${seconds}`);
+            }
+            if (status.didJustFinish) { 
+              setIsPlaying(false); 
+              newSound.setPositionAsync(0);
+              newSound.pauseAsync();
+            }
+          }
+        });
+      }
+    } catch (error) {
+      console.error("Error reproduciendo audio:", error);
     }
   }
-  useEffect(() => { return sound ? () => { sound.unloadAsync(); } : undefined; }, [sound]);
+
+  useEffect(() => { 
+    return () => { if (sound) { sound.unloadAsync(); } }; 
+  }, [sound]);
+
   return (
     <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: isSent ? 'rgba(255,255,255,0.2)' : '#f0f0f0', padding: 8, borderRadius: 20, minWidth: 120 }} onPress={playSound}>
       <Feather name={isPlaying ? "pause" : "play"} size={24} color={isSent ? '#fff' : '#007AFF'} />
@@ -57,6 +78,7 @@ const AudioPlayer = ({ fileUrl, isSent }: { fileUrl: string, isSent: boolean }) 
 };
 
 export default function ChatRoomScreen() {
+  const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams();
   const queryClient = useQueryClient();
   const { data: messages = [], isLoading } = useChatMessages(id as string);
@@ -86,10 +108,14 @@ export default function ChatRoomScreen() {
     const handleNewMessage = (newMessage: ChatMessage) => {
       const chatId = (newMessage as any).chatId || (newMessage as any).workspaceId || (newMessage as any).roomId;
       if (chatId?.toString() !== id?.toString()) return;
+      
       queryClient.setQueryData(['chatMessages', id], (oldData: ChatMessage[] | undefined) => {
         if (!oldData) return [newMessage];
-        return oldData.some(msg => msg._id === newMessage._id) ? oldData : [newMessage, ...oldData];
+        const exists = oldData.some(msg => msg._id === newMessage._id);
+        return exists ? oldData : [newMessage, ...oldData];
       });
+
+      queryClient.invalidateQueries({ queryKey: ['userChats'] });
     };
     const handleStatusUpdate = (payload: any) => {
       queryClient.setQueryData(['chatMessages', id], (old: ChatMessage[] | undefined) => old ? old.map(m => m._id === payload.messageId ? { ...m, status: payload.status } : m) : []);
@@ -97,11 +123,13 @@ export default function ChatRoomScreen() {
     const handleChatRead = (payload: any) => {
       queryClient.setQueryData(['chatMessages', id], (old: ChatMessage[] | undefined) => old ? old.map(m => (m as any).chatId === payload.chatId ? { ...m, status: 'read' } : m) : []);
     };
-    SocketService.on('receive_message', handleNewMessage);
+    SocketService.on('new_message', handleNewMessage);
+    SocketService.on('message_received', handleNewMessage);
     SocketService.on('message_status_update', handleStatusUpdate);
     SocketService.on('chat_read', handleChatRead);
     return () => {
-      SocketService.off('receive_message', handleNewMessage);
+      SocketService.off('new_message', handleNewMessage);
+      SocketService.off('message_received', handleNewMessage);
       SocketService.off('message_status_update', handleStatusUpdate);
       SocketService.off('chat_read', handleChatRead);
     };
@@ -120,6 +148,7 @@ export default function ChatRoomScreen() {
         queryClient.setQueryData(['chatMessages', id], (old: ChatMessage[] | undefined) => old ? (old.some(msg => msg._id === newMsg._id) ? old : [newMsg, ...old]) : [newMsg]);
       }
       setContent('');
+      queryClient.invalidateQueries({ queryKey: ['userChats'] });
     } catch (error) { console.error('Error enviando/editando mensaje:', error); }
   };
 
@@ -127,10 +156,30 @@ export default function ChatRoomScreen() {
     try {
       const result = await DocumentPicker.getDocumentAsync({ type: '*/*', copyToCacheDirectory: true });
       if (result.canceled) return;
+      
       const asset = result.assets[0];
-      const newMsg = await sendFileMessage(id as string, asset.uri, asset.name, asset.mimeType);
-      queryClient.setQueryData(['chatMessages', id], (old: ChatMessage[] | undefined) => old ? (old.some(msg => msg._id === newMsg._id) ? old : [newMsg, ...old]) : [newMsg]);
-    } catch (error) { console.error('Error attaching file:', error); }
+      
+      // Validación de tamaño (Límite 5MB)
+      if (asset.size && asset.size > 5 * 1024 * 1024) {
+        Alert.alert('Archivo muy pesado', 'Por favor, selecciona un archivo menor a 5MB.');
+        return;
+      }
+
+      // Limpieza de propiedades para evitar que el backend colapse (Error 500)
+      const safeFileName = asset.name.replace(/[^a-zA-Z0-9.-]/g, '_');
+      const safeMimeType = asset.mimeType || 'application/octet-stream';
+
+      const newMsg = await sendFileMessage(id as string, asset.uri, safeFileName, safeMimeType);
+      
+      queryClient.setQueryData(['chatMessages', id], (old: ChatMessage[] | undefined) => {
+        if (!old) return [newMsg];
+        return old.some(msg => msg._id === newMsg._id) ? old : [newMsg, ...old];
+      });
+      queryClient.invalidateQueries({ queryKey: ['userChats'] });
+    } catch (error) { 
+      console.error('Error attaching file:', error); 
+      Alert.alert('Error', 'No se pudo adjuntar el archivo al chat.');
+    }
   };
 
   const handleOpenFile = async (item: any) => {
@@ -147,16 +196,6 @@ export default function ChatRoomScreen() {
   const handleLongPress = (item: any) => {
     const senderId = typeof item.senderId === 'object' ? item.senderId?._id : item.senderId;
     if (senderId === currentUserId) setSelectedMsgOptions(item);
-  };
-
-  const renderEmpty = () => {
-    if (isLoading) return <View style={[styles.emptyContainer, { transform: [{ scaleY: -1 }] }]}><ActivityIndicator size="large" color="#007AFF" /></View>;
-    return (
-      <View style={[styles.emptyContainer, { transform: [{ scaleY: -1 }] }]}>
-        <Feather name="message-square" size={48} color="#ccc" />
-        <Text style={styles.emptyText}>Aún no hay mensajes en este escritorio</Text>
-      </View>
-    );
   };
 
   const startRecording = async () => {
@@ -195,14 +234,29 @@ export default function ChatRoomScreen() {
   };
 
   return (
-    <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}>
+    <KeyboardAvoidingView style={[styles.container, { paddingBottom: Math.max(insets.bottom, 16) }]} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}>
       <FlatList
         ref={flatListRef}
         data={messages}
-        inverted={true}
+        inverted={messages.length > 0}
         keyExtractor={(item, index) => item._id ? item._id.toString() : index.toString()}
-        contentContainerStyle={{ padding: 16 }}
-        ListEmptyComponent={renderEmpty}
+        contentContainerStyle={{ flexGrow: 1, padding: 16 }}
+        ListEmptyComponent={
+          isLoading ? (
+            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+              <ActivityIndicator size="large" color="#007AFF" />
+            </View>
+          ) : (
+            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+              <Text style={{ color: '#999', fontSize: 16, textAlign: 'center' }}>
+                Aún no hay mensajes en este escritorio
+              </Text>
+              <View style={{ marginTop: 10 }}>
+                <Feather name="message-square" size={32} color="#ccc" />
+              </View>
+            </View>
+          )
+        }
         renderItem={({ item }) => {
           const senderId = typeof item.senderId === 'object' ? (item.senderId as any)?._id : item.senderId;
           const isMe = senderId === currentUserId;

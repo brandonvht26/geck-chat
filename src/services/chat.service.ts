@@ -105,23 +105,26 @@ export const accessUserChat = async (targetUserId: string): Promise<Chat> => {
   }
 };
 
-export const sendFileMessage = async (chatId: string, fileUri: string, fileName: string, mimeType: string) => {
-  const formData = new FormData();
-  formData.append('chatId', chatId);
-  formData.append('file', {
-    uri: fileUri,
-    name: fileName,
-    type: mimeType || 'application/octet-stream',
-  } as any);
-
+export const sendFileMessage = async (chatId: string, uri: string, name: string, mimeType: string) => {
   try {
-    const response = await api.post('/api/chat/chat/file', formData, {
+    const formData = new FormData();
+    formData.append('chatId', chatId);
+    // El backend exige que el campo se llame 'file' o 'document'
+    formData.append('file', {
+      uri,
+      name,
+      type: mimeType,
+    } as any);
+
+    // Nota: Ajusta la ruta a '/api/chat/file' si corregiste el backend, 
+    // o mantenla como '/api/chat/chat/file' si el router sigue igual.
+    const response = await api.post('/api/chat/file', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
     });
+    
     return response.data.message;
   } catch (error) {
-    const apiError = error as ApiError;
-    console.error('Error sending file message:', apiError.message);
+    console.error('Error en sendFileMessage:', error);
     throw error;
   }
 };
@@ -135,23 +138,25 @@ export const deleteMessage = async (messageId: string, type: 'for_me' | 'for_all
   await api.delete(`/api/chat/message/${messageId}`, { data: { type } });
 };
 
-export const sendAudioMessage = async (chatId: string, audioUri: string, duration: number) => {
-  const formData = new FormData();
-  formData.append('chatId', chatId);
-  formData.append('duration', Math.floor(duration).toString());
-  formData.append('audio', {
-    uri: audioUri,
-    name: 'voice_note.m4a',
-    type: 'audio/m4a',
-  } as any);
-
+export const sendAudioMessage = async (chatId: string, uri: string, duration: number) => {
   try {
-    const response = await api.post('/api/chat/chat/audio', formData, {
+    const formData = new FormData();
+    formData.append('chatId', chatId);
+    formData.append('duration', duration.toString());
+    // El backend exige que el campo se llame 'audio'
+    formData.append('audio', {
+      uri,
+      name: `audio_${Date.now()}.m4a`,
+      type: 'audio/m4a',
+    } as any);
+
+    const response = await api.post('/api/chat/audio', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
     });
+    
     return response.data.message;
   } catch (error) {
-    console.error('Error sending audio message:', error);
+    console.error('Error en sendAudioMessage:', error);
     throw error;
   }
 };

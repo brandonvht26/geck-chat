@@ -43,9 +43,20 @@ export default function ChatList() {
             ? item.workspaceId?.imageUrl
             : otherUser?.avatarUrl || otherUser?.profilePicture;
 
-          const lastMsgText = typeof item.lastMessage === 'string'
-            ? item.lastMessage
-            : (item.lastMessage?.content || item.lastMessage?.contenido || 'Envía un mensaje para iniciar...');
+          let lastMsgText = 'Envía un mensaje para iniciar...';
+          
+          if (item.lastMessage) {
+            const msgType = item.lastMessage.type;
+            if (msgType === 'audio') {
+              lastMsgText = '🎵 Audio';
+            } else if (msgType === 'file') {
+              lastMsgText = `📄 ${item.lastMessage.content || 'Archivo'}`;
+            } else {
+              lastMsgText = typeof item.lastMessage === 'string' 
+                ? item.lastMessage 
+                : (item.lastMessage.content || item.lastMessage.contenido || lastMsgText);
+            }
+          }
 
           return (
             <TouchableOpacity
