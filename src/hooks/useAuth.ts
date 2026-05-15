@@ -13,13 +13,14 @@ interface User {
 }
 
 export const useAuth = () => {
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [user, setUser] = useState<User | null>(null);
   const router = useRouter();
 
   const signIn = async (email: string, password: string): Promise<boolean> => {
     setLoading(true);
     try {
+      await removeToken();
       const response = await loginUser({ email, password });
       await setToken(response.token);
       setUser({
@@ -66,19 +67,22 @@ export const useAuth = () => {
     router.replace('/auth/login');
   };
 
-  const checkAuth = async (): Promise<void> => {
+  const checkAuth = async () => {
     try {
       const token = await getToken();
-      if (token) {
-        const response = await api.get<{ _id: string; name: string; email: string; rol: string }>('/api/users/profile');
-        setUser(response.data);
+      if (!token) {
+        setLoading(false);
+        return;
       }
-    } catch (error: any) {
-      if (error.response?.status === 401) {
-        await signOut();
-      } else {
-        console.log("🚨 ERROR EN AUTH CONTEXT:", error.response?.data || error.message);
-      }
+      const response = await api.get<{ _id: string; name: string; email: string; rol: string }>('/api/users/profile');
+      setUser(response.data);
+    } catch (error) {
+      console.log('🚨 ERROR EN AUTH CONTEXT: Token inválido o red caída');
+      await removeToken();
+      setUser(null);
+      router.replace('/auth/login');
+    } finally {
+      setLoading(false);
     }
   };
 

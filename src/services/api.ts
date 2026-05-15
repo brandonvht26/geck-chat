@@ -1,5 +1,6 @@
 import axios, { AxiosInstance, AxiosError } from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { router } from 'expo-router';
 
 const TOKEN_KEY = '@geckchat_token';
 
@@ -53,15 +54,15 @@ const getErrorMessage = (error: AxiosError): string => {
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
-    if (error.response && error.response.status === 401) {
-      console.log('Sesión expirada, redirigiendo al login...');
-      
-      // Aquí debemos llamar a la función de logout del AuthContext
-      // Si no es posible, simplemente limpiamos el almacenamiento
-      // await AsyncStorage.removeItem('user-token');
-      
-      // Forzamos la redirección al login
-      // router.replace('/auth/login');
+    const isUnauthorized = error.response?.status === 401;
+    const isNetworkError = !error.response && error.message === 'Network Error';
+
+    if (isUnauthorized || isNetworkError) {
+      console.log('🚨 Sesión inválida o expirada. Forzando cierre de sesión...');
+      await removeToken();
+      if (router.replace) {
+        router.replace('/auth/login');
+      }
     }
     return Promise.reject(error);
   }

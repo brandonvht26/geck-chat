@@ -1,7 +1,7 @@
 /** @type {import('tailwindcss').Config} */
 module.exports = {
   content: [
-    "./app/**/*.{js,jsx,ts,tsx}",
+    "./app/**/*.{js,jsx,ts,tsx}", 
     "./src/**/*.{js,jsx,ts,tsx}"
   ],
   presets: [require("nativewind/preset")],
@@ -9,29 +9,34 @@ module.exports = {
     extend: {
       colors: {
         primary: {
-          default: '#2D7DD2', // Claro
-          dark: '#7C5CBF',    // Oscuro
+          DEFAULT: '#2D7DD2', 
+          dark: '#7C5CBF',    
         },
         secondary: {
-          default: '#C07A1A', // Claro
-          dark: '#E8A83E',    // Oscuro
+          DEFAULT: '#C07A1A', 
+          dark: '#E8A83E',    
         },
         textMain: {
-          default: '#1a2840', // Claro
-          dark: '#e8edf5',    // Oscuro
+          DEFAULT: '#1a2840', 
+          dark: '#e8edf5',    
         },
         glass: {
-          default: 'rgba(255, 255, 255, 0.72)', // Claro
-          dark: 'rgba(255, 255, 255, 0.06)',    // Oscuro
+          DEFAULT: 'rgba(255, 255, 255, 0.72)',
+          dark: 'rgba(255, 255, 255, 0.06)',    
         },
         authStart: {
-          default: '#e0f0ff',
+          DEFAULT: '#e0f0ff',
           dark: '#0f1824',
         },
         authEnd: {
-          default: '#fff8ef',
+          DEFAULT: '#fff8ef',
           dark: '#1a1428',
         }
+      },
+      fontFamily: {
+        primary: ['ElmsSans', 'sans-serif'],
+        secondary: ['SNPro', 'sans-serif'],
+        tertiary: ['Nunito', 'sans-serif'],
       }
     },
   },

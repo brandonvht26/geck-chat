@@ -24,6 +24,13 @@ export default function SideMenu() {
         <Feather name="folder" size={20} color="#333" />
         <Text style={styles.menuText}>Mis Documentos</Text>
       </TouchableOpacity>
+      <TouchableOpacity
+        style={styles.menuItem}
+        onPress={() => router.push('/profile/personalization')}
+      >
+        <Feather name="sliders" size={20} color="#333" />
+        <Text style={styles.menuText}>Personalización</Text>
+      </TouchableOpacity>
       <Placeholder title="Configuración de sistema" />
       <TouchableOpacity style={styles.logoutButton} onPress={signOut}>
         <Text style={styles.logoutText}>Cerrar sesión</Text>
