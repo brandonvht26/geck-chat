@@ -5,7 +5,7 @@ import { Feather } from '@expo/vector-icons';
 import Toast from 'react-native-toast-message';
 import { useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
-import ProfileAvatar from '@/src/components/profile/ProfileAvatar';
+import { UserAvatar } from '@/src/components/ui/UserAvatar';
 import ProfileInfoRow from '@/src/components/profile/ProfileInfoRow';
 import { getUserProfile, updateProfileImage, deleteAccount, UserProfile } from '@/src/services/user.service';
 import { ApiError } from '@/src/services/api';
@@ -13,7 +13,7 @@ import { useAuth } from '@/src/hooks/useAuth';
 
 export default function ProfileScreen() {
   const router = useRouter();
-  const { signOut } = useAuth();
+  const { user, signOut, setUser } = useAuth();
   const [profileData, setProfileData] = useState<UserProfile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isUploading, setIsUploading] = useState(false);
@@ -67,7 +67,8 @@ export default function ProfileScreen() {
             setIsUploading(true);
             try {
               const response = await updateProfileImage(result.assets[0].uri);
-              setProfileData(prev => prev ? { ...prev, preferences: { ...prev.preferences, wallpaperUrl: response.imageUrl } } : null);
+              setUser(prev => prev ? { ...prev, avatarUrl: response.avatarUrl } : null);
+              setProfileData(prev => prev ? { ...prev, avatarUrl: response.avatarUrl } : null);
               Toast.show({ type: 'success', text1: '¡Logrado!', text2: 'Foto actualizada correctamente' });
             } catch (error) {
               const apiError = error as ApiError;
@@ -95,7 +96,8 @@ export default function ProfileScreen() {
             setIsUploading(true);
             try {
               const response = await updateProfileImage(result.assets[0].uri);
-              setProfileData(prev => prev ? { ...prev, preferences: { ...prev.preferences, wallpaperUrl: response.imageUrl } } : null);
+              setUser(prev => prev ? { ...prev, avatarUrl: response.avatarUrl } : null);
+              setProfileData(prev => prev ? { ...prev, avatarUrl: response.avatarUrl } : null);
               Toast.show({ type: 'success', text1: '¡Logrado!', text2: 'Foto actualizada correctamente' });
             } catch (error) {
               const apiError = error as ApiError;
@@ -150,7 +152,18 @@ export default function ProfileScreen() {
         </View>
       ) : (
         <View style={styles.content}>
-          <ProfileAvatar imageUrl={profileData?.preferences?.wallpaperUrl} onEditImage={handleUpdateImage} />
+          <View style={styles.avatarWrapper}>
+            <TouchableOpacity onPress={handleUpdateImage} activeOpacity={0.7}>
+              <UserAvatar uri={user?.avatarUrl || profileData?.avatarUrl} size={100} />
+              <View style={styles.cameraButton}>
+                {isUploading ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <Feather name="camera" size={18} color="#fff" />
+                )}
+              </View>
+            </TouchableOpacity>
+          </View>
 
           <View style={styles.infoContainer}>
             <ProfileInfoRow label="Nombre" value={profileData?.nombre || ''} />
@@ -252,6 +265,23 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
     paddingTop: 24,
+  },
+  avatarWrapper: {
+    alignItems: 'center',
+    position: 'relative',
+  },
+  cameraButton: {
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#007AFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: '#fff',
   },
   infoContainer: {
     marginTop: 24,

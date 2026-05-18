@@ -10,6 +10,7 @@ interface User {
   name: string;
   email: string;
   rol: string;
+  avatarUrl?: string;
 }
 
 export const useAuth = () => {
@@ -28,6 +29,7 @@ export const useAuth = () => {
         name: response.name,
         email: response.email,
         rol: response.rol,
+        avatarUrl: response.avatarUrl,
       });
       SocketService.connect(response._id);
       return true;
@@ -49,6 +51,7 @@ export const useAuth = () => {
         name: response.name,
         email: response.email,
         rol: response.rol,
+        avatarUrl: response.avatarUrl,
       });
       SocketService.connect(response._id);
       return true;
@@ -74,7 +77,7 @@ export const useAuth = () => {
         setLoading(false);
         return;
       }
-      const response = await api.get<{ _id: string; name: string; email: string; rol: string }>('/api/users/profile');
+      const response = await api.get<{ _id: string; name: string; email: string; rol: string; avatarUrl?: string }>('/api/users/profile');
       setUser(response.data);
     } catch (error) {
       console.log('🚨 ERROR EN AUTH CONTEXT: Token inválido o red caída');
@@ -90,5 +93,5 @@ export const useAuth = () => {
     checkAuth();
   }, []);
 
-  return { signIn, signUp, signOut, loading, user, checkAuth };
+  return { signIn, signUp, signOut, loading, user, setUser, checkAuth };
 };

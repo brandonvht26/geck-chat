@@ -5,6 +5,7 @@ export interface UserProfile {
   nombre: string;
   email: string;
   rol?: string;
+  avatarUrl?: string;
   preferences?: {
     wallpaperUrl?: string;
   };
@@ -29,15 +30,17 @@ export const updatePassword = async (passwordactual: string, passwordnuevo: stri
   await api.put('api/users/update-password', { passwordactual, passwordnuevo });
 };
 
-export const updateProfileImage = async (imageUri: string): Promise<{ imageUrl: string }> => {
+export const updateProfileImage = async (imageUri: string): Promise<{ avatarUrl: string }> => {
   const formData = new FormData();
   formData.append('image', {
     uri: imageUri,
-    name: 'profile.jpg',
     type: 'image/jpeg',
+    name: 'avatar.jpg',
   } as any);
 
-  const response = await api.post<{ imageUrl: string }>('api/users/update-image', formData, {
+  formData.append('type', 'avatar');
+
+  const response = await api.post<{ avatarUrl: string }>('api/users/update-image', formData, {
     headers: { 'Content-Type': 'multipart/form-data' },
   });
   return response.data;
