@@ -1,7 +1,6 @@
 import { useEffect } from 'react';
 import '../global.css';
 import { Stack } from 'expo-router';
-import { View } from 'react-native';
 import { Toaster } from 'sonner-native'; // <-- Importación del nuevo sistema premium
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { SocketProvider } from '@/src/context/SocketContext';

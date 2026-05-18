@@ -150,8 +150,10 @@ export default function ChatRoomScreen() {
     try {
       if (editingMessage) {
         const updatedMsg = await editMessage(editingMessage._id, cleanedMessage);
+        SocketService.emit('edit_message', { messageId: editingMessage._id, senderId: currentUserId, content: cleanedMessage });
         queryClient.setQueryData(['chatMessages', id], (old: ChatMessage[] | undefined) => old ? old.map(m => m._id === editingMessage._id ? { ...m, content: updatedMsg.content || updatedMsg.contenido } : m) : []);
         setEditingMessage(null);
+        queryClient.invalidateQueries({ queryKey: ['userChats'] });
       } else {
         const newMsg = await sendMessage(id as string, cleanedMessage);
         queryClient.setQueryData(['chatMessages', id], (old: ChatMessage[] | undefined) => old ? (old.some(msg => msg._id === newMsg._id) ? old : [newMsg, ...old]) : [newMsg]);
@@ -330,23 +332,29 @@ export default function ChatRoomScreen() {
         <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setSelectedMsgOptions(null)}>
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>Opciones del mensaje</Text>
-            <TouchableOpacity style={styles.modalButton} onPress={() => { setEditingMessage(selectedMsgOptions); setContent(selectedMsgOptions!.content || selectedMsgOptions!.contenido); setSelectedMsgOptions(null); }}>
-              <Feather name="edit-2" size={20} color="#007AFF" />
-              <Text style={styles.modalButtonText}>Editar</Text>
-            </TouchableOpacity>
+            {!selectedMsgOptions?.isDeleted && (
+              <>
+                <TouchableOpacity style={styles.modalButton} onPress={() => { setEditingMessage(selectedMsgOptions); setContent(selectedMsgOptions!.content || selectedMsgOptions!.contenido); setSelectedMsgOptions(null); }}>
+                  <Feather name="edit-2" size={20} color="#007AFF" />
+                  <Text style={styles.modalButtonText}>Editar</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.modalButton} onPress={async () => {
+                  const msgId = selectedMsgOptions!._id; setSelectedMsgOptions(null); await deleteMessage(msgId, 'for_all');
+                  SocketService.emit('delete_message', { messageId: msgId, userId: currentUserId, type: 'for_all' });
+                  queryClient.invalidateQueries({ queryKey: ['userChats'] });
+                  queryClient.setQueryData(['chatMessages', id], (old: ChatMessage[] | undefined) => old ? old.map(msg => msg._id === msgId ? { ...msg, content: 'Mensaje eliminado', isDeleted: true } : msg) : []);
+                }}>
+                  <Feather name="trash-2" size={20} color="#FF3B30" />
+                  <Text style={[styles.modalButtonText, { color: '#FF3B30' }]}>Eliminar para todos</Text>
+                </TouchableOpacity>
+              </>
+            )}
             <TouchableOpacity style={styles.modalButton} onPress={async () => {
               const msgId = selectedMsgOptions!._id; setSelectedMsgOptions(null); await deleteMessage(msgId, 'for_me');
               queryClient.setQueryData(['chatMessages', id], (old: ChatMessage[] | undefined) => old ? old.filter(msg => msg._id !== msgId) : []);
             }}>
               <Feather name="trash" size={20} color="#FF3B30" />
               <Text style={[styles.modalButtonText, { color: '#FF3B30' }]}>Eliminar para mí</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.modalButton} onPress={async () => {
-              const msgId = selectedMsgOptions!._id; setSelectedMsgOptions(null); await deleteMessage(msgId, 'for_all');
-              queryClient.setQueryData(['chatMessages', id], (old: ChatMessage[] | undefined) => old ? old.map(msg => msg._id === msgId ? { ...msg, content: 'Mensaje eliminado', isDeleted: true } : msg) : []);
-            }}>
-              <Feather name="trash-2" size={20} color="#FF3B30" />
-              <Text style={[styles.modalButtonText, { color: '#FF3B30' }]}>Eliminar para todos</Text>
             </TouchableOpacity>
           </View>
         </TouchableOpacity>

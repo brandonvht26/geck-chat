@@ -10,6 +10,7 @@ import {
   ActivityIndicator,
   Alert,
   Modal,
+  Image,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Audio } from 'expo-av';
@@ -128,6 +129,7 @@ export default function WorkspaceScreen() {
   const [isRecording, setIsRecording] = useState(false);
   const startTimeRef = useRef(0);
   const [showMembersModal, setShowMembersModal] = useState(false);
+  const [workspaceData, setWorkspaceData] = useState<any>(null);
 
   const { user } = useAuth();
 
@@ -148,6 +150,15 @@ export default function WorkspaceScreen() {
     return member?.name || member?.username || 'Usuario';
   }, [members]);
 
+  const isGroupAdmin = workspaceData?.admins?.some(
+    (adminId: any) => (adminId._id || adminId) === currentUserId
+  ) || workspaceData?.owner?._id === currentUserId
+    || workspaceData?.owner === currentUserId;
+
+  const handleChangeGroupImage = () => {
+    Alert.alert('Cambiar imagen', 'Esta funcionalidad estará disponible próximamente.');
+  };
+
   const loadWorkspaceChat = useCallback(async () => {
     try {
       const chatsResponse = await getUserChats();
@@ -162,6 +173,7 @@ export default function WorkspaceScreen() {
       if (foundChat) {
         setCurrentChatId(foundChat._id);
         setMembers(foundChat.participants || []);
+        setWorkspaceData(foundChat.workspaceId || null);
         SocketService.emit('join_chat', foundChat._id);
       }
     } catch (error) {
@@ -443,7 +455,20 @@ export default function WorkspaceScreen() {
           <Feather name="chevron-left" size={24} color="#333" />
         </TouchableOpacity>
         <View style={styles.headerCenter}>
-          <Feather name="users" size={18} color="#007AFF" />
+          <View style={styles.groupAvatarContainer}>
+            {workspaceData?.imageUrl ? (
+              <Image source={{ uri: workspaceData.imageUrl }} style={styles.groupAvatar} />
+            ) : (
+              <View style={styles.groupAvatarPlaceholder}>
+                <Feather name="users" size={20} color="#007AFF" />
+              </View>
+            )}
+            {isGroupAdmin && (
+              <TouchableOpacity style={styles.cameraButton} onPress={handleChangeGroupImage}>
+                <Feather name="camera" size={12} color="#fff" />
+              </TouchableOpacity>
+            )}
+          </View>
           <Text style={styles.headerTitle}>{name}</Text>
         </View>
         <TouchableOpacity
@@ -660,6 +685,36 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#333',
     marginLeft: 8,
+  },
+  groupAvatarContainer: {
+    position: 'relative',
+    marginRight: 8,
+  },
+  groupAvatar: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+  },
+  groupAvatarPlaceholder: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#E3F2FD',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  cameraButton: {
+    position: 'absolute',
+    bottom: -2,
+    right: -2,
+    backgroundColor: '#007AFF',
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#fff',
   },
   inviteButton: {
     padding: 8,

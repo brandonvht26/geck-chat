@@ -4,6 +4,8 @@ import { loginUser, registerUser } from '../services/auth.service';
 import { setToken, removeToken, getToken, ApiError } from '../services/api';
 import { SocketService } from '../services/socket.service';
 import { api } from '../services/api';
+import { registerForPushNotificationsAsync } from '@/src/services/notification.service';
+import { updatePushToken } from '@/src/services/user.service';
 
 interface User {
   _id: string;
@@ -32,6 +34,25 @@ export const useAuth = () => {
         avatarUrl: response.avatarUrl,
       });
       SocketService.connect(response._id);
+
+      // Sincronizar Push Token con el servidor en segundo plano
+      const initializePushNotifications = async () => {
+        try {
+          const expoPushToken = await registerForPushNotificationsAsync();
+          if (expoPushToken) {
+            await updatePushToken(expoPushToken);
+            console.log('✅ Push Token sincronizado con el servidor');
+          }
+        } catch (error: any) {
+          // Silenciamos el error si es por el entorno de desarrollo de Expo Go
+          if (error.message?.includes('Expo Go') || error.message?.includes('development build')) {
+            console.log('ℹ️ Modo Expo Go detectado. Las notificaciones Push están desactivadas.');
+          } else {
+            console.log('⚠️ No se pudo registrar el Push Token:', error.message);
+          }
+        }
+      };
+      initializePushNotifications();
       return true;
     } catch (error) {
       const apiError = error as ApiError;

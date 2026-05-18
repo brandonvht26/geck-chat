@@ -8,8 +8,18 @@ export interface ChatMessage {
   createdAt: string;
 }
 
+interface PaginationInfo {
+  page: number;
+  limit: number;
+  total: number;
+  pages: number;
+  hasNextPage: boolean;
+  hasPreviousPage: boolean;
+}
+
 interface ChatHistoryResponse {
   messages: ChatMessage[];
+  pagination?: PaginationInfo;
 }
 
 export interface Chat {
@@ -27,6 +37,7 @@ interface GetChatsResponse {
 
 interface GetMessagesResponse {
   messages: ChatMessage[];
+  pagination?: PaginationInfo;
 }
 
 interface AccessChatResponse {
@@ -36,7 +47,9 @@ interface AccessChatResponse {
 export const getChatHistory = async (otherUserId: string): Promise<ChatMessage[]> => {
   try {
     const response = await api.get<ChatHistoryResponse>('/api/chat/history/' + otherUserId);
-    return response.data?.messages || response.data || [];
+    // ¡CLAVE! El backend ahora devuelve { ok: true, messages: [...], pagination: {...} }
+    // Extraemos el array 'messages' para mantener compatibilidad
+    return response.data?.messages || [];
   } catch (error) {
     const apiError = error as ApiError;
     console.error('Error fetching chat history:', apiError.message);
@@ -74,7 +87,10 @@ export const getChatMessages = async (chatId: string): Promise<ChatMessage[]> =>
     console.log("🕵️‍♂️ RADAR 4 - URL EXACTA DISPARADA POR AXIOS:", urlDestino);
     
     const response = await api.get<GetMessagesResponse>(urlDestino);
-    return response.data.messages;
+    
+    // ¡CLAVE! El backend ahora devuelve { ok: true, messages: [...], pagination: {...} }
+    // Extraemos el array 'messages' para no romper el FlatList
+    return response.data.messages || [];
   } catch (error) {
     const apiError = error as ApiError;
     console.error('Error fetching chat messages:', apiError.message);
@@ -130,7 +146,7 @@ export const sendFileMessage = async (chatId: string, uri: string, name: string,
 };
 
 export const editMessage = async (messageId: string, content: string): Promise<ChatMessage> => {
-  const response = await api.put<{ message: ChatMessage }>(`/api/chat/message/${messageId}`, { content });
+  const response = await api.patch<{ message: ChatMessage }>(`/api/chat/message/${messageId}`, { content });
   return response.data.message;
 };
 

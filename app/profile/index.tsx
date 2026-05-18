@@ -7,7 +7,7 @@ import { useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import { UserAvatar } from '@/src/components/ui/UserAvatar';
 import ProfileInfoRow from '@/src/components/profile/ProfileInfoRow';
-import { getUserProfile, updateProfileImage, deleteAccount, UserProfile } from '@/src/services/user.service';
+import { getUserProfile, updateProfile, deleteAccount, UserProfile } from '@/src/services/user.service';
 import { ApiError } from '@/src/services/api';
 import { useAuth } from '@/src/hooks/useAuth';
 
@@ -66,7 +66,7 @@ export default function ProfileScreen() {
           if (!result.canceled && result.assets[0]) {
             setIsUploading(true);
             try {
-              const response = await updateProfileImage(result.assets[0].uri);
+              const response = await updateProfile(profileData?._id || '', {}, result.assets[0].uri, 'avatar');
               setUser(prev => prev ? { ...prev, avatarUrl: response.avatarUrl } : null);
               setProfileData(prev => prev ? { ...prev, avatarUrl: response.avatarUrl } : null);
               Toast.show({ type: 'success', text1: '¡Logrado!', text2: 'Foto actualizada correctamente' });
@@ -101,7 +101,7 @@ export default function ProfileScreen() {
             }
             setIsUploading(true);
             try {
-              const response = await updateProfileImage(asset.uri);
+              const response = await updateProfile(profileData?._id || '', {}, asset.uri, 'avatar');
               setUser(prev => prev ? { ...prev, avatarUrl: response.avatarUrl } : null);
               setProfileData(prev => prev ? { ...prev, avatarUrl: response.avatarUrl } : null);
               Toast.show({ type: 'success', text1: '¡Logrado!', text2: 'Foto actualizada correctamente' });

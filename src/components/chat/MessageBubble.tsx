@@ -67,26 +67,39 @@ export default function MessageBubble({
       
       <View className={`${bubbleBase} ${isMe ? myBubble : otherBubble} shadow-sm ${msgType === 'file' || msgType === 'audio' ? 'flex-row' : 'flex-col items-start'}`}>
         
-        {/* Render de Audio */}
-        {msgType === 'audio' && AudioPlayerComponent && (
-          <AudioPlayerComponent fileUrl={item.fileUrl} isSent={isMe} />
-        )}
-
-        {/* Render de Archivo */}
-        {msgType === 'file' && (
+        {/* Render de contenido eliminado */}
+        {item.isDeleted ? (
+          <View className="flex-row items-center gap-2">
+            <Feather name="slash" size={14} color="#9ca3af" />
+            <Text className="text-gray-400 italic text-sm">Mensaje eliminado</Text>
+          </View>
+        ) : (
           <>
-            <Text className="text-2xl">📄</Text>
-            <Text className={`${textBase} ${isMe ? myText : otherText} font-medium flex-shrink`}>{content}</Text>
-          </>
-        )}
+            {/* Render de Audio */}
+            {msgType === 'audio' && AudioPlayerComponent && (
+              <AudioPlayerComponent fileUrl={item.fileUrl} isSent={isMe} />
+            )}
 
-        {/* Render de Texto */}
-        {msgType !== 'audio' && msgType !== 'file' && (
-          <Text className={`${textBase} ${isMe ? myText : otherText}`}>{content}</Text>
+            {/* Render de Archivo */}
+            {msgType === 'file' && (
+              <>
+                <Text className="text-2xl">📄</Text>
+                <Text className={`${textBase} ${isMe ? myText : otherText} font-medium flex-shrink`}>{content}</Text>
+              </>
+            )}
+
+            {/* Render de Texto */}
+            {msgType !== 'audio' && msgType !== 'file' && (
+              <Text className={`${textBase} ${isMe ? myText : otherText}`}>{content}</Text>
+            )}
+          </>
         )}
 
         {/* Footer: Hora y Checks */}
         <View className={`flex-row justify-end items-center mt-1 gap-1 ${msgType !== 'text' && 'ml-2'}`}>
+          {item.isEdited && !item.isDeleted && (
+            <Text className={`text-[10px] italic ${isMe ? 'text-white/70' : 'text-gray-500'} mr-1`}>Editado</Text>
+          )}
           <Text className={`text-[10px] ${isMe ? 'text-white/70' : 'text-gray-500'}`}>{timeStr}</Text>
           {isMe && totalParticipants > 0 && (
             <Ionicons

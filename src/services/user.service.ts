@@ -7,7 +7,8 @@ export interface UserProfile {
   rol?: string;
   avatarUrl?: string;
   preferences?: {
-    wallpaperUrl?: string;
+    phoneWallpaperUrl?: string;
+    desktopWallpaperUrl?: string;
   };
 }
 
@@ -24,32 +25,77 @@ export const getUserProfile = async (): Promise<UserProfile> => {
   return response.data;
 };
 
-export const updateProfile = async (id: string, nombre: string, email: string): Promise<void> => {
-  await api.put(`api/users/profile/${id}`, { nombre, email });
+export const updateProfile = async (id: string, data: any, imageUri?: string, imageType?: 'avatar' | 'phoneWallpaper'): Promise<any> => {
+  try {
+    const formData = new FormData();
+    
+    // Agregar datos de texto
+    if (data.nombre) formData.append('nombre', data.nombre);
+    if (data.email) formData.append('email', data.email);
+    if (data.bio) formData.append('bio', data.bio);
+    
+    // Agregar la imagen si existe con el tipo correcto para Expo
+    if (imageUri && imageType) {
+      formData.append('image', {
+        uri: imageUri,
+        name: `${imageType}_${id}.jpg`,
+        type: 'image/jpeg',
+      } as any);
+      formData.append('type', imageType); // 'avatar' o 'phoneWallpaper'
+    }
+
+    const response = await api.put(`api/users/profile/${id}`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    
+    return response.data;
+  } catch (error) {
+    console.error('Error actualizando perfil:', error);
+    throw error;
+  }
 };
 
 export const updatePassword = async (passwordactual: string, passwordnuevo: string): Promise<void> => {
   await api.put('api/users/update-password', { passwordactual, passwordnuevo });
 };
 
-export const updateProfileImage = async (imageUri: string): Promise<{ avatarUrl: string }> => {
-  const formData = new FormData();
-  formData.append('image', {
-    uri: imageUri,
-    type: 'image/jpeg',
-    name: 'avatar.jpg',
-  } as any);
-
-  formData.append('type', 'avatar');
-
-  const response = await api.post<{ avatarUrl: string }>('api/users/update-image', formData, {
-    headers: { 'Content-Type': 'multipart/form-data' },
-  });
-  return response.data;
-};
 
 export const deleteAccount = async (confirmationText: string): Promise<void> => {
   await api.delete('api/users/delete-account', { data: { confirmationText } });
+};
+
+export const updatePushToken = async (token: string): Promise<void> => {
+  const response = await api.put('/api/users/update-push-token', { pushToken: token });
+  return response.data;
+};
+
+export const updateUserPreferences = async (theme?: string, phoneWallpaperUri?: string) => {
+  try {
+    const formData = new FormData();
+    
+    if (theme) formData.append('theme', theme);
+    
+    if (phoneWallpaperUri) {
+      const filename = phoneWallpaperUri.split('/').pop() || 'wallpaper.jpg';
+      const match = /\.(\w+)$/.exec(filename);
+      const type = match ? `image/${match[1]}` : `image/jpeg`;
+
+      formData.append('phoneWallpaper', {
+        uri: phoneWallpaperUri,
+        name: filename,
+        type
+      } as any);
+    }
+
+    const response = await api.patch('/api/users/preferences', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    
+    return response.data;
+  } catch (error) {
+    console.error('Error actualizando preferencias:', error);
+    throw error;
+  }
 };
 
 interface SearchUsersResponse {

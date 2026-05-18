@@ -1,12 +1,11 @@
 import { useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, TextInput, ActivityIndicator } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, TextInput } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
-import Toast from 'react-native-toast-message';
+import { toast } from 'sonner-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { updateProfile } from '@/src/services/user.service';
-import { ApiError } from '@/src/services/api';
 
 export default function EditProfileScreen() {
   const router = useRouter();
@@ -15,39 +14,27 @@ export default function EditProfileScreen() {
 
   const [nombre, setNombre] = useState(params.nombre || '');
   const [email, setEmail] = useState(params.email || '');
-  const [loading, setLoading] = useState(false);
 
   const handleSave = async () => {
     if (!nombre.trim() || !email.trim()) {
-      Toast.show({
-        type: 'error',
-        text1: 'Atención',
-        text2: 'Todos los campos son requeridos',
+      toast.error('Atención', {
+        description: 'Todos los campos son requeridos',
       });
       return;
     }
 
-    setLoading(true);
-    try {
-      await updateProfile(params.id, nombre, email);
-      queryClient.invalidateQueries({ queryKey: ['profile'] });
-      queryClient.invalidateQueries({ queryKey: ['user-chats'] });
-      Toast.show({
-        type: 'success',
-        text1: '¡Logrado!',
-        text2: 'Perfil actualizado correctamente',
+    const updatePromise = updateProfile(params.id, { nombre, email })
+      .then(() => {
+        queryClient.invalidateQueries({ queryKey: ['profile'] });
+        queryClient.invalidateQueries({ queryKey: ['user-chats'] });
+        router.back();
       });
-      router.back();
-    } catch (error) {
-      const apiError = error as ApiError;
-      Toast.show({
-        type: 'error',
-        text1: 'Algo salió mal',
-        text2: apiError.message || 'No se pudo actualizar el perfil',
-      });
-    } finally {
-      setLoading(false);
-    }
+
+    toast.promise(updatePromise, {
+      loading: 'Guardando cambios...',
+      success: '¡Perfil actualizado correctamente!',
+      error: 'No pudimos guardar los cambios. Inténtalo de nuevo.',
+    });
   };
 
   return (
@@ -79,15 +66,9 @@ export default function EditProfileScreen() {
           keyboardType="email-address"
         />
 
-        {loading ? (
-          <View style={styles.button}>
-            <ActivityIndicator color="#fff" />
-          </View>
-        ) : (
-          <TouchableOpacity style={styles.button} onPress={handleSave}>
-            <Text style={styles.buttonText}>Guardar Cambios</Text>
-          </TouchableOpacity>
-        )}
+        <TouchableOpacity style={styles.button} onPress={handleSave}>
+          <Text style={styles.buttonText}>Guardar Cambios</Text>
+        </TouchableOpacity>
       </View>
     </SafeAreaView>
   );
