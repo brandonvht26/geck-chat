@@ -1,37 +1,41 @@
 import { useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getChatMessages } from '@/src/services/chat.service';
-import { SocketService } from '@/src/services/socket.service';
+import { useSocket } from '@/src/context/SocketContext';
 
 export const useChatMessages = (chatId: string | null | undefined) => {
   const queryClient = useQueryClient();
+  const { socket } = useSocket();
 
   useEffect(() => {
-    if (!chatId) return;
+    if (!chatId || !socket) {
+      console.log('🛑 [RADAR 1] Hook sin chatId o sin socket activo.', { chatId, hasSocket: !!socket });
+      return;
+    }
+
+    console.log(`🔌 [RADAR 2] Socket activo. Escuchando sala: ${chatId}`);
+
+    socket.emit('join_chat', chatId);
 
     const handleNewMessage = (newMessage: any) => {
-      if (newMessage.chatId !== chatId && newMessage.workspaceId !== chatId) return;
+      console.log('🚨 [RADAR 3 - ÉXITO] MENSAJE RECIBIDO VÍA SOCKET:', newMessage);
 
-      queryClient.setQueryData(['chatMessages', chatId], (oldMessages: any) => {
-        if (!oldMessages) return [newMessage];
+      queryClient.invalidateQueries({ queryKey: ['chatMessages', chatId] });
 
-        const exists = oldMessages.some((msg: any) => msg._id === newMessage._id);
-        if (exists) return oldMessages;
-
-        return [newMessage, ...oldMessages];
-      });
+      queryClient.invalidateQueries({ queryKey: ['userChats'] });
     };
 
-    SocketService.on('receive_message', handleNewMessage);
-    SocketService.on('new_message', handleNewMessage);
-    SocketService.on('message_received', handleNewMessage);
+    socket.on('receive_message', handleNewMessage);
+    socket.on('new_message', handleNewMessage);
+    socket.on('message_received', handleNewMessage);
 
     return () => {
-      SocketService.off('receive_message', handleNewMessage);
-      SocketService.off('new_message', handleNewMessage);
-      SocketService.off('message_received', handleNewMessage);
+      console.log(`🔌 [RADAR 4] Desmontando listeners de la sala: ${chatId}`);
+      socket.off('receive_message', handleNewMessage);
+      socket.off('new_message', handleNewMessage);
+      socket.off('message_received', handleNewMessage);
     };
-  }, [chatId, queryClient]);
+  }, [chatId, queryClient, socket]);
 
   return useQuery({
     queryKey: ['chatMessages', chatId],
@@ -43,6 +47,5 @@ export const useChatMessages = (chatId: string | null | undefined) => {
       );
     },
     enabled: !!chatId,
-    staleTime: 1000 * 60 * 5,
   });
 };

@@ -1,47 +1,36 @@
 import { useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getUserChats, Chat } from '@/src/services/chat.service';
-import { SocketService } from '@/src/services/socket.service';
+import { useSocket } from '@/src/context/SocketContext';
 
 export const useUserChats = () => {
     const queryClient = useQueryClient();
+    const { socket } = useSocket();
 
     useEffect(() => {
+        if (!socket) {
+            console.log('🛑 [RADAR LISTA] Hook de Lista sin socket activo.');
+            return;
+        }
+
+        console.log('📡 [RADAR LISTA] Escuchando mensajes globales...');
+
         const handleGlobalMessage = (newMessage: any) => {
-            queryClient.setQueryData(['userChats'], (oldChats: any) => {
-                if (!oldChats) return oldChats;
+            console.log('🚨 [RADAR LISTA - ÉXITO] Actualizando lista por nuevo mensaje:', newMessage._id || 'sin ID');
 
-                const chatIndex = oldChats.findIndex((c: any) =>
-                    c._id === newMessage.chatId ||
-                    (typeof c.workspaceId === 'object' ? c.workspaceId?._id : c.workspaceId) === newMessage.chatId
-                );
-
-                if (chatIndex === -1) return oldChats;
-
-                const newChats = [...oldChats];
-                const updatedChat = {
-                    ...newChats[chatIndex],
-                    lastMessage: newMessage,
-                    updatedAt: new Date().toISOString(),
-                };
-
-                newChats.splice(chatIndex, 1);
-                newChats.unshift(updatedChat);
-
-                return newChats;
-            });
+            queryClient.invalidateQueries({ queryKey: ['userChats'] });
         };
 
-        SocketService.on('receive_message', handleGlobalMessage);
-        SocketService.on('new_message', handleGlobalMessage);
-        SocketService.on('message_received', handleGlobalMessage);
+        socket.on('receive_message', handleGlobalMessage);
+        socket.on('new_message', handleGlobalMessage);
+        socket.on('message_received', handleGlobalMessage);
 
         return () => {
-            SocketService.off('receive_message', handleGlobalMessage);
-            SocketService.off('new_message', handleGlobalMessage);
-            SocketService.off('message_received', handleGlobalMessage);
+            socket.off('receive_message', handleGlobalMessage);
+            socket.off('new_message', handleGlobalMessage);
+            socket.off('message_received', handleGlobalMessage);
         };
-    }, [queryClient]);
+    }, [queryClient, socket]);
 
     return useQuery<Chat[]>({
         queryKey: ['userChats'],

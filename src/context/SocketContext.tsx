@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useRef, useState, ReactNode } from 'react';
+import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { io, Socket } from 'socket.io-client';
 import { useAudioPlayer } from 'expo-audio';
 
@@ -19,28 +19,29 @@ interface SocketProviderProps {
 }
 
 export const SocketProvider = ({ children, userId }: SocketProviderProps) => {
+  const [socket, setSocket] = useState<Socket | null>(null);
   const [onlineUsers, setOnlineUsers] = useState<string[]>([]);
-  const socketRef = useRef<Socket | null>(null);
   const player = useAudioPlayer(require('../../assets/sounds/pop.mp3'));
 
   useEffect(() => {
     if (!userId) return;
 
-    const socket = io(SOCKET_URL);
-    socketRef.current = socket;
+    const newSocket = io(SOCKET_URL);
 
-    socket.emit('setup', userId);
-    socket.emit('get_online_users');
+    setSocket(newSocket);
 
-    socket.on('online_users_list', (users: string[]) => {
+    newSocket.emit('setup', userId);
+    newSocket.emit('get_online_users');
+
+    newSocket.on('online_users_list', (users: string[]) => {
       setOnlineUsers(users);
     });
 
-    socket.on('user_online', ({ userId }: { userId: string }) => {
+    newSocket.on('user_online', ({ userId }: { userId: string }) => {
       setOnlineUsers(prev => (prev.includes(userId) ? prev : [...prev, userId]));
     });
 
-    socket.on('user_offline', ({ userId }: { userId: string }) => {
+    newSocket.on('user_offline', ({ userId }: { userId: string }) => {
       setOnlineUsers(prev => prev.filter(id => id !== userId));
     });
 
@@ -50,20 +51,20 @@ export const SocketProvider = ({ children, userId }: SocketProviderProps) => {
       }
     };
 
-    socket.on('new_message', handleIncomingMessage);
-    socket.on('message_received', handleIncomingMessage);
+    newSocket.on('new_message', handleIncomingMessage);
+    newSocket.on('message_received', handleIncomingMessage);
 
     return () => {
-      socket.off('new_message', handleIncomingMessage);
-      socket.off('message_received', handleIncomingMessage);
-      socket.disconnect();
-      socketRef.current = null;
+      newSocket.off('new_message', handleIncomingMessage);
+      newSocket.off('message_received', handleIncomingMessage);
+      newSocket.disconnect();
+      setSocket(null);
       setOnlineUsers([]);
     };
   }, [userId]);
 
   return (
-    <SocketContext.Provider value={{ socket: socketRef.current, onlineUsers }}>
+    <SocketContext.Provider value={{ socket, onlineUsers }}>
       {children}
     </SocketContext.Provider>
   );
