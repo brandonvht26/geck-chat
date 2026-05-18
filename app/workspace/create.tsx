@@ -1,26 +1,43 @@
 import { useState } from 'react';
 import {
   View,
+  Image,
   TextInput,
   StyleSheet,
   Text,
   Pressable,
+  TouchableOpacity,
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
+import * as ImagePicker from 'expo-image-picker';
 import Toast from 'react-native-toast-message';
 import { useRouter } from 'expo-router';
-import { createWorkspace } from '@/src/services/workspace.service';
+import { createWorkspace, updateWorkspaceImage } from '@/src/services/workspace.service';
 import { ApiError } from '@/src/services/api';
 
 export default function CreateWorkspaceScreen() {
   const router = useRouter();
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
+  const [imageUri, setImageUri] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+
+  const pickImage = async () => {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.7,
+    });
+
+    if (!result.canceled) {
+      setImageUri(result.assets[0].uri);
+    }
+  };
 
   const goBackSafely = (): void => {
     if (router.canGoBack()) {
@@ -42,7 +59,30 @@ export default function CreateWorkspaceScreen() {
 
     setIsLoading(true);
     try {
-      await createWorkspace(name.trim(), description.trim());
+      const newWorkspace = await createWorkspace(name.trim(), description.trim());
+
+      if (imageUri) {
+        try {
+          await updateWorkspaceImage(newWorkspace.id, imageUri);
+          Toast.show({
+            type: 'success',
+            text1: 'Grupo creado con imagen exitosamente',
+          });
+        } catch (error: any) {
+          if (error.message === 'ENDPOINT_PENDING') {
+            Toast.show({
+              type: 'info',
+              text1: 'Grupo creado. La foto de perfil se sincronizará cuando el servidor se actualice.',
+            });
+          } else {
+            Toast.show({
+              type: 'error',
+              text1: 'Grupo creado, pero no pudimos subir la imagen.',
+            });
+          }
+        }
+      }
+
       Toast.show({
         type: 'success',
         text1: 'El espacio de trabajo ha sido generado',
@@ -83,6 +123,14 @@ export default function CreateWorkspaceScreen() {
         </View>
 
         <View style={styles.form}>
+          <TouchableOpacity onPress={pickImage} className="items-center justify-center self-center mb-6 w-24 h-24 rounded-full bg-black/30 border border-white/20 overflow-hidden">
+            {imageUri ? (
+              <Image source={{ uri: imageUri }} className="w-full h-full" resizeMode="cover" />
+            ) : (
+              <Feather name="camera" size={32} color="#9ca3af" />
+            )}
+          </TouchableOpacity>
+
           <View style={styles.inputGroup}>
             <Text style={styles.label}>Nombre *</Text>
             <TextInput

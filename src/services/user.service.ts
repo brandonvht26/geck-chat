@@ -15,6 +15,8 @@ export interface SearchedUser {
   _id: string;
   name: string;
   email: string;
+  avatarUrl?: string;
+  profilePicture?: string;
 }
 
 export const getUserProfile = async (): Promise<UserProfile> => {

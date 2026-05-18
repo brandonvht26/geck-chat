@@ -87,13 +87,26 @@ export const uploadDocument = async (fileUri: string, fileName: string, mimeType
 };
 
 export const searchItems = async (query: string): Promise<DocumentItem[]> => {
-  const response = await api.get('/api/items/search', { params: { q: query } });
-  return response.data.items || [];
+  try {
+    const response = await api.get('/api/items/all');
+    const allItems: DocumentItem[] = response.data.items || response.data || [];
+
+    if (!query || query.trim() === '') return allItems;
+
+    const lowerQuery = query.toLowerCase();
+    return allItems.filter(item =>
+      (item.nombre?.toLowerCase().includes(lowerQuery)) ||
+      (item.name?.toLowerCase().includes(lowerQuery))
+    );
+  } catch (error) {
+    console.error('[searchItems] Error al buscar:', error);
+    return [];
+  }
 };
 
 export const deleteDocument = async (id: string): Promise<void> => {
   try {
-    await api.delete(`/api/items/${id}`);
+    await api.delete(`/api/items/delete/${id}`);
   } catch (error) {
     const apiError = error as ApiError;
     throw new Error(apiError.message);

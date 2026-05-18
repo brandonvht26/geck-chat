@@ -26,6 +26,7 @@ import { SocketService } from '@/src/services/socket.service';
 import { useSocket } from '@/src/context/SocketContext';
 import { getUserChats, getChatMessages, editMessage, deleteMessage, sendAudioMessage, ChatMessage as ChatMessageType } from '@/src/services/chat.service';
 import { sendFileMessage } from '@/src/services/chat.service';
+import { UserAvatar } from '@/src/components/ui/UserAvatar';
 import MessageBubble from '@/src/components/chat/MessageBubble';
 import ChatInput from '@/src/components/chat/ChatInput';
 
@@ -423,8 +424,7 @@ export default function WorkspaceScreen() {
         isOnline={isOnline}
         onLongPress={handleLongPress}
         onOpenFile={handleOpenFile}
-        checkIcon={isReadByAll ? 'checkmark-done' : 'checkmark'}
-        checkColor={isReadByAll ? '#34b7f1' : (isSent ? 'rgba(255,255,255,0.7)' : '#999')}
+        totalParticipants={members.length}
         AudioPlayerComponent={AudioPlayer}
       />
     );
@@ -463,12 +463,11 @@ export default function WorkspaceScreen() {
         <TouchableOpacity style={styles.membersBar} activeOpacity={0.7} onPress={() => setShowMembersModal(true)}>
           <View style={styles.membersAvatars}>
             {members.slice(0, 5).map((member) => {
-              const isOnline = onlineUsers.includes(member._id);
+              const memberData = member.userId || member;
+              const isOnline = onlineUsers.includes(memberData._id);
               return (
-                <View key={member._id} style={styles.memberAvatarWrapper}>
-                  <View style={[styles.memberAvatar, { backgroundColor: isOnline ? '#E8F5E9' : '#f0f0f0' }]}>
-                    <Feather name="user" size={16} color={isOnline ? '#2E7D32' : '#999'} />
-                  </View>
+                <View key={memberData._id} style={styles.memberAvatarWrapper}>
+                  <UserAvatar uri={memberData.avatarUrl} size={32} />
                   {isOnline && <View style={styles.onlineDot} />}
                 </View>
               );
@@ -583,38 +582,39 @@ export default function WorkspaceScreen() {
             <Text style={styles.modalTitle}>Miembros del Grupo</Text>
             <FlatList
               data={members}
-              keyExtractor={item => item._id}
+              keyExtractor={item => (item.userId || item)._id}
               renderItem={({ item }) => {
-                const isOnline = onlineUsers.includes(item._id);
+                const memberData = item.userId || item;
+                const isOnline = onlineUsers.includes(memberData._id);
                 return (
                   <TouchableOpacity
                     style={styles.modalButton}
                     onPress={() => {
                       setShowMembersModal(false);
-                      if (String(item._id) !== String(currentUserId)) {
+                      if (String(memberData._id) !== String(currentUserId)) {
                         router.push({
                           pathname: '/user/[id]',
-                          params: { id: item._id, name: item.name || item.username, email: item.email || '' }
+                          params: { id: memberData._id, name: memberData.name || memberData.username, email: memberData.email || '' }
                         });
                       }
                     }}
                   >
                     <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
-                      <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: isOnline ? '#E8F5E9' : '#f0f0f0', justifyContent: 'center', alignItems: 'center', marginRight: 12 }}>
-                        <Feather name="user" size={20} color={isOnline ? '#2E7D32' : '#999'} />
-                        {isOnline && <View style={[styles.onlineDot, { right: 0, bottom: 0 }]} />}
-                      </View>
+                      <View style={{ marginRight: 12 }}>
+                      <UserAvatar uri={memberData.avatarUrl} size={40} />
+                      {isOnline && <View style={[styles.onlineDot, { right: 0, bottom: 0 }]} />}
+                    </View>
                       <View>
                         <Text style={{ fontSize: 16, fontWeight: '500', color: '#333' }}>
-                          {item.name || item.username || 'Usuario'}
-                          {String(item._id) === String(currentUserId) && ' (Tú)'}
+                          {memberData.name || memberData.username || 'Usuario'}
+                          {String(memberData._id) === String(currentUserId) && ' (Tú)'}
                         </Text>
                         <Text style={{ fontSize: 12, color: isOnline ? '#2E7D32' : '#999' }}>
                           {isOnline ? 'En línea' : 'Desconectado'}
                         </Text>
                       </View>
                     </View>
-                    {String(item._id) !== String(currentUserId) && (
+                    {String(memberData._id) !== String(currentUserId) && (
                       <Feather name="message-circle" size={20} color="#007AFF" />
                     )}
                   </TouchableOpacity>

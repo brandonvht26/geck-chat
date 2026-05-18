@@ -8,8 +8,7 @@ interface MessageBubbleProps {
   isOnline?: boolean;
   onLongPress: (item: any) => void;
   onOpenFile?: (item: any) => void;
-  checkIcon?: any;
-  checkColor?: string;
+  totalParticipants?: number;
   AudioPlayerComponent?: any; 
 }
 
@@ -20,13 +19,14 @@ export default function MessageBubble({
   isOnline,
   onLongPress,
   onOpenFile,
-  checkIcon,
-  checkColor,
+  totalParticipants = 0,
   AudioPlayerComponent
 }: MessageBubbleProps) {
   const msgType = item.type || 'text';
   const content = item.content || item.contenido;
   const timeStr = new Date(item.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+  const readBy = item.readBy || [];
+  const isReadByAll = readBy.length >= (totalParticipants - 1);
   
   const isExpired = (msgType === 'file' || msgType === 'audio') && (!item.fileUrl || content === 'Archivo expirado');
 
@@ -88,8 +88,13 @@ export default function MessageBubble({
         {/* Footer: Hora y Checks */}
         <View className={`flex-row justify-end items-center mt-1 gap-1 ${msgType !== 'text' && 'ml-2'}`}>
           <Text className={`text-[10px] ${isMe ? 'text-white/70' : 'text-gray-500'}`}>{timeStr}</Text>
-          {isMe && checkIcon && (
-            <Ionicons name={checkIcon} size={14} color={checkColor || (isMe ? 'rgba(255,255,255,0.7)' : '#999')} />
+          {isMe && totalParticipants > 0 && (
+            <Ionicons
+              name="checkmark-done-outline"
+              size={16}
+              color={isReadByAll ? '#34B7F1' : '#9ca3af'}
+              style={{ marginLeft: 4 }}
+            />
           )}
         </View>
       </View>

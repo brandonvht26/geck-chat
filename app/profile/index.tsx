@@ -93,9 +93,15 @@ export default function ProfileScreen() {
             quality: 0.7,
           });
           if (!result.canceled && result.assets[0]) {
+            const asset = result.assets[0];
+            const sizeInMB = asset.fileSize ? asset.fileSize / (1024 * 1024) : 0;
+            if (sizeInMB > 5) {
+              Toast.show({ type: 'error', text1: 'Imagen muy pesada', text2: 'La imagen supera el límite de 5MB. Elige una más ligera.' });
+              return;
+            }
             setIsUploading(true);
             try {
-              const response = await updateProfileImage(result.assets[0].uri);
+              const response = await updateProfileImage(asset.uri);
               setUser(prev => prev ? { ...prev, avatarUrl: response.avatarUrl } : null);
               setProfileData(prev => prev ? { ...prev, avatarUrl: response.avatarUrl } : null);
               Toast.show({ type: 'success', text1: '¡Logrado!', text2: 'Foto actualizada correctamente' });

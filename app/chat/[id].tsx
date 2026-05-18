@@ -3,7 +3,7 @@ import { View, FlatList, KeyboardAvoidingView, Platform, Alert, Modal, Touchable
 import { Feather } from '@expo/vector-icons';
 import { Audio } from 'expo-av';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useLocalSearchParams } from 'expo-router';
+import { Stack, useRouter, useLocalSearchParams } from 'expo-router';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
@@ -13,8 +13,10 @@ import { sendMessage, sendFileMessage, sendAudioMessage, editMessage, deleteMess
 import { SocketService } from '@/src/services/socket.service';
 import { useAuth } from '@/src/hooks/useAuth';
 import { useSocket } from '@/src/context/SocketContext';
+import { UserAvatar } from '@/src/components/ui/UserAvatar';
 import MessageBubble from '@/src/components/chat/MessageBubble';
 import ChatInput from '@/src/components/chat/ChatInput';
+import { useUserChats } from '@/src/hooks/queries/useUserChats';
 
 const AudioPlayer = ({ fileUrl, isSent }: { fileUrl: string, isSent: boolean }) => {
   const [sound, setSound] = useState<Audio.Sound | null>(null);
@@ -78,6 +80,7 @@ const AudioPlayer = ({ fileUrl, isSent }: { fileUrl: string, isSent: boolean }) 
 };
 
 export default function ChatRoomScreen() {
+  const router = useRouter();
   const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams();
   const queryClient = useQueryClient();
@@ -87,6 +90,12 @@ export default function ChatRoomScreen() {
   const flatListRef = useRef<FlatList>(null);
   const { user } = useAuth();
   const { onlineUsers } = useSocket();
+  const { data: chats } = useUserChats();
+  const currentChat = chats?.find(c => c._id === id);
+  const otherUser = currentChat?.isGroup ? null : currentChat?.participants?.find(
+    (p: any) => (p?._id || p) !== user?._id
+  );
+  const isOtherOnline = onlineUsers.includes(otherUser?._id || '');
   const [editingMessage, setEditingMessage] = useState<any | null>(null);
   const [selectedMsgOptions, setSelectedMsgOptions] = useState<any | null>(null);
   const [recording, setRecording] = useState<Audio.Recording | null>(null);
@@ -234,6 +243,37 @@ export default function ChatRoomScreen() {
   };
 
   return (
+    <View className="flex-1 bg-white">
+      <Stack.Screen
+        options={{
+          headerShown: true,
+          headerTransparent: true,
+          headerBlurEffect: 'dark',
+          headerTitle: '',
+          headerLeft: () => {
+            const avatarSrc = otherUser?.avatarUrl || otherUser?.userId?.avatarUrl;
+            const displayName = otherUser?.name || otherUser?.userId?.name || 'Usuario';
+
+            return (
+              <View className="flex-row items-center gap-3 pl-2" style={{ paddingTop: Platform.OS === 'android' ? 30 : 0 }}>
+                <TouchableOpacity onPress={() => router.back()}>
+                  <Feather name="arrow-left" size={24} color="#fff" />
+                </TouchableOpacity>
+                <UserAvatar uri={avatarSrc} size={38} />
+                <View>
+                  <Text className="text-white font-semibold text-base">
+                    {displayName}
+                  </Text>
+                  <Text className="text-gray-400 text-xs">
+                    {isOtherOnline ? 'En línea' : 'Desconectado'}
+                  </Text>
+                </View>
+              </View>
+            );
+          },
+          headerStyle: { backgroundColor: 'rgba(0,0,0,0.4)' },
+        }}
+      />
     <KeyboardAvoidingView style={[styles.container, { paddingBottom: Math.max(insets.bottom, 16) }]} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}>
       <FlatList
         ref={flatListRef}
@@ -269,8 +309,7 @@ export default function ChatRoomScreen() {
               isOnline={onlineUsers.includes(senderId)}
               onLongPress={handleLongPress}
               onOpenFile={handleOpenFile}
-              checkIcon={messageStatus === 'read' ? 'checkmark-done' : 'checkmark'}
-              checkColor={messageStatus === 'read' ? '#34b7f1' : (isMe ? 'rgba(255,255,255,0.7)' : '#999')}
+              totalParticipants={2}
               AudioPlayerComponent={AudioPlayer}
             />
           );
@@ -313,6 +352,7 @@ export default function ChatRoomScreen() {
         </TouchableOpacity>
       </Modal>
     </KeyboardAvoidingView>
+    </View>
   );
 }
 

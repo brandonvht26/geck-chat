@@ -4,12 +4,14 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import Toast from 'react-native-toast-message';
 import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useQueryClient } from '@tanstack/react-query';
 import { updateProfile } from '@/src/services/user.service';
 import { ApiError } from '@/src/services/api';
 
 export default function EditProfileScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ id: string; nombre: string; email: string }>();
+  const queryClient = useQueryClient();
 
   const [nombre, setNombre] = useState(params.nombre || '');
   const [email, setEmail] = useState(params.email || '');
@@ -28,6 +30,8 @@ export default function EditProfileScreen() {
     setLoading(true);
     try {
       await updateProfile(params.id, nombre, email);
+      queryClient.invalidateQueries({ queryKey: ['profile'] });
+      queryClient.invalidateQueries({ queryKey: ['user-chats'] });
       Toast.show({
         type: 'success',
         text1: '¡Logrado!',

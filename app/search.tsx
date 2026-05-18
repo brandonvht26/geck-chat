@@ -3,6 +3,7 @@ import { View, Text, TextInput, TouchableOpacity, StyleSheet, FlatList, Activity
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import { UserAvatar } from '@/src/components/ui/UserAvatar';
 import { searchUsers, SearchedUser } from '@/src/services/user.service';
 
 export default function SearchScreen() {
@@ -42,9 +43,7 @@ export default function SearchScreen() {
         })
       }
     >
-      <View style={styles.userAvatar}>
-        <Feather name="user" size={20} color="#666" />
-      </View>
+      <UserAvatar uri={item.avatarUrl || item.profilePicture} size={40} />
       <View style={styles.userInfo}>
         <Text style={styles.userName}>{item.name}</Text>
         <Text style={styles.userEmail}>{item.email}</Text>

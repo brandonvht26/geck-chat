@@ -41,7 +41,7 @@ export default function ChatList() {
 
           const imageUrl = item.isGroup
             ? item.workspaceId?.imageUrl
-            : otherUser?.avatarUrl || otherUser?.profilePicture;
+            : otherUser?.avatarUrl || otherUser?.userId?.avatarUrl || otherUser?.profilePicture;
 
           let lastMsgText = 'Envía un mensaje para iniciar...';
           

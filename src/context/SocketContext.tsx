@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useRef, useState, ReactNode } from 'react';
 import { io, Socket } from 'socket.io-client';
+import { useAudioPlayer } from 'expo-audio';
 
 const SOCKET_URL = process.env.EXPO_PUBLIC_API_URI || 'http://localhost:3000';
 
@@ -20,6 +21,7 @@ interface SocketProviderProps {
 export const SocketProvider = ({ children, userId }: SocketProviderProps) => {
   const [onlineUsers, setOnlineUsers] = useState<string[]>([]);
   const socketRef = useRef<Socket | null>(null);
+  const player = useAudioPlayer(require('../../assets/sounds/pop.mp3'));
 
   useEffect(() => {
     if (!userId) return;
@@ -42,7 +44,18 @@ export const SocketProvider = ({ children, userId }: SocketProviderProps) => {
       setOnlineUsers(prev => prev.filter(id => id !== userId));
     });
 
+    const handleIncomingMessage = (newMessage: any) => {
+      if (newMessage.senderId && newMessage.senderId !== userId) {
+        player.play();
+      }
+    };
+
+    socket.on('new_message', handleIncomingMessage);
+    socket.on('message_received', handleIncomingMessage);
+
     return () => {
+      socket.off('new_message', handleIncomingMessage);
+      socket.off('message_received', handleIncomingMessage);
       socket.disconnect();
       socketRef.current = null;
       setOnlineUsers([]);
