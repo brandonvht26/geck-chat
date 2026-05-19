@@ -176,3 +176,23 @@ export const sendAudioMessage = async (chatId: string, uri: string, duration: nu
     throw error;
   }
 };
+
+export const markChatAsRead = async (chatId: string) => {
+  try {
+    const response = await api.patch(`/api/chat/${chatId}/read`);
+    return response.data;
+  } catch (error) {
+    console.error('Error marking chat as read:', error);
+    throw error;
+  }
+};
+
+export const deleteChat = async (chatId: string) => {
+  try {
+    const response = await api.delete(`/api/chat/${chatId}/delete`);
+    return response.data;
+  } catch (error) {
+    console.error('Error deleting chat:', error);
+    throw error;
+  }
+};

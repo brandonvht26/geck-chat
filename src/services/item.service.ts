@@ -112,3 +112,39 @@ export const deleteDocument = async (id: string): Promise<void> => {
     throw new Error(apiError.message);
   }
 };
+
+export const updateItem = async (itemId: string, data: any): Promise<DocumentItem> => {
+  try {
+    const response = await api.patch<{ ok: boolean; item: DocumentItem }>(`/api/items/update/${itemId}`, data);
+    return response.data.item;
+  } catch (error) {
+    if (axios.isAxiosError(error)) {
+      console.error('[updateItem] Error Axios:', {
+        status: error.response?.status,
+        data: error.response?.data,
+        message: error.message,
+      });
+    } else {
+      console.error('[updateItem] Error desconocido:', error);
+    }
+    throw error;
+  }
+};
+
+export const updateBulkPositions = async (items: any[]): Promise<any> => {
+  try {
+    const response = await api.patch('/api/items/positions/bulk', { items });
+    return response.data;
+  } catch (error) {
+    if (axios.isAxiosError(error)) {
+      console.error('[updateBulkPositions] Error Axios:', {
+        status: error.response?.status,
+        data: error.response?.data,
+        message: error.message,
+      });
+    } else {
+      console.error('[updateBulkPositions] Error desconocido:', error);
+    }
+    throw error;
+  }
+};

@@ -25,29 +25,9 @@ export const getUserProfile = async (): Promise<UserProfile> => {
   return response.data;
 };
 
-export const updateProfile = async (id: string, data: any, imageUri?: string, imageType?: 'avatar' | 'phoneWallpaper'): Promise<any> => {
+export const updateProfileData = async (userId: string, data: { name?: string; email?: string }): Promise<any> => {
   try {
-    const formData = new FormData();
-    
-    // Agregar datos de texto
-    if (data.nombre) formData.append('nombre', data.nombre);
-    if (data.email) formData.append('email', data.email);
-    if (data.bio) formData.append('bio', data.bio);
-    
-    // Agregar la imagen si existe con el tipo correcto para Expo
-    if (imageUri && imageType) {
-      formData.append('image', {
-        uri: imageUri,
-        name: `${imageType}_${id}.jpg`,
-        type: 'image/jpeg',
-      } as any);
-      formData.append('type', imageType); // 'avatar' o 'phoneWallpaper'
-    }
-
-    const response = await api.put(`api/users/profile/${id}`, formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    });
-    
+    const response = await api.patch(`/api/users/profile/${userId}`, data);
     return response.data;
   } catch (error) {
     console.error('Error actualizando perfil:', error);
@@ -65,11 +45,11 @@ export const deleteAccount = async (confirmationText: string): Promise<void> => 
 };
 
 export const updatePushToken = async (token: string): Promise<void> => {
-  const response = await api.put('/api/users/update-push-token', { pushToken: token });
+  const response = await api.patch('/api/users/update-push-token', { pushToken: token });
   return response.data;
 };
 
-export const updateUserPreferences = async (theme?: string, phoneWallpaperUri?: string) => {
+export const updateUserPreferences = async (theme?: string, phoneWallpaperUri?: string, avatarUri?: string) => {
   try {
     const formData = new FormData();
     
@@ -77,19 +57,23 @@ export const updateUserPreferences = async (theme?: string, phoneWallpaperUri?: 
     
     if (phoneWallpaperUri) {
       const filename = phoneWallpaperUri.split('/').pop() || 'wallpaper.jpg';
-      const match = /\.(\w+)$/.exec(filename);
-      const type = match ? `image/${match[1]}` : `image/jpeg`;
-
       formData.append('phoneWallpaper', {
         uri: phoneWallpaperUri,
         name: filename,
-        type
+        type: 'image/jpeg'
       } as any);
     }
 
-    const response = await api.patch('/api/users/preferences', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    });
+    if (avatarUri) {
+      const filename = avatarUri.split('/').pop() || 'avatar.jpg';
+      formData.append('avatar', {
+        uri: avatarUri,
+        name: filename,
+        type: 'image/jpeg'
+      } as any);
+    }
+
+    const response = await api.patch('/api/users/preferences', formData);
     
     return response.data;
   } catch (error) {

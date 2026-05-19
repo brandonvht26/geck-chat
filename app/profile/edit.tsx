@@ -5,7 +5,7 @@ import { Feather } from '@expo/vector-icons';
 import { toast } from 'sonner-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
-import { updateProfile } from '@/src/services/user.service';
+import { updateProfileData } from '@/src/services/user.service';
 
 export default function EditProfileScreen() {
   const router = useRouter();
@@ -17,16 +17,15 @@ export default function EditProfileScreen() {
 
   const handleSave = async () => {
     if (!nombre.trim() || !email.trim()) {
-      toast.error('Atención', {
-        description: 'Todos los campos son requeridos',
-      });
+      toast.error('Todos los campos son requeridos');
       return;
     }
 
-    const updatePromise = updateProfile(params.id, { nombre, email })
+    const updatePromise = updateProfileData(params.id, { name: nombre, email })
       .then(() => {
         queryClient.invalidateQueries({ queryKey: ['profile'] });
         queryClient.invalidateQueries({ queryKey: ['user-chats'] });
+        queryClient.invalidateQueries({ queryKey: ['currentUser'] });
         router.back();
       });
 

@@ -3,16 +3,19 @@ import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Alert, Mod
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import Toast from 'react-native-toast-message';
+import { toast } from 'sonner-native';
 import { useRouter } from 'expo-router';
+import { useQueryClient } from '@tanstack/react-query';
 import * as ImagePicker from 'expo-image-picker';
 import { UserAvatar } from '@/src/components/ui/UserAvatar';
 import ProfileInfoRow from '@/src/components/profile/ProfileInfoRow';
-import { getUserProfile, updateProfile, deleteAccount, UserProfile } from '@/src/services/user.service';
+import { getUserProfile, updateUserPreferences, deleteAccount, UserProfile } from '@/src/services/user.service';
 import { ApiError } from '@/src/services/api';
 import { useAuth } from '@/src/hooks/useAuth';
 
 export default function ProfileScreen() {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const { user, signOut, setUser } = useAuth();
   const [profileData, setProfileData] = useState<UserProfile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -65,11 +68,22 @@ export default function ProfileScreen() {
           });
           if (!result.canceled && result.assets[0]) {
             setIsUploading(true);
+            const handleUpdateAvatar = (selectedImageUri: string) => {
+              const updatePromise = updateUserPreferences(undefined, undefined, selectedImageUri)
+                .then(() => {
+                  queryClient.invalidateQueries({ queryKey: ['currentUser'] });
+                  setUser(prev => prev ? { ...prev, avatarUrl: selectedImageUri } : null);
+                  setProfileData(prev => prev ? { ...prev, avatarUrl: selectedImageUri } : null);
+                });
+
+              toast.promise(updatePromise, {
+                loading: 'Subiendo foto de perfil...',
+                success: '¡Avatar actualizado correctamente!',
+                error: 'No pudimos subir tu foto. Inténtalo de nuevo.',
+              });
+            };
             try {
-              const response = await updateProfile(profileData?._id || '', {}, result.assets[0].uri, 'avatar');
-              setUser(prev => prev ? { ...prev, avatarUrl: response.avatarUrl } : null);
-              setProfileData(prev => prev ? { ...prev, avatarUrl: response.avatarUrl } : null);
-              Toast.show({ type: 'success', text1: '¡Logrado!', text2: 'Foto actualizada correctamente' });
+              handleUpdateAvatar(result.assets[0].uri);
             } catch (error) {
               const apiError = error as ApiError;
               Toast.show({ type: 'error', text1: 'Algo salió mal', text2: apiError.message || 'No se pudo actualizar la foto' });
@@ -100,11 +114,22 @@ export default function ProfileScreen() {
               return;
             }
             setIsUploading(true);
+            const handleUpdateAvatar = (selectedImageUri: string) => {
+              const updatePromise = updateUserPreferences(undefined, undefined, selectedImageUri)
+                .then(() => {
+                  queryClient.invalidateQueries({ queryKey: ['currentUser'] });
+                  setUser(prev => prev ? { ...prev, avatarUrl: selectedImageUri } : null);
+                  setProfileData(prev => prev ? { ...prev, avatarUrl: selectedImageUri } : null);
+                });
+
+              toast.promise(updatePromise, {
+                loading: 'Subiendo foto de perfil...',
+                success: '¡Avatar actualizado correctamente!',
+                error: 'No pudimos subir tu foto. Inténtalo de nuevo.',
+              });
+            };
             try {
-              const response = await updateProfile(profileData?._id || '', {}, asset.uri, 'avatar');
-              setUser(prev => prev ? { ...prev, avatarUrl: response.avatarUrl } : null);
-              setProfileData(prev => prev ? { ...prev, avatarUrl: response.avatarUrl } : null);
-              Toast.show({ type: 'success', text1: '¡Logrado!', text2: 'Foto actualizada correctamente' });
+              handleUpdateAvatar(asset.uri);
             } catch (error) {
               const apiError = error as ApiError;
               Toast.show({ type: 'error', text1: 'Algo salió mal', text2: apiError.message || 'No se pudo actualizar la foto' });
