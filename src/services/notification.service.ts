@@ -39,6 +39,12 @@ export async function registerForPushNotificationsAsync() {
 
     const projectId = Constants.expoConfig?.extra?.eas?.projectId ?? Constants.easConfig?.projectId;
 
+    // ¡CLAVE! Validación de seguridad para projectId
+    if (!projectId) {
+      console.log('ℹ️ No se encontró projectId de EAS. Omitiendo registro de Push Token (Modo Expo Go).');
+      return null; // Salimos silenciosamente sin generar el error rojo
+    }
+
     try {
       token = (await Notifications.getExpoPushTokenAsync({ projectId })).data;
       console.log('Tu Push Token es:', token);

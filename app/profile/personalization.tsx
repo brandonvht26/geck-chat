@@ -5,12 +5,14 @@ import { Feather } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { toast } from 'sonner-native';
 import * as ImagePicker from 'expo-image-picker';
+import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/src/hooks/useAuth';
 import { updateUserPreferences } from '@/src/services/user.service';
 
 export default function PersonalizationScreen() {
-  const { setColorScheme } = useColorScheme();
+  const { colorScheme, setColorScheme } = useColorScheme();
   const router = useRouter();
+  const queryClient = useQueryClient();
   const { user } = useAuth();
 
   const [selectedMode, setSelectedMode] = useState<'light' | 'dark' | 'system'>(
@@ -21,12 +23,34 @@ export default function PersonalizationScreen() {
     setSelectedMode(mode);
     setColorScheme(mode);
 
-    const promise = updateUserPreferences(mode);
-    toast.promise(promise, {
-      loading: 'Guardando preferencia...',
-      success: 'Tema actualizado',
-      error: 'Error al guardar el tema',
-    });
+    // Micro-retraso para que la UI termine de pintarse antes de lanzar el Toast
+    setTimeout(() => {
+      // Al completarse de forma exitosa, disparamos la invalidación para refrescar el hook useAuth
+      const promise = updateUserPreferences(mode).then(() => {
+        queryClient.invalidateQueries({ queryKey: ['currentUser'] });
+      });
+      toast.promise(promise, {
+        loading: 'Guardando preferencia...',
+        success: 'Tema actualizado',
+        error: 'Error al guardar el tema',
+      });
+    }, 150);
+  };
+
+  // Cuando el usuario toca el botón de Modo Oscuro directamente
+  const handleDarkSwitch = (wantsDark: boolean) => {
+    // Al tocarlo, abandonamos el modo sistema y seteamos explícitamente dark o light
+    handleModeChange(wantsDark ? 'dark' : 'light');
+  };
+
+  // Cuando el usuario activa/desactiva la Conf. del Sistema
+  const handleSystemSwitch = (wantsSystem: boolean) => {
+    if (wantsSystem) {
+      handleModeChange('system');
+    } else {
+      // Si apaga el modo sistema, congelamos el tema en el color que esté activo actualmente
+      handleModeChange(colorScheme === 'dark' ? 'dark' : 'light');
+    }
   };
 
   const handleSelectWallpaper = async () => {
@@ -44,7 +68,9 @@ export default function PersonalizationScreen() {
     });
 
     if (!result.canceled && result.assets[0]) {
-      const promise = updateUserPreferences(undefined, result.assets[0].uri);
+      const promise = updateUserPreferences(undefined, result.assets[0].uri).then(() => {
+        queryClient.invalidateQueries({ queryKey: ['currentUser'] });
+      });
       toast.promise(promise, {
         loading: 'Estableciendo fondo...',
         success: 'Fondo de pantalla actualizado',
@@ -72,21 +98,6 @@ export default function PersonalizationScreen() {
         </Text>
 
         <View className="bg-gray-50 dark:bg-gray-800 rounded-2xl p-4 mb-4">
-          
-          {/* Toggle Modo Claro */}
-          <View className="flex-row justify-between items-center mb-6">
-            <View className="flex-row items-center">
-              <View className="bg-amber-100 dark:bg-amber-900/30 p-2 rounded-lg mr-4">
-                <Feather name="sun" size={20} color="#d97706" />
-              </View>
-              <Text className="text-base text-gray-800 dark:text-white font-tertiary">Modo Claro</Text>
-            </View>
-            <Switch
-              value={selectedMode === 'light'}
-              onValueChange={() => handleModeChange('light')}
-              trackColor={{ false: '#d1d5db', true: '#4f46e5' }}
-            />
-          </View>
 
           {/* Toggle Modo Oscuro */}
           <View className="flex-row justify-between items-center mb-6">
@@ -97,8 +108,9 @@ export default function PersonalizationScreen() {
               <Text className="text-base text-gray-800 dark:text-white font-tertiary">Modo Oscuro</Text>
             </View>
             <Switch
-              value={selectedMode === 'dark'}
-              onValueChange={() => handleModeChange('dark')}
+              // Está encendido si el usuario lo forzó a 'dark', o si está en 'system' y el dispositivo es oscuro
+              value={selectedMode === 'dark' || (selectedMode === 'system' && colorScheme === 'dark')}
+              onValueChange={handleDarkSwitch}
               trackColor={{ false: '#d1d5db', true: '#4f46e5' }}
             />
           </View>
@@ -113,15 +125,15 @@ export default function PersonalizationScreen() {
             </View>
             <Switch
               value={selectedMode === 'system'}
-              onValueChange={() => handleModeChange('system')}
+              onValueChange={handleSystemSwitch}
               trackColor={{ false: '#d1d5db', true: '#007AFF' }}
             />
           </View>
 
         </View>
-          <Text className="text-xs text-gray-400 dark:text-gray-500 mt-2 px-2 text-center font-secondary">
-            Al seleccionar Usar conf. del sistema, GeckOS ajustará su apariencia automáticamente según el modo de tu dispositivo.
-          </Text>
+        <Text className="text-xs text-gray-400 dark:text-gray-500 mt-2 px-2 text-center font-secondary">
+          Al seleccionar Usar conf. del sistema, GeckOS ajustará su apariencia automáticamente según el modo de tu dispositivo.
+        </Text>
       </View>
 
       {/* Sección Fondo de los Chats */}

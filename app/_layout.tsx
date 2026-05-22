@@ -7,15 +7,34 @@ import { SocketProvider } from '@/src/context/SocketContext';
 import { useAuth } from '@/src/hooks/useAuth';
 import { useFonts } from 'expo-font';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { useColorScheme } from 'nativewind';
 import * as SplashScreen from 'expo-splash-screen';
 
 // Evita que la pantalla de carga se oculte antes de tiempo mientras cargan las fuentes
 SplashScreen.preventAutoHideAsync();
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: (failureCount, error: any) => {
+        const isUnauthorized = error?.response?.status === 401 || error?.response?.status === 403;
+        const isNetworkError = !error?.response && error?.message === 'Network Error';
+
+        // Si detecta un 401, 403, o un Network Error (causado por rechazo de sesión), abortar de inmediato.
+        if (isUnauthorized || isNetworkError) {
+          return false;
+        }
+
+        // Para otros problemas, reintentar un máximo de 2 veces
+        return failureCount < 2;
+      },
+    },
+  },
+});
 
 const RootLayout = () => {
   const { user } = useAuth();
+  const { colorScheme } = useColorScheme();
 
   // Carga de fuentes personalizadas para Tailwind
   const [loaded, error] = useFonts({
@@ -46,10 +65,11 @@ const RootLayout = () => {
         ) : (
           <Stack screenOptions={{ headerShown: false }} />
         )}
-        <Toaster 
-        position="top-center" 
-        offset={50} 
-        toastOptions={{
+        <Toaster
+          theme={colorScheme === 'dark' ? 'dark' : 'light'}
+          position="top-center"
+          offset={50}
+          toastOptions={{
             titleStyle: {
               fontFamily: 'Nunito', // El nombre exacto que cargaste en useFonts
             },
@@ -57,7 +77,7 @@ const RootLayout = () => {
               fontFamily: 'Nunito',
             }
           }}
-          />
+        />
       </GestureHandlerRootView>
     </QueryClientProvider>
   );

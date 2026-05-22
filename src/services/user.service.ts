@@ -52,9 +52,9 @@ export const updatePushToken = async (token: string): Promise<void> => {
 export const updateUserPreferences = async (theme?: string, phoneWallpaperUri?: string, avatarUri?: string) => {
   try {
     const formData = new FormData();
-    
+
     if (theme) formData.append('theme', theme);
-    
+
     if (phoneWallpaperUri) {
       const filename = phoneWallpaperUri.split('/').pop() || 'wallpaper.jpg';
       formData.append('phoneWallpaper', {
@@ -73,8 +73,12 @@ export const updateUserPreferences = async (theme?: string, phoneWallpaperUri?: 
       } as any);
     }
 
-    const response = await api.patch('/api/users/preferences', formData);
-    
+    const response = await api.patch('/api/users/preferences', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+
     return response.data;
   } catch (error) {
     console.error('Error actualizando preferencias:', error);
