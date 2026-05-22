@@ -25,6 +25,7 @@ export const useAuth = () => {
     try {
       await removeToken();
       const response = await loginUser({ email, password });
+      console.log("🔑 TOKEN RECIBIDO:", response.token);
       await setToken(response.token);
       setUser({
         _id: response._id,

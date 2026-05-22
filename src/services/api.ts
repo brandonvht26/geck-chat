@@ -25,6 +25,8 @@ export const api: AxiosInstance = axios.create({
   },
 });
 
+// 1. EL GUARDIA QUE PONE LAS PULSERAS (¡El que faltaba!)
+// Este interceptor asegura que todas tus peticiones lleven el token
 api.interceptors.request.use(
   async (config) => {
     const token = await AsyncStorage.getItem(TOKEN_KEY);
@@ -36,7 +38,33 @@ api.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
-const getErrorMessage = (error: AxiosError): string => {
+// 2. EL GUARDIA DE SEGURIDAD INTELIGENTE (El único que necesitas)
+// Este interceptor evalúa si te expulsa o no
+api.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    const isUnauthorized = error.response?.status === 401;
+
+    if (isUnauthorized) {
+      console.log('🚨 Sesión expirada (401). Evaluando cierre...');
+      
+      const currentToken = await AsyncStorage.getItem(TOKEN_KEY);
+      const failedToken = error.config?.headers?.Authorization?.split(' ')[1];
+      
+      // Si el token fallido es el mismo que tenemos guardado, cerramos sesión.
+      if (!failedToken || (currentToken && currentToken === failedToken)) {
+        console.log('🚨 Borrando token obsoleto...');
+        await removeToken();
+        if (router.replace) {
+          router.replace('/auth/login');
+        }
+      }
+    }
+    return Promise.reject(error);
+  }
+);
+
+export const getErrorMessage = (error: AxiosError): string => {
   const status = error.response?.status;
   const backendMessage = (error.response?.data as { msg?: string })?.msg;
 
@@ -50,23 +78,6 @@ const getErrorMessage = (error: AxiosError): string => {
 
   return DEFAULT_ERROR_MESSAGE;
 };
-
-api.interceptors.response.use(
-  (response) => response,
-  async (error) => {
-    const isUnauthorized = error.response?.status === 401;
-    const isNetworkError = !error.response && error.message === 'Network Error';
-
-    if (isUnauthorized || isNetworkError) {
-      console.log('🚨 Sesión inválida o expirada. Forzando cierre de sesión...');
-      await removeToken();
-      if (router.replace) {
-        router.replace('/auth/login');
-      }
-    }
-    return Promise.reject(error);
-  }
-);
 
 export const setToken = (token: string): Promise<void> => {
   return AsyncStorage.setItem(TOKEN_KEY, token);
