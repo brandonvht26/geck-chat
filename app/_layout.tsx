@@ -17,14 +17,14 @@ const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       retry: (failureCount, error: any) => {
-        const isUnauthorized = error?.response?.status === 401 || error?.response?.status === 403;
-        const isNetworkError = !error?.response && error?.message === 'Network Error';
+        const isAuthError = error?.response?.status === 401 || error?.response?.status === 403;
+        const isNetworkError = error?.message === 'Network Error';
 
-        // Si detecta un 401, 403, o un Network Error (causado por rechazo de sesión), abortar de inmediato.
-        if (isUnauthorized || isNetworkError) {
-          return false;
+        // Si la sesión expira o la red bloquea por falta de CORS, abortar de inmediato
+        if (isAuthError || isNetworkError) {
+          return false; 
         }
-
+        
         // Para otros problemas, reintentar un máximo de 2 veces
         return failureCount < 2;
       },
@@ -34,7 +34,7 @@ const queryClient = new QueryClient({
 
 const RootLayout = () => {
   const { user } = useAuth();
-  const { colorScheme } = useColorScheme();
+  const { colorScheme, setColorScheme } = useColorScheme();
 
   // Carga de fuentes personalizadas para Tailwind
   const [loaded, error] = useFonts({
@@ -48,6 +48,12 @@ const RootLayout = () => {
       SplashScreen.hideAsync();
     }
   }, [loaded, error]);
+
+  useEffect(() => {
+    if (user?.preferences?.theme) {
+      setColorScheme(user.preferences.theme as 'light' | 'dark' | 'system');
+    }
+  }, [user?.preferences?.theme, setColorScheme]);
 
   // Retorna null (pantalla en blanco/splash) hasta que las fuentes estén listas
   if (!loaded && !error) {

@@ -7,6 +7,7 @@ import { useUserChats } from '@/src/hooks/queries/useUserChats';
 export default function ChatList() {
   const router = useRouter();
   const { user } = useAuth();
+  const currentUserId = user?._id;
   
   const { data: chats = [], isLoading, isRefetching, refetch } = useUserChats();
 
@@ -58,6 +59,9 @@ export default function ChatList() {
             }
           }
 
+          // Obtener el contador de no leídos para el usuario actual
+          const unreadCount = currentUserId ? (item.unreadCounts?.[currentUserId] || 0) : 0;
+
           return (
             <TouchableOpacity
               className="flex-row p-4 items-center border-b border-gray-200 dark:border-gray-800"
@@ -91,7 +95,29 @@ export default function ChatList() {
                 </Text>
               </View>
 
-              <Feather name="chevron-right" size={20} className="text-gray-400 dark:text-gray-600" />
+              {/* CONTENEDOR HORA Y BURBUJA DE NO LEÍDOS */}
+              <View className="items-end justify-center ml-3">
+                {/* Hora del último mensaje */}
+                {item.updatedAt && (
+                  <Text className="text-xs text-gray-500 dark:text-gray-400 mb-1">
+                    {new Date(item.updatedAt).toLocaleTimeString([], {
+                      hour: '2-digit',
+                      minute: '2-digit'
+                    })}
+                  </Text>
+                )}
+
+                {/* BURBUJA DE MENSAJES NO LEÍDOS - ESTILO WHATSAPP */}
+                {unreadCount > 0 && (
+                  <View className="bg-green-500 h-5 min-w-[20px] rounded-full items-center justify-center px-1.5">
+                    <Text className="text-white text-xs font-bold">
+                      {unreadCount > 99 ? '99+' : unreadCount}
+                    </Text>
+                  </View>
+                )}
+              </View>
+
+              <Feather name="chevron-right" size={20} className="text-gray-400 dark:text-gray-600 ml-2" />
             </TouchableOpacity>
           );
         }}

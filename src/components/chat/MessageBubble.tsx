@@ -1,5 +1,7 @@
 import { View, Text, TouchableOpacity } from 'react-native';
 import { Ionicons, Feather } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
+import { useAuth } from '@/src/hooks/useAuth';
 
 interface MessageBubbleProps {
   item: any;
@@ -9,7 +11,9 @@ interface MessageBubbleProps {
   onLongPress: (item: any) => void;
   onOpenFile?: (item: any) => void;
   totalParticipants?: number;
-  AudioPlayerComponent?: any; 
+  AudioPlayerComponent?: any;
+  isGroupChat?: boolean;
+  chatParticipants?: any[];
 }
 
 export default function MessageBubble({
@@ -20,15 +24,53 @@ export default function MessageBubble({
   onLongPress,
   onOpenFile,
   totalParticipants = 0,
-  AudioPlayerComponent
+  AudioPlayerComponent,
+  isGroupChat = false,
+  chatParticipants = []
 }: MessageBubbleProps) {
+  const router = useRouter();
+  const { user } = useAuth();
+  const currentUserId = user?._id;
+
   const msgType = item.type || 'text';
   const content = item.content || item.contenido;
   const timeStr = new Date(item.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
   const readBy = item.readBy || [];
+  const deliveredTo = item.deliveredTo || [];
   const isReadByAll = readBy.length >= (totalParticipants - 1);
   
   const isExpired = (msgType === 'file' || msgType === 'audio') && (!item.fileUrl || content === 'Archivo expirado');
+
+  // Función securizada para navegar a información del mensaje
+  const handleMessageInfoPress = () => {
+    // Validación estricta: solo si es chat grupal, mensaje del usuario actual y el chat tiene participantes
+    if (!isGroupChat || !isMe || !chatParticipants || chatParticipants.length === 0) {
+      return;
+    }
+
+    // Serialización segura de datos complejos para evitar truncamiento de URI
+    try {
+      const senderId = typeof item.senderId === 'object' ? item.senderId?._id : item.senderId;
+      
+      router.push({
+        pathname: '/chat/message-info',
+        params: {
+          messageId: item._id,
+          messageContent: content,
+          senderId: senderId,
+          chatParticipantsRaw: JSON.stringify(chatParticipants || []),
+          readByRaw: JSON.stringify(readBy || []),
+          deliveredToRaw: JSON.stringify(deliveredTo || []),
+        }
+      });
+    } catch (error) {
+      console.error('Error navegando a información del mensaje:', error);
+    }
+  };
+
+  const handleLongPress = () => {
+    onLongPress(item);
+  };
 
   // Clases base con NativeWind (Soporte Dark Mode)
   const bubbleBase = "max-w-[80%] p-3 rounded-2xl mb-2 flex-row items-center gap-2";
@@ -102,12 +144,17 @@ export default function MessageBubble({
           )}
           <Text className={`text-[10px] ${isMe ? 'text-white/70' : 'text-gray-500'}`}>{timeStr}</Text>
           {isMe && totalParticipants > 0 && (
-            <Ionicons
-              name="checkmark-done-outline"
-              size={16}
-              color={isReadByAll ? '#34B7F1' : '#9ca3af'}
-              style={{ marginLeft: 4 }}
-            />
+            <TouchableOpacity 
+              onPress={isGroupChat ? handleMessageInfoPress : undefined}
+              disabled={!isGroupChat}
+            >
+              <Ionicons
+                name="checkmark-done-outline"
+                size={16}
+                color={isReadByAll ? '#34B7F1' : '#9ca3af'}
+                style={{ marginLeft: 4 }}
+              />
+            </TouchableOpacity>
           )}
         </View>
       </View>

@@ -29,6 +29,7 @@ export interface Chat {
   isGroup: boolean;
   lastMessage?: any; 
   updatedAt: string;
+  unreadCounts?: Record<string, number>;
 }
 
 interface GetChatsResponse {
@@ -61,10 +62,16 @@ export const getUserChats = async (): Promise<Chat[]> => {
   try {
     const response = await api.get<GetChatsResponse>('/api/chat/chat');
     return response.data.chats;
-  } catch (error) {
-    const apiError = error as ApiError;
-    console.error('Error fetching user chats:', apiError.message);
-    throw error;
+  } catch (error: any) {
+    const isAuthError = error.response?.status === 401 || error.response?.status === 403;
+    const isNetworkError = error.message === 'Network Error';
+
+    // Solo imprimimos el error si NO es de autenticación ni de red
+    if (!isAuthError && !isNetworkError) {
+      console.error('Error fetching user chats:', error.message || error);
+    }
+    
+    throw error; // Mantenemos el throw para React Query
   }
 };
 

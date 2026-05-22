@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react';
-import { View, FlatList, KeyboardAvoidingView, Platform, Alert, Modal, TouchableOpacity, Text, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, FlatList, KeyboardAvoidingView, Platform, Alert, Modal, TouchableOpacity, Text, StyleSheet, ActivityIndicator, ImageBackground } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { Audio } from 'expo-av';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -245,7 +245,11 @@ export default function ChatRoomScreen() {
   };
 
   return (
-    <View className="flex-1 bg-white">
+    <ImageBackground
+      source={user?.preferences?.phoneWallpaperUrl ? { uri: user.preferences.phoneWallpaperUrl } : undefined}
+      className="flex-1 bg-white dark:bg-zinc-900"
+      resizeMode="cover"
+    >
       <Stack.Screen
         options={{
           headerShown: true,
@@ -276,7 +280,7 @@ export default function ChatRoomScreen() {
           headerStyle: { backgroundColor: 'rgba(0,0,0,0.4)' },
         }}
       />
-    <KeyboardAvoidingView style={[styles.container, { paddingBottom: Math.max(insets.bottom, 16) }]} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}>
+      <KeyboardAvoidingView style={[styles.container, { paddingBottom: Math.max(insets.bottom, 16) }]} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}>
       <FlatList
         ref={flatListRef}
         data={messages}
@@ -311,8 +315,10 @@ export default function ChatRoomScreen() {
               isOnline={onlineUsers.includes(senderId)}
               onLongPress={handleLongPress}
               onOpenFile={handleOpenFile}
-              totalParticipants={2}
+              totalParticipants={currentChat?.isGroup ? (currentChat?.participants?.length || 0) : 2}
               AudioPlayerComponent={AudioPlayer}
+              isGroupChat={currentChat?.isGroup || false}
+              chatParticipants={currentChat?.participants || []}
             />
           );
         }}
@@ -358,9 +364,9 @@ export default function ChatRoomScreen() {
             </TouchableOpacity>
           </View>
         </TouchableOpacity>
-      </Modal>
-    </KeyboardAvoidingView>
-    </View>
+       </Modal>
+      </KeyboardAvoidingView>
+    </ImageBackground>
   );
 }
 
