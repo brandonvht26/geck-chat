@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { View, Text, Switch, TouchableOpacity, Image } from 'react-native';
 import { useColorScheme } from 'nativewind';
 import { Feather } from '@expo/vector-icons';
@@ -13,11 +13,19 @@ export default function PersonalizationScreen() {
   const { colorScheme, setColorScheme } = useColorScheme();
   const router = useRouter();
   const queryClient = useQueryClient();
-  const { user } = useAuth();
+  const { user, setUser } = useAuth();
 
   const [selectedMode, setSelectedMode] = useState<'light' | 'dark' | 'system'>(
     (user as any)?.preferences?.theme || 'system'
   );
+
+  // Sincroniza visualmente el switch con la base de datos una vez que useAuth termina de cargar
+  useEffect(() => {
+    if ((user as any)?.preferences?.theme) {
+      const dbTheme = (user as any).preferences.theme;
+      setSelectedMode(dbTheme);
+    }
+  }, [(user as any)?.preferences?.theme]);
 
   const handleModeChange = (mode: 'light' | 'dark' | 'system') => {
     setSelectedMode(mode);
@@ -26,13 +34,27 @@ export default function PersonalizationScreen() {
     // Micro-retraso para que la UI termine de pintarse antes de lanzar el Toast
     setTimeout(() => {
       // Al completarse de forma exitosa, disparamos la invalidación para refrescar el hook useAuth
-      const promise = updateUserPreferences(mode).then(() => {
-        queryClient.invalidateQueries({ queryKey: ['currentUser'] });
-      });
+      const promise = updateUserPreferences(mode)
+        .then((data) => {
+          // Actualizamos la memoria local INSTANTÁNEAMENTE con la respuesta del backend
+          if (user && data.preferences) {
+            setUser({ ...user, preferences: data.preferences });
+          }
+          queryClient.invalidateQueries({ queryKey: ['currentUser'] });
+        })
+        .catch((error: any) => {
+          // 🎤 AQUÍ ESTÁ EL MICRÓFONO: Obligamos a la consola a escupir el error
+          console.error(
+            '🛑 MOTIVO DEL ERROR EN TEMA:',
+            error.response?.data || error.message
+          );
+          throw error; // Lo lanzamos de nuevo para que el Toast se ponga rojo
+        });
+
       toast.promise(promise, {
         loading: 'Guardando preferencia...',
-        success: 'Tema actualizado',
-        error: 'Error al guardar el tema',
+        success: (data) => 'Tema actualizado',
+        error: (err) => 'Error al guardar el tema',
       });
     }, 150);
   };
@@ -68,13 +90,18 @@ export default function PersonalizationScreen() {
     });
 
     if (!result.canceled && result.assets[0]) {
-      const promise = updateUserPreferences(undefined, result.assets[0].uri).then(() => {
-        queryClient.invalidateQueries({ queryKey: ['currentUser'] });
-      });
+      const promise = updateUserPreferences(undefined, result.assets[0].uri)
+        .then((data) => {
+          // Actualizamos la memoria local INSTANTÁNEAMENTE con la respuesta del backend
+          if (user && data.preferences) {
+            setUser({ ...user, preferences: data.preferences });
+          }
+          queryClient.invalidateQueries({ queryKey: ['currentUser'] });
+        });
       toast.promise(promise, {
         loading: 'Estableciendo fondo...',
-        success: 'Fondo de pantalla actualizado',
-        error: 'Error al establecer el fondo',
+        success: (data) => 'Fondo de pantalla actualizado',
+        error: (err) => 'Error al establecer el fondo',
       });
     }
   };

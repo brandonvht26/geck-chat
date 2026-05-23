@@ -1,4 +1,4 @@
-import { api } from './api';
+import { api, getToken } from './api';
 
 export interface UserProfile {
   _id: string;
@@ -51,8 +51,18 @@ export const updatePushToken = async (token: string): Promise<void> => {
 
 export const updateUserPreferences = async (theme?: string, phoneWallpaperUri?: string, avatarUri?: string) => {
   try {
-    const formData = new FormData();
+    // CASO A: Si NO hay imágenes, enviamos un JSON puro.
+    if (!phoneWallpaperUri && !avatarUri) {
+      const token = await getToken(); // 1. Obtenemos el token
+      const response = await api.patch('/api/users/preferences', 
+        { theme }, 
+        { headers: { Authorization: `Bearer ${token}` } } // 2. Inyectamos el gafete a la fuerza
+      );
+      return response.data;
+    }
 
+    // CASO B: Si hay imágenes, usamos FormData y el fetch nativo del celular.
+    const formData = new FormData();
     if (theme) formData.append('theme', theme);
 
     if (phoneWallpaperUri) {
@@ -73,13 +83,24 @@ export const updateUserPreferences = async (theme?: string, phoneWallpaperUri?: 
       } as any);
     }
 
-    const response = await api.patch('/api/users/preferences', formData, {
+    const token = await getToken();
+    const baseURL = api.defaults.baseURL || 'http://localhost:3000';
+
+    const response = await fetch(`${baseURL}/api/users/preferences`, {
+      method: 'PATCH',
+      body: formData,
       headers: {
-        'Content-Type': 'multipart/form-data',
+        Authorization: `Bearer ${token}`,
+        // OMITIR Content-Type para que fetch genere el boundary correctamente
       },
     });
 
-    return response.data;
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Error ${response.status}: ${errorText}`);
+    }
+
+    return await response.json();
   } catch (error) {
     console.error('Error actualizando preferencias:', error);
     throw error;

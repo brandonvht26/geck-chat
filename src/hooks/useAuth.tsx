@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useRouter } from 'expo-router';
 import { loginUser, registerUser } from '../services/auth.service';
 import { setToken, removeToken, getToken, ApiError } from '../services/api';
@@ -13,9 +13,27 @@ interface User {
   email: string;
   rol: string;
   avatarUrl?: string;
+  preferences?: {
+    theme: 'light' | 'dark' | 'system';
+    accent: string;
+    wallpaperUrl?: string;
+    phoneWallpaperUrl?: string;
+  };
 }
 
-export const useAuth = () => {
+interface AuthContextType {
+  signIn: (email: string, password: string) => Promise<boolean>;
+  signUp: (name: string, email: string, password: string) => Promise<boolean>;
+  signOut: () => Promise<void>;
+  loading: boolean;
+  user: User | null;
+  setUser: React.Dispatch<React.SetStateAction<User | null>>;
+  checkAuth: () => Promise<void>;
+}
+
+const AuthContext = createContext<AuthContextType | null>(null);
+
+export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState<User | null>(null);
   const router = useRouter();
@@ -27,16 +45,19 @@ export const useAuth = () => {
       const response = await loginUser({ email, password });
       console.log("🔑 TOKEN RECIBIDO:", response.token);
       await setToken(response.token);
-      setUser({
+
+      const loggedUser: User = {
         _id: response._id,
         name: response.name,
         email: response.email,
         rol: response.rol,
         avatarUrl: response.avatarUrl,
-      });
+        preferences: (response as any).preferences, // <-- Parche de tipado
+      };
+
+      setUser(loggedUser);
       SocketService.connect(response._id);
 
-      // Sincronizar Push Token con el servidor en segundo plano
       const initializePushNotifications = async () => {
         try {
           const expoPushToken = await registerForPushNotificationsAsync();
@@ -45,7 +66,6 @@ export const useAuth = () => {
             console.log('✅ Push Token sincronizado con el servidor');
           }
         } catch (error: any) {
-          // Silenciamos el error si es por el entorno de desarrollo de Expo Go
           if (error.message?.includes('Expo Go') || error.message?.includes('development build')) {
             console.log('ℹ️ Modo Expo Go detectado. Las notificaciones Push están desactivadas.');
           } else {
@@ -74,6 +94,7 @@ export const useAuth = () => {
         email: response.email,
         rol: response.rol,
         avatarUrl: response.avatarUrl,
+        preferences: (response as any).preferences, // <-- Parche de tipado
       });
       SocketService.connect(response._id);
       return true;
@@ -99,8 +120,18 @@ export const useAuth = () => {
         setLoading(false);
         return;
       }
-      const response = await api.get<{ _id: string; name: string; email: string; rol: string; avatarUrl?: string }>('/api/users/profile');
-      setUser(response.data);
+      const response = await api.get<any>('/api/users/profile', {
+        headers: { 'Cache-Control': 'no-cache' }
+      });
+
+      setUser({
+        _id: response.data._id,
+        name: response.data.nombre || response.data.name, // El backend a veces envía 'nombre'
+        email: response.data.email,
+        rol: response.data.rol,
+        avatarUrl: response.data.avatarUrl,
+        preferences: response.data.preferences,
+      });
     } catch (error) {
       console.log('🚨 ERROR EN AUTH CONTEXT: Token inválido o red caída');
       await removeToken();
@@ -115,5 +146,17 @@ export const useAuth = () => {
     checkAuth();
   }, []);
 
-  return { signIn, signUp, signOut, loading, user, setUser, checkAuth };
+  return (
+    <AuthContext.Provider value={{ signIn, signUp, signOut, loading, user, setUser, checkAuth }}>
+      {children}
+    </AuthContext.Provider>
+  );
+};
+
+export const useAuth = () => {
+  const context = useContext(AuthContext);
+  if (!context) {
+    throw new Error('useAuth debe ser utilizado dentro de un AuthProvider');
+  }
+  return context;
 };
