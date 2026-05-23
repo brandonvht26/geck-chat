@@ -17,6 +17,7 @@ import { UserAvatar } from '@/src/components/ui/UserAvatar';
 import MessageBubble from '@/src/components/chat/MessageBubble';
 import ChatInput from '@/src/components/chat/ChatInput';
 import { useUserChats } from '@/src/hooks/queries/useUserChats';
+import { api } from '@/src/services/api';
 
 const AudioPlayer = ({ fileUrl, isSent }: { fileUrl: string, isSent: boolean }) => {
   const [sound, setSound] = useState<Audio.Sound | null>(null);
@@ -79,6 +80,13 @@ const AudioPlayer = ({ fileUrl, isSent }: { fileUrl: string, isSent: boolean }) 
   );
 };
 
+const extractId = (obj: any): string => {
+  if (!obj) return '';
+  if (typeof obj === 'string') return obj;
+  if (typeof obj === 'object' && obj._id) return String(obj._id);
+  return String(obj);
+};
+
 export default function ChatRoomScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -101,6 +109,9 @@ export default function ChatRoomScreen() {
   const [recording, setRecording] = useState<Audio.Recording | null>(null);
   const [isRecording, setIsRecording] = useState(false);
   const startTimeRef = useRef(0);
+  const hasMarkedRead = useRef(false);
+  const [unreadSeparatorId, setUnreadSeparatorId] = useState<string | null>(null);
+  const [hasScrolled, setHasScrolled] = useState(false);
 
   useEffect(() => { if (user) setCurrentUserId(user._id); }, [user]);
 
@@ -110,54 +121,173 @@ export default function ChatRoomScreen() {
   }, [id]);
 
   useEffect(() => {
-    if (id && currentUserId) {
-      SocketService.emit('message_read', { chatId: id, userId: currentUserId });
+    if (!id || !currentUserId || messages.length === 0 || hasMarkedRead.current) return;
+    hasMarkedRead.current = true;
 
-      queryClient.setQueryData(['userChats'], (oldChats: any[]) => {
-        if (!oldChats) return oldChats;
-        return oldChats.map(chat => {
-          if (chat._id === id) {
+    queryClient.setQueryData(['userChats'], (oldChats: any[]) => {
+      if (!oldChats) return oldChats;
+      return oldChats.map(chat =>
+        String(chat._id) === String(id)
+          ? { ...chat, unreadCounts: { ...chat.unreadCounts, [currentUserId]: 0 } }
+          : chat
+      );
+    });
+
+    SocketService.emit('mark_read', { chatId: id, userId: currentUserId });
+    api.patch(`/api/chat/${id}/read`).catch(() => {});
+
+    setTimeout(() => {
+      queryClient.setQueryData(['chatMessages', id], (oldMessages: any[]) => {
+        if (!oldMessages) return oldMessages;
+        return oldMessages.map(msg => {
+          const senderStr = extractId(msg.senderId);
+          const readArr = Array.isArray((msg as any).readBy) ? (msg as any).readBy.map(extractId) : [];
+          if (senderStr !== String(currentUserId) && !readArr.includes(String(currentUserId))) {
             return {
-              ...chat,
-              unreadCounts: { ...chat.unreadCounts, [currentUserId]: 0 }
+              ...msg,
+              readBy: [...(msg.readBy || []), currentUserId],
+              deliveredTo: [...(msg.deliveredTo || []), currentUserId]
             };
           }
-          return chat;
+          return msg;
         });
       });
-    }
-  }, [id, currentUserId, queryClient]);
+    }, 800);
+
+  }, [id, currentUserId, queryClient, messages.length]);
 
   useEffect(() => {
-    const handleNewMessage = (newMessage: ChatMessage) => {
-      const chatId = (newMessage as any).chatId || (newMessage as any).workspaceId || (newMessage as any).roomId;
-      if (chatId?.toString() !== id?.toString()) return;
-      
-      queryClient.setQueryData(['chatMessages', id], (oldData: ChatMessage[] | undefined) => {
-        if (!oldData) return [newMessage];
-        const exists = oldData.some(msg => msg._id === newMessage._id);
-        return exists ? oldData : [newMessage, ...oldData];
+    if (!id || !currentUserId) return;
+
+    const handleMessageReceived = (payload: any) => {
+      const incomingChatId = extractId(payload.chatId || payload.workspaceId || payload.roomId);
+      if (incomingChatId !== String(id)) return;
+
+      const message: ChatMessage = {
+        _id: payload._id || Date.now().toString(),
+        senderId: payload.senderId,
+        receiverId: payload.chatId,
+        contenido: payload.content,
+        createdAt: payload.createdAt,
+      } as ChatMessage;
+
+      queryClient.setQueryData(['chatMessages', id], (old: ChatMessage[] | undefined) => {
+        if (!old) return [message];
+        const exists = old.some(msg => msg._id === message._id);
+        return exists ? old : [message, ...old];
       });
+
+      const senderStr = extractId(payload.senderId);
+      if (senderStr !== String(currentUserId)) {
+        SocketService.emit('mark_read', { chatId: id, userId: currentUserId });
+      }
 
       queryClient.invalidateQueries({ queryKey: ['userChats'] });
     };
-    const handleStatusUpdate = (payload: any) => {
-      queryClient.setQueryData(['chatMessages', id], (old: ChatMessage[] | undefined) => old ? old.map(m => m._id === payload.messageId ? { ...m, status: payload.status } : m) : []);
+
+    const handleMessageStatusUpdate = (payload: any) => {
+      queryClient.setQueryData(['chatMessages', id], (old: ChatMessage[] | undefined) => {
+        if (!old) return [];
+        return old.map(msg => msg._id === payload.messageId
+          ? { ...msg, deliveredTo: payload.deliveredTo, readBy: payload.readBy }
+          : msg
+        );
+      });
     };
-    const handleChatRead = (payload: any) => {
-      queryClient.setQueryData(['chatMessages', id], (old: ChatMessage[] | undefined) => old ? old.map(m => (m as any).chatId === payload.chatId ? { ...m, status: 'read' } : m) : []);
+
+    const handleBulkUpdate = (payload: any) => {
+      queryClient.setQueryData(['chatMessages', id], (old: ChatMessage[] | undefined) => {
+        if (!old) return [];
+        return old.map(msg => {
+          const updatedMsg = payload.updatedMessages?.find((u: any) => u._id === msg._id);
+          if (updatedMsg) {
+            return {
+              ...msg,
+              readBy: updatedMsg.readBy || msg.readBy,
+              deliveredTo: updatedMsg.deliveredTo || msg.deliveredTo
+            };
+          }
+          return msg;
+        });
+      });
     };
-    SocketService.on('new_message', handleNewMessage);
-    SocketService.on('message_received', handleNewMessage);
-    SocketService.on('message_status_update', handleStatusUpdate);
-    SocketService.on('chat_read', handleChatRead);
+
+    const handleMessageEdited = (payload: any) => {
+      queryClient.setQueryData(['chatMessages', id], (old: ChatMessage[] | undefined) => {
+        if (!old) return [];
+        return old.map(msg => msg._id === payload._id
+          ? { ...msg, contenido: payload.content || payload.contenido, isEdited: true }
+          : msg
+        );
+      });
+    };
+
+    const handleMessageDeleted = (payload: any) => {
+      queryClient.setQueryData(['chatMessages', id], (old: ChatMessage[] | undefined) => {
+        if (!old) return [];
+        return old.map(msg => msg._id === payload.messageId
+          ? { ...msg, contenido: 'Mensaje eliminado', isDeleted: true }
+          : msg
+        );
+      });
+    };
+
+    SocketService.on('new_message', handleMessageReceived);
+    SocketService.on('message_received', handleMessageReceived);
+    SocketService.on('message_status_update', handleMessageStatusUpdate);
+    SocketService.on('chat_status_bulk_update', handleBulkUpdate);
+    SocketService.on('message_edited', handleMessageEdited);
+    SocketService.on('message_deleted', handleMessageDeleted);
+
     return () => {
-      SocketService.off('new_message', handleNewMessage);
-      SocketService.off('message_received', handleNewMessage);
-      SocketService.off('message_status_update', handleStatusUpdate);
-      SocketService.off('chat_read', handleChatRead);
+      SocketService.off('new_message', handleMessageReceived);
+      SocketService.off('message_received', handleMessageReceived);
+      SocketService.off('message_status_update', handleMessageStatusUpdate);
+      SocketService.off('chat_status_bulk_update', handleBulkUpdate);
+      SocketService.off('message_edited', handleMessageEdited);
+      SocketService.off('message_deleted', handleMessageDeleted);
     };
-  }, [id, queryClient]);
+  }, [id, queryClient, currentUserId]);
+
+  useEffect(() => {
+    if (messages.length > 0 && !unreadSeparatorId && currentUserId) {
+      let foundUnreadId = null;
+      let foundIndex = -1;
+
+      for (let i = messages.length - 1; i >= 0; i--) {
+        const m = messages[i];
+        const senderStr = extractId(m.senderId);
+        const readArr = Array.isArray((m as any).readBy) ? (m as any).readBy.map(extractId) : [];
+        
+        if (senderStr !== currentUserId && !readArr.includes(currentUserId)) {
+          foundUnreadId = m._id;
+          foundIndex = i;
+          break;
+        }
+      }
+
+      if (foundUnreadId) {
+        setUnreadSeparatorId(foundUnreadId);
+        
+        setTimeout(() => {
+          if (flatListRef.current && !hasScrolled) {
+            try {
+              flatListRef.current.scrollToIndex({
+                index: foundIndex,
+                animated: true,
+                viewPosition: 0.1
+              });
+              setHasScrolled(true);
+            } catch (e) {
+              console.log('Fallo silencioso de scroll', e);
+            }
+          }
+        }, 300);
+      } else {
+        setUnreadSeparatorId('none');
+      }
+    }
+  }, [messages.length, currentUserId, unreadSeparatorId, hasScrolled]);
 
   const handleSendMessage = async () => {
     const cleanedMessage = content.trim();
@@ -322,20 +452,33 @@ export default function ChatRoomScreen() {
         renderItem={({ item }) => {
           const senderId = typeof item.senderId === 'object' ? (item.senderId as any)?._id : item.senderId;
           const isMe = senderId === currentUserId;
-          const messageStatus = (item as any).status;
+          const isSeparator = item._id === unreadSeparatorId;
           return (
-            <MessageBubble
-              item={item}
-              isMe={isMe}
-              senderName={typeof item.senderId === 'object' && item.senderId !== null ? (item.senderId as any)?.name : 'Usuario'}
-              isOnline={onlineUsers.includes(senderId)}
-              onLongPress={handleLongPress}
-              onOpenFile={handleOpenFile}
-              totalParticipants={currentChat?.isGroup ? (currentChat?.participants?.length || 0) : 2}
-              AudioPlayerComponent={AudioPlayer}
-              isGroupChat={currentChat?.isGroup || false}
-              chatParticipants={currentChat?.participants || []}
-            />
+            <View>
+              {isSeparator && (
+                <View className="flex-row items-center justify-center my-4 opacity-90">
+                  <View className="flex-1 h-[1px] bg-indigo-200 dark:bg-indigo-900/50" />
+                  <View className="bg-indigo-50 dark:bg-indigo-900/40 px-4 py-1.5 rounded-full mx-3 border border-indigo-200/60 dark:border-indigo-800/60 shadow-sm">
+                    <Text className="text-[10px] text-indigo-600 dark:text-indigo-400 font-bold uppercase tracking-widest">
+                      Mensajes no leídos
+                    </Text>
+                  </View>
+                  <View className="flex-1 h-[1px] bg-indigo-200 dark:bg-indigo-900/50" />
+                </View>
+              )}
+              <MessageBubble
+                item={item}
+                isMe={isMe}
+                senderName={typeof item.senderId === 'object' && item.senderId !== null ? (item.senderId as any)?.name : 'Usuario'}
+                isOnline={onlineUsers.includes(senderId)}
+                onLongPress={handleLongPress}
+                onOpenFile={handleOpenFile}
+                totalParticipants={currentChat?.isGroup ? (currentChat?.participants?.length || 0) : 2}
+                AudioPlayerComponent={AudioPlayer}
+                isGroupChat={currentChat?.isGroup || false}
+                chatParticipants={currentChat?.participants || []}
+              />
+            </View>
           );
         }}
       />

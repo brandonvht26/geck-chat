@@ -129,8 +129,10 @@ export default function WorkspaceScreen() {
   const [recording, setRecording] = useState<Audio.Recording | null>(null);
   const [isRecording, setIsRecording] = useState(false);
   const startTimeRef = useRef(0);
+  const hasMarkedRead = useRef(false);
   const [showMembersModal, setShowMembersModal] = useState(false);
   const [unreadSeparatorId, setUnreadSeparatorId] = useState<string | null>(null);
+  const [hasScrolled, setHasScrolled] = useState(false);
   const [workspaceData, setWorkspaceData] = useState<any>(null);
 
   const { user } = useAuth();
@@ -146,18 +148,43 @@ export default function WorkspaceScreen() {
 
   useEffect(() => {
     if (messages.length > 0 && !unreadSeparatorId && currentUserId) {
-      const oldestUnread = [...messages].reverse().find(m => 
-        extractId(m.senderId) !== currentUserId && 
-        !(m.readBy || []).map(extractId).includes(currentUserId)
-      );
-      
-      if (oldestUnread) {
-        setUnreadSeparatorId(oldestUnread._id);
+      let foundUnreadId = null;
+      let foundIndex = -1;
+
+      for (let i = messages.length - 1; i >= 0; i--) {
+        const m = messages[i];
+        const senderStr = extractId(m.senderId);
+        const readArr = Array.isArray((m as any).readBy) ? (m as any).readBy.map(extractId) : [];
+        
+        if (senderStr !== currentUserId && !readArr.includes(currentUserId)) {
+          foundUnreadId = m._id;
+          foundIndex = i;
+          break;
+        }
+      }
+
+      if (foundUnreadId) {
+        setUnreadSeparatorId(foundUnreadId);
+        
+        setTimeout(() => {
+          if (flatListRef.current && !hasScrolled) {
+            try {
+              flatListRef.current.scrollToIndex({
+                index: foundIndex,
+                animated: true,
+                viewPosition: 0.1
+              });
+              setHasScrolled(true);
+            } catch (e) {
+              console.log('Fallo silencioso de scroll', e);
+            }
+          }
+        }, 300);
       } else {
         setUnreadSeparatorId('none');
       }
     }
-  }, [messages, currentUserId, unreadSeparatorId]);
+  }, [messages.length, currentUserId, unreadSeparatorId, hasScrolled]);
 
   const { onlineUsers } = useSocket();
   const onlineCount = members.filter(m => onlineUsers.includes(extractId(m._id))).length;
@@ -204,19 +231,40 @@ export default function WorkspaceScreen() {
   }, [loadWorkspaceChat]);
 
   useEffect(() => {
-    if (currentChatId && currentUserId) {
-      SocketService.emit('mark_read', { chatId: currentChatId, userId: currentUserId });
+    if (!currentChatId || !currentUserId || messages.length === 0 || hasMarkedRead.current) return;
+    hasMarkedRead.current = true;
 
-      queryClient.setQueryData(['userChats'], (oldChats: any[]) => {
-        if (!oldChats) return oldChats;
-        return oldChats.map(chat =>
-          chat._id === currentChatId
-            ? { ...chat, unreadCounts: { ...chat.unreadCounts, [currentUserId]: 0 } }
-            : chat
-        );
+    queryClient.setQueryData(['userChats'], (oldChats: any[]) => {
+      if (!oldChats) return oldChats;
+      return oldChats.map(chat =>
+        String(chat._id) === String(currentChatId)
+          ? { ...chat, unreadCounts: { ...chat.unreadCounts, [currentUserId]: 0 } }
+          : chat
+      );
+    });
+
+    SocketService.emit('mark_read', { chatId: currentChatId, userId: currentUserId });
+    api.patch(`/api/chat/${currentChatId}/read`).catch(() => {});
+
+    setTimeout(() => {
+      queryClient.setQueryData(['chatMessages', currentChatId], (oldMessages: any[]) => {
+        if (!oldMessages) return oldMessages;
+        return oldMessages.map(msg => {
+          const senderStr = extractId(msg.senderId);
+          const readArr = Array.isArray((msg as any).readBy) ? (msg as any).readBy.map(extractId) : [];
+          if (senderStr !== String(currentUserId) && !readArr.includes(String(currentUserId))) {
+            return {
+              ...msg,
+              readBy: [...(msg.readBy || []), currentUserId],
+              deliveredTo: [...(msg.deliveredTo || []), currentUserId]
+            };
+          }
+          return msg;
+        });
       });
-    }
-  }, [currentChatId, currentUserId, queryClient]);
+    }, 800);
+
+  }, [currentChatId, currentUserId, queryClient, messages.length]);
 
   useEffect(() => {
     const handleMessageReceived = (payload: any) => {
@@ -300,7 +348,7 @@ export default function WorkspaceScreen() {
     SocketService.on('message_status_update', handleMessageStatusUpdate);
     SocketService.on('chat_status_bulk_update', handleBulkUpdate);
     SocketService.on('message_edited', handleMessageEdited);
-    SocketService.on('message_deleted_for_all', handleMessageDeleted);
+    SocketService.on('message_deleted', handleMessageDeleted);
 
     return () => {
       SocketService.off('new_message', handleMessageReceived);
@@ -308,7 +356,7 @@ export default function WorkspaceScreen() {
       SocketService.off('message_status_update', handleMessageStatusUpdate);
       SocketService.off('chat_status_bulk_update', handleBulkUpdate);
       SocketService.off('message_edited', handleMessageEdited);
-      SocketService.off('message_deleted_for_all', handleMessageDeleted);
+      SocketService.off('message_deleted', handleMessageDeleted);
     };
   }, [currentChatId]);
 
@@ -499,6 +547,18 @@ export default function WorkspaceScreen() {
 
     return (
       <View>
+        {isSeparator && (
+          <View className="flex-row items-center justify-center my-4 opacity-90">
+            <View className="flex-1 h-[1px] bg-indigo-200 dark:bg-indigo-900/50" />
+            <View className="bg-indigo-50 dark:bg-indigo-900/40 px-4 py-1.5 rounded-full mx-3 border border-indigo-200/60 dark:border-indigo-800/60 shadow-sm">
+              <Text className="text-[10px] text-indigo-600 dark:text-indigo-400 font-bold uppercase tracking-widest">
+                Mensajes no leídos
+              </Text>
+            </View>
+            <View className="flex-1 h-[1px] bg-indigo-200 dark:bg-indigo-900/50" />
+          </View>
+        )}
+
         <MessageBubble
           item={item}
           isMe={isSent}
@@ -511,18 +571,6 @@ export default function WorkspaceScreen() {
           isGroupChat={true}
           chatParticipants={members}
         />
-
-        {isSeparator && (
-          <View className="flex-row items-center justify-center my-4 opacity-90">
-            <View className="flex-1 h-[1px] bg-indigo-200 dark:bg-indigo-900/50" />
-            <View className="bg-indigo-50 dark:bg-indigo-900/40 px-4 py-1.5 rounded-full mx-3 border border-indigo-200/60 dark:border-indigo-800/60 shadow-sm">
-              <Text className="text-[10px] text-indigo-600 dark:text-indigo-400 font-bold uppercase tracking-widest">
-                Mensajes no leídos
-              </Text>
-            </View>
-            <View className="flex-1 h-[1px] bg-indigo-200 dark:bg-indigo-900/50" />
-          </View>
-        )}
       </View>
     );
   };

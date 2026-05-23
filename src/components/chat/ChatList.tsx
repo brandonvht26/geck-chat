@@ -17,22 +17,49 @@ export default function ChatList() {
   const queryClient = useQueryClient();
 
   useEffect(() => {
-    const updateGlobalList = () => {
+    const handleGlobalUpdate = (payload: any) => {
+      // 1. Refrescamos la lista de chats
       queryClient.invalidateQueries({ queryKey: ['userChats'] });
+      
+      // 2. Si el evento trae un chatId, invalidamos la caché interna de ese chat
+      const targetChatId = payload?.chatId || payload?.workspaceId || payload?.roomId;
+      if (targetChatId) {
+        queryClient.invalidateQueries({ queryKey: ['chatMessages', targetChatId] });
+      }
     };
 
-    SocketService.on('message_received', updateGlobalList);
-    SocketService.on('chat_read', updateGlobalList);
-    SocketService.on('chat_deleted', updateGlobalList);
-    SocketService.on('new_chat_created', updateGlobalList);
+    const handleMessageReceived = (payload: any) => {
+      handleGlobalUpdate(payload);
+
+      // Firma de recibido en segundo plano
+      if (payload && payload.chatId && currentUserId) {
+        const senderIdStr = typeof payload.senderId === 'object' ? payload.senderId._id : payload.senderId;
+        if (String(senderIdStr) !== String(currentUserId)) {
+          SocketService.emit('mark_delivered', {
+            messageId: payload._id,
+            chatId: payload.chatId,
+            userId: currentUserId
+          });
+        }
+      }
+    };
+
+    SocketService.on('message_received', handleMessageReceived);
+    SocketService.on('chat_read', handleGlobalUpdate);
+    SocketService.on('chat_deleted', handleGlobalUpdate);
+    SocketService.on('new_chat_created', handleGlobalUpdate);
+    SocketService.on('message_status_update', handleGlobalUpdate);
+    SocketService.on('chat_status_bulk_update', handleGlobalUpdate);
 
     return () => {
-      SocketService.off('message_received', updateGlobalList);
-      SocketService.off('chat_read', updateGlobalList);
-      SocketService.off('chat_deleted', updateGlobalList);
-      SocketService.off('new_chat_created', updateGlobalList);
+      SocketService.off('message_received', handleMessageReceived);
+      SocketService.off('chat_read', handleGlobalUpdate);
+      SocketService.off('chat_deleted', handleGlobalUpdate);
+      SocketService.off('new_chat_created', handleGlobalUpdate);
+      SocketService.off('message_status_update', handleGlobalUpdate);
+      SocketService.off('chat_status_bulk_update', handleGlobalUpdate);
     };
-  }, [queryClient]);
+  }, [queryClient, currentUserId]);
 
   if (isLoading && !isRefetching) {
     return (
