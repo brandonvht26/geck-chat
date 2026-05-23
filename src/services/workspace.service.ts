@@ -66,11 +66,7 @@ export const inviteMember = async (workspaceId: string, email: string): Promise<
     const response = await api.post<InviteResponse>('/api/workspaces/invite', { workspaceId, email });
     return response.data;
   } catch (error) {
-    if (error instanceof Error) {
-      console.error('Error:', error.message);
-    } else {
-      console.error('Error desconocido:', error);
-    }
+    console.error('Error invitando miembro:', error);
     throw error;
   }
 };

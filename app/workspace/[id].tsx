@@ -11,6 +11,7 @@ import {
   Alert,
   Modal,
   Image,
+  ImageBackground,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Audio } from 'expo-av';
@@ -21,6 +22,7 @@ import * as Sharing from 'expo-sharing';
 import Toast from 'react-native-toast-message';
 import { useQueryClient } from '@tanstack/react-query';
 import { useChatMessages } from '@/src/hooks/queries/useChatMessages';
+import { useUserChats } from '@/src/hooks/queries/useUserChats';
 import { useAuth } from '@/src/hooks/useAuth';
 import { api } from '@/src/services/api';
 import { SocketService } from '@/src/services/socket.service';
@@ -139,6 +141,7 @@ export default function WorkspaceScreen() {
 
   const queryClient = useQueryClient();
   const { data: messages = [], isLoading: isChatLoading } = useChatMessages(currentChatId);
+  const { data: userChats } = useUserChats();
 
   useEffect(() => {
     if (user) {
@@ -194,10 +197,11 @@ export default function WorkspaceScreen() {
     return member?.name || member?.username || 'Usuario';
   }, [members]);
 
-  const isGroupAdmin = workspaceData?.admins?.some(
-    (adminId: any) => (adminId._id || adminId) === currentUserId
-  ) || workspaceData?.owner?._id === currentUserId
-    || workspaceData?.owner === currentUserId;
+  const currentChatData = userChats?.find(c => c._id === currentChatId);
+
+  const isGroupAdmin = currentChatData?.admins?.some(
+    (admin: any) => extractId(admin) === String(currentUserId)
+  ) || currentChatData?.workspaceId?.owner === currentUserId;
 
   const loadWorkspaceChat = useCallback(async () => {
     try {
@@ -214,7 +218,11 @@ export default function WorkspaceScreen() {
         setCurrentChatId(foundChat._id);
         setMembers(foundChat.participants || []);
         setWorkspaceData(foundChat.workspaceId || null);
+
+        // UNIRSE A AMBAS SALAS: Al chat y al Workspace global
         SocketService.emit('join_chat', foundChat._id);
+        const wsId = foundChat.workspaceId?._id || foundChat.workspaceId;
+        SocketService.emit('join-workspace-room', wsId);
       }
     } catch (error) {
       Toast.show({
@@ -344,6 +352,12 @@ export default function WorkspaceScreen() {
       });
     };
 
+    // Handler para re-cargar los miembros cuando alguien entra o sale
+    const handleMembersChange = () => {
+      loadWorkspaceChat();
+      queryClient.invalidateQueries({ queryKey: ['userChats'] });
+    };
+
     // Limpiamos y asignamos los listeners correctos
     SocketService.on('new_message', handleMessageReceived);
     SocketService.on('message_received', handleMessageReceived);
@@ -351,6 +365,9 @@ export default function WorkspaceScreen() {
     SocketService.on('chat_status_bulk_update', handleBulkUpdate);
     SocketService.on('message_edited', handleMessageEdited);
     SocketService.on('message_deleted', handleMessageDeleted);
+    SocketService.on('workspace-member-joined', handleMembersChange);
+    SocketService.on('workspace-member-left', handleMembersChange);
+    SocketService.on('group-member-left', handleMembersChange);
 
     return () => {
       SocketService.off('new_message', handleMessageReceived);
@@ -359,8 +376,11 @@ export default function WorkspaceScreen() {
       SocketService.off('chat_status_bulk_update', handleBulkUpdate);
       SocketService.off('message_edited', handleMessageEdited);
       SocketService.off('message_deleted', handleMessageDeleted);
+      SocketService.off('workspace-member-joined', handleMembersChange);
+      SocketService.off('workspace-member-left', handleMembersChange);
+      SocketService.off('group-member-left', handleMembersChange);
     };
-  }, [currentChatId]);
+  }, [currentChatId, loadWorkspaceChat, queryClient]);
 
   const handleLongPress = useCallback((item: MessageMessageType) => {
     const senderIdStr = typeof item.senderId === 'object' ? (item.senderId as any)._id : item.senderId;
@@ -513,7 +533,7 @@ export default function WorkspaceScreen() {
         try {
           await leaveWorkspace(id);
           queryClient.invalidateQueries({ queryKey: ['userChats'] });
-          router.replace('/(tabs)/chats');
+          router.replace('/');
           Toast.show({ type: 'success', text1: 'Has salido del grupo' });
         } catch (error: any) {
           Toast.show({ type: 'error', text1: error.response?.data?.msg || 'Error al salir del grupo' });
@@ -529,7 +549,7 @@ export default function WorkspaceScreen() {
         try {
           await deleteGroupChat(currentChatId!);
           queryClient.invalidateQueries({ queryKey: ['userChats'] });
-          router.replace('/(tabs)/chats');
+          router.replace('/');
           Toast.show({ type: 'success', text1: 'Grupo eliminado correctamente' });
         } catch (error: any) {
           Toast.show({ type: 'error', text1: error.response?.data?.msg || 'Error al eliminar el grupo' });
@@ -579,12 +599,20 @@ export default function WorkspaceScreen() {
 
 
 
+  // Lógica de Wrapper Dinámico
+  const wallpaperUrl = user?.preferences?.phoneWallpaperUrl;
+  const RootWrapper = wallpaperUrl ? ImageBackground : (View as any);
+  const wrapperProps = wallpaperUrl
+    ? { source: { uri: wallpaperUrl }, style: { flex: 1 }, resizeMode: "cover" as const }
+    : { style: { flex: 1, backgroundColor: '#f5f5f5' } };
+
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      keyboardVerticalOffset={0}
-    >
+    <RootWrapper {...wrapperProps as any}>
+      <KeyboardAvoidingView
+        style={styles.container}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={0}
+      >
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
           <Feather name="chevron-left" size={24} color="#333" />
@@ -764,7 +792,7 @@ export default function WorkspaceScreen() {
                       if (String(memberData._id) !== String(currentUserId)) {
                         router.push({
                           pathname: '/user/[id]',
-                          params: { id: memberData._id, name: memberData.name || memberData.username, email: memberData.email || '' }
+                          params: { id: memberData._id, name: memberData.name || memberData.username, email: memberData.email || '', avatarUrl: memberData.avatarUrl || '' }
                         });
                       }
                     }}
@@ -806,6 +834,7 @@ export default function WorkspaceScreen() {
         </TouchableOpacity>
       </Modal>
     </KeyboardAvoidingView>
+    </RootWrapper>
   );
 }
 
@@ -814,7 +843,7 @@ type MessageMessageType = ChatMessageType;
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: 'transparent',
   },
   header: {
     flexDirection: 'row',

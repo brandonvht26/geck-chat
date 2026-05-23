@@ -1,10 +1,10 @@
 import { useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Image } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { accessUserChat } from '@/src/services/chat.service';
 
 export default function UserProfileScreen() {
-  const { id, name, email } = useLocalSearchParams<{ id: string; name: string; email: string }>();
+  const { id, name, email, avatarUrl } = useLocalSearchParams<{ id: string; name: string; email: string; avatarUrl?: string }>();
   const [loading, setLoading] = useState(false);
   const router = useRouter();
 
@@ -30,9 +30,13 @@ export default function UserProfileScreen() {
   return (
     <View style={styles.container}>
       <View style={styles.card}>
-        <View style={styles.avatar}>
-          <Text style={styles.avatarText}>{getInitial(name)}</Text>
-        </View>
+        {avatarUrl ? (
+          <Image source={{ uri: avatarUrl }} style={styles.avatar} />
+        ) : (
+          <View style={styles.avatar}>
+            <Text style={styles.avatarText}>{getInitial(name)}</Text>
+          </View>
+        )}
 
         <Text style={styles.name}>{name || 'Usuario'}</Text>
         <Text style={styles.email}>{email || 'No disponible'}</Text>

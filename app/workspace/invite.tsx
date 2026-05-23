@@ -3,6 +3,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Alert } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import UserSearch from '@/src/components/shared/UserSearch';
+import { inviteMember } from '@/src/services/workspace.service';
 
 export default function InviteMemberScreen() {
   const params = useLocalSearchParams<any>();
@@ -11,9 +12,9 @@ export default function InviteMemberScreen() {
 
   const handleInviteUser = async (selectedUser: any) => {
     try {
-      // await inviteMember(workspaceId, selectedUser.email);
+      await inviteMember(workspaceId, selectedUser.email);
       Alert.alert('Éxito', `Invitación enviada a ${selectedUser.name}`);
-      // router.back();
+      router.back();
     } catch (error) {
       Alert.alert('Error', 'No se pudo enviar la invitación');
     }

@@ -391,12 +391,15 @@ export default function ChatRoomScreen() {
     } catch (error) { console.error('Error enviando audio', error); }
   };
 
+  // Lógica de Wrapper Dinámico
+  const wallpaperUrl = user?.preferences?.phoneWallpaperUrl;
+  const RootWrapper = wallpaperUrl ? ImageBackground : (View as any);
+  const wrapperProps = wallpaperUrl
+    ? { source: { uri: wallpaperUrl }, style: { flex: 1 }, resizeMode: "cover" as const }
+    : { style: { flex: 1, backgroundColor: '#f5f5f5' } };
+
   return (
-    <ImageBackground
-      source={user?.preferences?.phoneWallpaperUrl ? { uri: user.preferences.phoneWallpaperUrl } : undefined}
-      className="flex-1 bg-white dark:bg-zinc-900"
-      resizeMode="cover"
-    >
+    <RootWrapper {...wrapperProps as any}>
       <Stack.Screen
         options={{
           presentation: 'modal',
@@ -527,12 +530,12 @@ export default function ChatRoomScreen() {
         </TouchableOpacity>
        </Modal>
       </KeyboardAvoidingView>
-    </ImageBackground>
+    </RootWrapper>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f5f5f5' },
+  container: { flex: 1, backgroundColor: 'transparent' },
   emptyContainer: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   emptyText: { fontSize: 16, color: '#999', marginTop: 12 },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' },

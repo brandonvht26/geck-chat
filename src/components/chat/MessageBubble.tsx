@@ -41,20 +41,26 @@ export default function MessageBubble({
   const getMessageStatus = () => {
     if (!isMe) return null;
 
-    // Obtenemos los participantes del chat (excluyéndonos a nosotros)
-    const otherParticipantsCount = totalParticipants - 1;
+    // Prevenimos divisiones por cero si el participante es único
+    const otherParticipantsCount = totalParticipants > 1 ? totalParticipants - 1 : 1;
 
-    // Filtramos quienes ya leyeron y entregaron
     const readers = (readBy || []).filter((id: string) => id !== currentUserId);
     const receivers = (deliveredTo || []).filter((id: string) => id !== currentUserId);
 
-    // Lógica de WhatsApp:
-    // 1. Azul: Todos los participantes (o al menos alguien en 1:1) han leído
-    if (readers.length > 0) return 'read';
-    // 2. Doble Check Gris: Todos los participantes han recibido
-    if (receivers.length > 0) return 'delivered';
-    // 3. Un Check Gris: Enviado al servidor
-    return 'sent';
+    if (isGroupChat) {
+      // LÓGICA ESTRICTA DE GRUPOS:
+      // Azul: SOLO si TODOS los demás participantes han leído.
+      if (readers.length >= otherParticipantsCount && otherParticipantsCount > 0) return 'read';
+      // Doble Gris: SOLO si TODOS han recibido.
+      if (receivers.length >= otherParticipantsCount && otherParticipantsCount > 0) return 'delivered';
+      // Gris simple: Enviado al servidor, pero no todos lo tienen aún.
+      return 'sent';
+    } else {
+      // LÓGICA CHAT 1 A 1:
+      if (readers.length > 0) return 'read';
+      if (receivers.length > 0) return 'delivered';
+      return 'sent';
+    }
   };
 
   const status = getMessageStatus();

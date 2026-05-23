@@ -157,7 +157,9 @@ export default function MessageInfoScreen() {
           ) : (
             <View className="py-4 px-4">
               <Text className="text-sm text-gray-500 dark:text-gray-400 text-center">
-                Todos han leído este mensaje
+                {readUsers.length > 0 && remainingUsers.length === 0 
+                  ? 'Todos han leído este mensaje' 
+                  : 'No hay usuarios en esta etapa'}
               </Text>
             </View>
           )}
