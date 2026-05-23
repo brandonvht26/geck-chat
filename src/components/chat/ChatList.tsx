@@ -1,8 +1,11 @@
 import { View, Text, TouchableOpacity, ActivityIndicator, Image, FlatList } from 'react-native';
+import { useEffect } from 'react';
 import { useRouter } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import { useAuth } from '@/src/hooks/useAuth';
 import { useUserChats } from '@/src/hooks/queries/useUserChats';
+import { SocketService } from '@/src/services/socket.service';
+import { useQueryClient } from '@tanstack/react-query';
 
 export default function ChatList() {
   const router = useRouter();
@@ -10,6 +13,26 @@ export default function ChatList() {
   const currentUserId = user?._id;
   
   const { data: chats = [], isLoading, isRefetching, refetch } = useUserChats();
+
+  const queryClient = useQueryClient();
+
+  useEffect(() => {
+    const updateGlobalList = () => {
+      queryClient.invalidateQueries({ queryKey: ['userChats'] });
+    };
+
+    SocketService.on('message_received', updateGlobalList);
+    SocketService.on('chat_read', updateGlobalList);
+    SocketService.on('chat_deleted', updateGlobalList);
+    SocketService.on('new_chat_created', updateGlobalList);
+
+    return () => {
+      SocketService.off('message_received', updateGlobalList);
+      SocketService.off('chat_read', updateGlobalList);
+      SocketService.off('chat_deleted', updateGlobalList);
+      SocketService.off('new_chat_created', updateGlobalList);
+    };
+  }, [queryClient]);
 
   if (isLoading && !isRefetching) {
     return (
@@ -62,10 +85,27 @@ export default function ChatList() {
           // Obtener el contador de no leídos para el usuario actual
           const unreadCount = currentUserId ? (item.unreadCounts?.[currentUserId] || 0) : 0;
 
+          // Saber si el último mensaje fue enviado por el usuario actual
+          const senderId = typeof item.lastMessage?.senderId === 'object' 
+            ? item.lastMessage?.senderId?._id 
+            : item.lastMessage?.senderId;
+          const isMyLastMessage = !!senderId && !!currentUserId && String(senderId) === String(currentUserId);
+
           return (
             <TouchableOpacity
               className="flex-row p-4 items-center border-b border-gray-200 dark:border-gray-800"
               onPress={() => {
+                if (currentUserId) {
+                  queryClient.setQueryData(['userChats'], (oldChats: any[]) => {
+                    if (!oldChats) return oldChats;
+                    return oldChats.map(c => 
+                      c._id === item._id 
+                        ? { ...c, unreadCounts: { ...c.unreadCounts, [currentUserId]: 0 } }
+                        : c
+                    );
+                  });
+                }
+
                 if (item.isGroup) {
                   const wsId = typeof item.workspaceId === 'object' ? item.workspaceId._id : item.workspaceId;
                   router.push(`/workspace/${wsId}?name=${encodeURIComponent(displayTitle)}`);
@@ -91,6 +131,9 @@ export default function ChatList() {
                   {displayTitle}
                 </Text>
                 <Text className="text-sm text-gray-500 dark:text-gray-400 mt-1" numberOfLines={1}>
+                  {isMyLastMessage && (
+                    <Text className="text-gray-700 dark:text-gray-300 font-bold">Tú: </Text>
+                  )}
                   {lastMsgText}
                 </Text>
               </View>

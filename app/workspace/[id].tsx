@@ -26,7 +26,8 @@ import { api } from '@/src/services/api';
 import { SocketService } from '@/src/services/socket.service';
 import { useSocket } from '@/src/context/SocketContext';
 import { getUserChats, getChatMessages, editMessage, deleteMessage, sendAudioMessage, ChatMessage as ChatMessageType } from '@/src/services/chat.service';
-import { sendFileMessage } from '@/src/services/chat.service';
+import { sendFileMessage, deleteGroupChat } from '@/src/services/chat.service';
+import { leaveWorkspace } from '@/src/services/workspace.service';
 import { UserAvatar } from '@/src/components/ui/UserAvatar';
 import MessageBubble from '@/src/components/chat/MessageBubble';
 import ChatInput from '@/src/components/chat/ChatInput';
@@ -52,25 +53,25 @@ const AudioPlayer = ({ fileUrl, isSent }: { fileUrl: string, isSent: boolean }) 
   async function playSound() {
     try {
       if (sound) {
-        if (isPlaying) { 
-          await sound.pauseAsync(); 
-          setIsPlaying(false); 
-        } else { 
+        if (isPlaying) {
+          await sound.pauseAsync();
+          setIsPlaying(false);
+        } else {
           const status = await sound.getStatusAsync();
           if (status.isLoaded && status.positionMillis === status.durationMillis) {
             await sound.setPositionAsync(0);
           }
-          await sound.playAsync(); 
-          setIsPlaying(true); 
+          await sound.playAsync();
+          setIsPlaying(true);
         }
       } else {
         const { sound: newSound } = await Audio.Sound.createAsync(
-          { uri: fileUrl }, 
+          { uri: fileUrl },
           { shouldPlay: true, isLooping: false }
         );
-        setSound(newSound); 
+        setSound(newSound);
         setIsPlaying(true);
-        
+
         newSound.setOnPlaybackStatusUpdate((status: any) => {
           if (status.isLoaded) {
             if (status.durationMillis) {
@@ -79,8 +80,8 @@ const AudioPlayer = ({ fileUrl, isSent }: { fileUrl: string, isSent: boolean }) 
               const seconds = totalSeconds % 60;
               setDurationText(`${minutes}:${seconds < 10 ? '0' : ''}${seconds}`);
             }
-            if (status.didJustFinish) { 
-              setIsPlaying(false); 
+            if (status.didJustFinish) {
+              setIsPlaying(false);
               newSound.setPositionAsync(0);
               newSound.pauseAsync();
             }
@@ -92,8 +93,8 @@ const AudioPlayer = ({ fileUrl, isSent }: { fileUrl: string, isSent: boolean }) 
     }
   }
 
-  useEffect(() => { 
-    return () => { if (sound) { sound.unloadAsync(); } }; 
+  useEffect(() => {
+    return () => { if (sound) { sound.unloadAsync(); } };
   }, [sound]);
 
   return (
@@ -129,6 +130,7 @@ export default function WorkspaceScreen() {
   const [isRecording, setIsRecording] = useState(false);
   const startTimeRef = useRef(0);
   const [showMembersModal, setShowMembersModal] = useState(false);
+  const [unreadSeparatorId, setUnreadSeparatorId] = useState<string | null>(null);
   const [workspaceData, setWorkspaceData] = useState<any>(null);
 
   const { user } = useAuth();
@@ -142,8 +144,23 @@ export default function WorkspaceScreen() {
     }
   }, [user]);
 
+  useEffect(() => {
+    if (messages.length > 0 && !unreadSeparatorId && currentUserId) {
+      const oldestUnread = [...messages].reverse().find(m => 
+        extractId(m.senderId) !== currentUserId && 
+        !(m.readBy || []).map(extractId).includes(currentUserId)
+      );
+      
+      if (oldestUnread) {
+        setUnreadSeparatorId(oldestUnread._id);
+      } else {
+        setUnreadSeparatorId('none');
+      }
+    }
+  }, [messages, currentUserId, unreadSeparatorId]);
+
   const { onlineUsers } = useSocket();
-  const onlineCount = members.filter(m => onlineUsers.includes(m._id)).length;
+  const onlineCount = members.filter(m => onlineUsers.includes(extractId(m._id))).length;
 
   const getMemberName = useCallback((memberId: string) => {
     const member = members.find(m => m._id === memberId);
@@ -154,10 +171,6 @@ export default function WorkspaceScreen() {
     (adminId: any) => (adminId._id || adminId) === currentUserId
   ) || workspaceData?.owner?._id === currentUserId
     || workspaceData?.owner === currentUserId;
-
-  const handleChangeGroupImage = () => {
-    Alert.alert('Cambiar imagen', 'Esta funcionalidad estará disponible próximamente.');
-  };
 
   const loadWorkspaceChat = useCallback(async () => {
     try {
@@ -192,9 +205,18 @@ export default function WorkspaceScreen() {
 
   useEffect(() => {
     if (currentChatId && currentUserId) {
-      SocketService.emit('message_read', { chatId: currentChatId, userId: currentUserId });
+      SocketService.emit('mark_read', { chatId: currentChatId, userId: currentUserId });
+
+      queryClient.setQueryData(['userChats'], (oldChats: any[]) => {
+        if (!oldChats) return oldChats;
+        return oldChats.map(chat =>
+          chat._id === currentChatId
+            ? { ...chat, unreadCounts: { ...chat.unreadCounts, [currentUserId]: 0 } }
+            : chat
+        );
+      });
     }
-  }, [currentChatId, currentUserId]);
+  }, [currentChatId, currentUserId, queryClient]);
 
   useEffect(() => {
     const handleMessageReceived = (payload: any) => {
@@ -207,44 +229,86 @@ export default function WorkspaceScreen() {
           contenido: payload.content,
           createdAt: payload.createdAt,
         };
+
         queryClient.setQueryData(['chatMessages', currentChatId], (old: MessageMessageType[] | undefined) => {
           if (!old) return [message];
           const exists = old.some(msg => msg._id === message._id);
           return exists ? old : [message, ...old];
         });
+
+        // 🚀 ACUSE DE RECIBO: Si el mensaje no es mío y tengo el chat abierto, firmo como leído
+        const senderStr = extractId(payload.senderId);
+        if (senderStr !== String(currentUserId)) {
+          SocketService.emit('mark_read', { chatId: currentChatId, userId: currentUserId });
+        }
       }
       queryClient.invalidateQueries({ queryKey: ['userChats'] });
     };
 
-    const handleChatRead = (payload: any) => {
+    const handleMessageStatusUpdate = (payload: any) => {
+      // Sincroniza exactamente con el payload del backend: { messageId, deliveredTo, readBy }
+      queryClient.setQueryData(['chatMessages', currentChatId], (old: MessageMessageType[] | undefined) => {
+        if (!old) return [];
+        return old.map(msg => msg._id === payload.messageId
+          ? { ...msg, deliveredTo: payload.deliveredTo, readBy: payload.readBy }
+          : msg
+        );
+      });
+    };
+
+    const handleBulkUpdate = (payload: any) => {
+      // Sincroniza múltiples mensajes (Ej. al entrar al chat) sin inyectar un status fantasma
       queryClient.setQueryData(['chatMessages', currentChatId], (old: MessageMessageType[] | undefined) => {
         if (!old) return [];
         return old.map(msg => {
-          const isMatch = payload.messageId 
-            ? msg._id === payload.messageId 
-            : ((msg as any).chatId === payload.chatId || payload.chatId === currentChatId);
-          if (isMatch) {
-            const currentReadBy = Array.isArray((msg as any).readBy) ? (msg as any).readBy : [];
-            const newReadBy = payload.userId 
-              ? [...new Set([...currentReadBy, payload.userId])] 
-              : currentReadBy;
-            return { ...msg, readBy: newReadBy, status: 'read' };
+          const updatedMsg = payload.updatedMessages?.find((u: any) => u._id === msg._id);
+          if (updatedMsg) {
+            return {
+              ...msg,
+              readBy: updatedMsg.readBy || msg.readBy,
+              deliveredTo: updatedMsg.deliveredTo || msg.deliveredTo
+            };
           }
           return msg;
         });
       });
     };
 
+    const handleMessageEdited = (payload: any) => {
+      queryClient.setQueryData(['chatMessages', currentChatId], (old: MessageMessageType[] | undefined) => {
+        if (!old) return [];
+        return old.map(msg => msg._id === payload._id 
+          ? { ...msg, contenido: payload.content || payload.contenido, isEdited: true } 
+          : msg
+        );
+      });
+    };
+
+    const handleMessageDeleted = (payload: any) => {
+      queryClient.setQueryData(['chatMessages', currentChatId], (old: MessageMessageType[] | undefined) => {
+        if (!old) return [];
+        return old.map(msg => msg._id === payload.messageId 
+          ? { ...msg, contenido: 'Mensaje eliminado', isDeleted: true } 
+          : msg
+        );
+      });
+    };
+
+    // Limpiamos y asignamos los listeners correctos
     SocketService.on('new_message', handleMessageReceived);
     SocketService.on('message_received', handleMessageReceived);
-    SocketService.on('message_status_update', handleChatRead);
-    SocketService.on('chat_read', handleChatRead);
+    SocketService.on('message_status_update', handleMessageStatusUpdate);
+    SocketService.on('chat_status_bulk_update', handleBulkUpdate);
+    SocketService.on('message_edited', handleMessageEdited);
+    SocketService.on('message_deleted_for_all', handleMessageDeleted);
 
     return () => {
       SocketService.off('new_message', handleMessageReceived);
       SocketService.off('message_received', handleMessageReceived);
-      SocketService.off('message_status_update', handleChatRead);
-      SocketService.off('chat_read', handleChatRead);
+      SocketService.off('message_status_update', handleMessageStatusUpdate);
+      SocketService.off('chat_status_bulk_update', handleBulkUpdate);
+      SocketService.off('message_edited', handleMessageEdited);
+      SocketService.off('message_deleted_for_all', handleMessageDeleted);
     };
   }, [currentChatId]);
 
@@ -255,40 +319,15 @@ export default function WorkspaceScreen() {
     }
   }, [currentUserId]);
 
-  const showInfoAction = useCallback(() => {
-    if (!selectedMsgOptions) return;
 
-    const dbReadBy = Array.isArray((selectedMsgOptions as any).readBy) ? (selectedMsgOptions as any).readBy.map(extractId) : [];
-    const msgStatus = (selectedMsgOptions as any).status;
-    const otherMembers = members.filter(m => extractId(m._id) !== String(currentUserId));
-    const hasEveryoneRead = otherMembers.length > 0 && otherMembers.every(m => dbReadBy.includes(extractId(m._id)));
-
-    let infoText = '';
-
-    if (msgStatus === 'read' && dbReadBy.length === 0) {
-      infoText = '✓✓ Visto (El servidor no guardó quién lo leyó)\n\n';
-      infoText += otherMembers.map(m => `○ (Desconocido) ${m.name || m.username || 'Usuario'}`).join('\n');
-    } else {
-      if (hasEveryoneRead && otherMembers.length > 0) {
-        infoText = '✓✓ Visto por todos los miembros\n\n';
-      }
-      infoText += otherMembers.map(m => {
-        const hasRead = dbReadBy.includes(extractId(m._id));
-        return `${hasRead ? '✓✓ (Visto)' : '✓ (Enviado)'} ${m.name || m.username || 'Usuario'}`;
-      }).join('\n');
-    }
-
-    setSelectedMsgOptions(null);
-    Alert.alert('Info. del mensaje', infoText, [{ text: 'Cerrar' }]);
-  }, [selectedMsgOptions, members, currentUserId]);
 
   const handleAttachFile = async () => {
     try {
       const result = await DocumentPicker.getDocumentAsync({ type: '*/*', copyToCacheDirectory: true });
       if (result.canceled) return;
-      
+
       const asset = result.assets[0];
-      
+
       if (asset.size && asset.size > 5 * 1024 * 1024) {
         Alert.alert('Archivo muy pesado', 'Por favor, selecciona un archivo menor a 5MB.');
         return;
@@ -298,13 +337,13 @@ export default function WorkspaceScreen() {
       const safeMimeType = asset.mimeType || 'application/octet-stream';
 
       const newMsg = await sendFileMessage(currentChatId, asset.uri, safeFileName, safeMimeType);
-      
+
       queryClient.setQueryData(['chatMessages', currentChatId], (old: MessageMessageType[] | undefined) => {
         if (!old) return [newMsg];
         return old.some(msg => msg._id === newMsg._id) ? old : [newMsg, ...old];
       });
-    } catch (error) { 
-      console.error('Error attaching file:', error); 
+    } catch (error) {
+      console.error('Error attaching file:', error);
       Alert.alert('Error', 'No se pudo adjuntar el archivo al grupo.');
     }
   };
@@ -333,7 +372,7 @@ export default function WorkspaceScreen() {
     if (editingMessage) {
       try {
         const updated = await editMessage(editingMessage._id, cleanedMessage);
-        queryClient.setQueryData(['chatMessages', currentChatId], (old: MessageMessageType[] | undefined) => 
+        queryClient.setQueryData(['chatMessages', currentChatId], (old: MessageMessageType[] | undefined) =>
           old ? old.map(msg => msg._id === editingMessage._id ? updated : msg) : []
         );
         setNewMessage('');
@@ -358,7 +397,7 @@ export default function WorkspaceScreen() {
       createdAt: new Date().toISOString(),
     };
 
-    queryClient.setQueryData(['chatMessages', currentChatId], (old: MessageMessageType[] | undefined) => 
+    queryClient.setQueryData(['chatMessages', currentChatId], (old: MessageMessageType[] | undefined) =>
       old ? [localMsg, ...old] : [localMsg]
     );
 
@@ -379,7 +418,7 @@ export default function WorkspaceScreen() {
       setRecording(recording);
       setIsRecording(true);
       startTimeRef.current = Date.now();
-      try { require('expo-haptics').impactAsync(); } catch {}
+      try { require('expo-haptics').impactAsync(); } catch { }
     } catch (err) {
       console.error('Error al iniciar grabación', err);
     }
@@ -390,7 +429,7 @@ export default function WorkspaceScreen() {
     setIsRecording(false);
     const elapsed = Date.now() - startTimeRef.current;
     if (elapsed < 500) {
-      try { await recording.stopAndUnloadAsync(); } catch {}
+      try { await recording.stopAndUnloadAsync(); } catch { }
       setRecording(null);
       return;
     }
@@ -417,6 +456,38 @@ export default function WorkspaceScreen() {
     }
   };
 
+  const handleLeaveGroup = () => {
+    Alert.alert('Abandonar grupo', '¿Estás seguro de que deseas salir de este grupo?', [
+      { text: 'Cancelar', style: 'cancel' },
+      { text: 'Salir', style: 'destructive', onPress: async () => {
+        try {
+          await leaveWorkspace(id);
+          queryClient.invalidateQueries({ queryKey: ['userChats'] });
+          router.replace('/(tabs)/chats');
+          Toast.show({ type: 'success', text1: 'Has salido del grupo' });
+        } catch (error: any) {
+          Toast.show({ type: 'error', text1: error.response?.data?.msg || 'Error al salir del grupo' });
+        }
+      }}
+    ]);
+  };
+
+  const handleDeleteGroup = () => {
+    Alert.alert('Eliminar grupo', 'Esta acción es irreversible. Se borrarán todos los mensajes.', [
+      { text: 'Cancelar', style: 'cancel' },
+      { text: 'Eliminar', style: 'destructive', onPress: async () => {
+        try {
+          await deleteGroupChat(currentChatId!);
+          queryClient.invalidateQueries({ queryKey: ['userChats'] });
+          router.replace('/(tabs)/chats');
+          Toast.show({ type: 'success', text1: 'Grupo eliminado correctamente' });
+        } catch (error: any) {
+          Toast.show({ type: 'error', text1: error.response?.data?.msg || 'Error al eliminar el grupo' });
+        }
+      }}
+    ]);
+  };
+
   const renderMessage = ({ item }: { item: MessageMessageType }) => {
     const senderIdStr = extractId(item.senderId);
     const isSenderObject = typeof item.senderId === 'object' && item.senderId !== null;
@@ -424,21 +495,35 @@ export default function WorkspaceScreen() {
     const isSent = senderIdStr === String(currentUserId);
     const isOnline = onlineUsers.includes(senderIdStr);
 
-    const dbReadBy = Array.isArray((item as any).readBy) ? (item as any).readBy.map(extractId) : [];
-    const otherMembers = members.filter(m => extractId(m._id) !== String(currentUserId));
-    const isReadByAll = (otherMembers.length > 0 && otherMembers.every(m => dbReadBy.includes(extractId(m._id)))) || ((item as any).status === 'read');
+    const isSeparator = item._id === unreadSeparatorId;
 
     return (
-      <MessageBubble
-        item={item}
-        isMe={isSent}
-        senderName={senderNameStr}
-        isOnline={isOnline}
-        onLongPress={handleLongPress}
-        onOpenFile={handleOpenFile}
-        totalParticipants={members.length}
-        AudioPlayerComponent={AudioPlayer}
-      />
+      <View>
+        <MessageBubble
+          item={item}
+          isMe={isSent}
+          senderName={senderNameStr}
+          isOnline={isOnline}
+          onLongPress={handleLongPress}
+          onOpenFile={handleOpenFile}
+          totalParticipants={members.length}
+          AudioPlayerComponent={AudioPlayer}
+          isGroupChat={true}
+          chatParticipants={members}
+        />
+
+        {isSeparator && (
+          <View className="flex-row items-center justify-center my-4 opacity-90">
+            <View className="flex-1 h-[1px] bg-indigo-200 dark:bg-indigo-900/50" />
+            <View className="bg-indigo-50 dark:bg-indigo-900/40 px-4 py-1.5 rounded-full mx-3 border border-indigo-200/60 dark:border-indigo-800/60 shadow-sm">
+              <Text className="text-[10px] text-indigo-600 dark:text-indigo-400 font-bold uppercase tracking-widest">
+                Mensajes no leídos
+              </Text>
+            </View>
+            <View className="flex-1 h-[1px] bg-indigo-200 dark:bg-indigo-900/50" />
+          </View>
+        )}
+      </View>
     );
   };
 
@@ -463,11 +548,6 @@ export default function WorkspaceScreen() {
                 <Feather name="users" size={20} color="#007AFF" />
               </View>
             )}
-            {isGroupAdmin && (
-              <TouchableOpacity style={styles.cameraButton} onPress={handleChangeGroupImage}>
-                <Feather name="camera" size={12} color="#fff" />
-              </TouchableOpacity>
-            )}
           </View>
           <Text style={styles.headerTitle}>{name}</Text>
         </View>
@@ -489,9 +569,10 @@ export default function WorkspaceScreen() {
           <View style={styles.membersAvatars}>
             {members.slice(0, 5).map((member) => {
               const memberData = member.userId || member;
-              const isOnline = onlineUsers.includes(memberData._id);
+              // 2. Evaluación corregida con extractId
+              const isOnline = onlineUsers.includes(extractId(memberData._id));
               return (
-                <View key={memberData._id} style={styles.memberAvatarWrapper}>
+                <View key={extractId(memberData._id)} style={styles.memberAvatarWrapper}>
                   <UserAvatar uri={memberData.avatarUrl} size={32} />
                   {isOnline && <View style={styles.onlineDot} />}
                 </View>
@@ -558,7 +639,21 @@ export default function WorkspaceScreen() {
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>Opciones del mensaje</Text>
 
-            <TouchableOpacity style={styles.modalButton} onPress={showInfoAction}>
+            <TouchableOpacity style={styles.modalButton} onPress={() => {
+              const msg = selectedMsgOptions!;
+              setSelectedMsgOptions(null);
+              router.push({
+                pathname: '/chat/message-info',
+                params: {
+                  messageId: msg._id,
+                  messageContent: msg.contenido || msg.content || '',
+                  senderId: currentUserId,
+                  chatParticipantsRaw: JSON.stringify(members || []),
+                  readByRaw: JSON.stringify(msg.readBy || []),
+                  deliveredToRaw: JSON.stringify(msg.deliveredTo || []),
+                }
+              });
+            }}>
               <Feather name="info" size={20} color="#007AFF" />
               <Text style={styles.modalButtonText}>Ver Información</Text>
             </TouchableOpacity>
@@ -610,7 +705,7 @@ export default function WorkspaceScreen() {
               keyExtractor={item => (item.userId || item)._id}
               renderItem={({ item }) => {
                 const memberData = item.userId || item;
-                const isOnline = onlineUsers.includes(memberData._id);
+                const isOnline = onlineUsers.includes(extractId(memberData._id));
                 return (
                   <TouchableOpacity
                     style={styles.modalButton}
@@ -626,9 +721,9 @@ export default function WorkspaceScreen() {
                   >
                     <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
                       <View style={{ marginRight: 12 }}>
-                      <UserAvatar uri={memberData.avatarUrl} size={40} />
-                      {isOnline && <View style={[styles.onlineDot, { right: 0, bottom: 0 }]} />}
-                    </View>
+                        <UserAvatar uri={memberData.avatarUrl} size={40} />
+                        {isOnline && <View style={[styles.onlineDot, { right: 0, bottom: 0 }]} />}
+                      </View>
                       <View>
                         <Text style={{ fontSize: 16, fontWeight: '500', color: '#333' }}>
                           {memberData.name || memberData.username || 'Usuario'}
@@ -645,6 +740,17 @@ export default function WorkspaceScreen() {
                   </TouchableOpacity>
                 );
               }}
+              ListFooterComponent={() => (
+                <TouchableOpacity 
+                  style={[styles.modalButton, { justifyContent: 'center', marginTop: 10, borderBottomWidth: 0 }]} 
+                  onPress={isGroupAdmin ? handleDeleteGroup : handleLeaveGroup}
+                >
+                  <Feather name={isGroupAdmin ? "trash-2" : "log-out"} size={20} color="#FF3B30" />
+                  <Text style={[styles.modalButtonText, { color: '#FF3B30', fontWeight: 'bold' }]}>
+                    {isGroupAdmin ? 'Eliminar Grupo' : 'Abandonar Grupo'}
+                  </Text>
+                </TouchableOpacity>
+              )}
             />
           </View>
         </TouchableOpacity>
@@ -702,19 +808,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#E3F2FD',
     justifyContent: 'center',
     alignItems: 'center',
-  },
-  cameraButton: {
-    position: 'absolute',
-    bottom: -2,
-    right: -2,
-    backgroundColor: '#007AFF',
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 2,
-    borderColor: '#fff',
   },
   inviteButton: {
     padding: 8,

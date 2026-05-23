@@ -110,8 +110,23 @@ export default function ChatRoomScreen() {
   }, [id]);
 
   useEffect(() => {
-    if (id && currentUserId) SocketService.emit('message_read', { chatId: id, userId: currentUserId });
-  }, [id, currentUserId]);
+    if (id && currentUserId) {
+      SocketService.emit('message_read', { chatId: id, userId: currentUserId });
+
+      queryClient.setQueryData(['userChats'], (oldChats: any[]) => {
+        if (!oldChats) return oldChats;
+        return oldChats.map(chat => {
+          if (chat._id === id) {
+            return {
+              ...chat,
+              unreadCounts: { ...chat.unreadCounts, [currentUserId]: 0 }
+            };
+          }
+          return chat;
+        });
+      });
+    }
+  }, [id, currentUserId, queryClient]);
 
   useEffect(() => {
     const handleNewMessage = (newMessage: ChatMessage) => {
@@ -252,6 +267,7 @@ export default function ChatRoomScreen() {
     >
       <Stack.Screen
         options={{
+          presentation: 'modal',
           headerShown: true,
           headerTransparent: true,
           headerBlurEffect: 'dark',

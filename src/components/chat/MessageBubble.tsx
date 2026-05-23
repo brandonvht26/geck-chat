@@ -8,7 +8,7 @@ interface MessageBubbleProps {
   isMe: boolean;
   senderName?: string;
   isOnline?: boolean;
-  onLongPress: (item: any) => void;
+  onLongPress?: (item: any) => void;
   onOpenFile?: (item: any) => void;
   totalParticipants?: number;
   AudioPlayerComponent?: any;
@@ -37,8 +37,28 @@ export default function MessageBubble({
   const timeStr = new Date(item.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
   const readBy = item.readBy || [];
   const deliveredTo = item.deliveredTo || [];
-  const isReadByAll = readBy.length >= (totalParticipants - 1);
-  
+
+  const getMessageStatus = () => {
+    if (!isMe) return null;
+
+    // Obtenemos los participantes del chat (excluyéndonos a nosotros)
+    const otherParticipantsCount = totalParticipants - 1;
+
+    // Filtramos quienes ya leyeron y entregaron
+    const readers = (readBy || []).filter((id: string) => id !== currentUserId);
+    const receivers = (deliveredTo || []).filter((id: string) => id !== currentUserId);
+
+    // Lógica de WhatsApp:
+    // 1. Azul: Todos los participantes (o al menos alguien en 1:1) han leído
+    if (readers.length > 0) return 'read';
+    // 2. Doble Check Gris: Todos los participantes han recibido
+    if (receivers.length > 0) return 'delivered';
+    // 3. Un Check Gris: Enviado al servidor
+    return 'sent';
+  };
+
+  const status = getMessageStatus();
+
   const isExpired = (msgType === 'file' || msgType === 'audio') && (!item.fileUrl || content === 'Archivo expirado');
 
   // Función securizada para navegar a información del mensaje
@@ -51,7 +71,7 @@ export default function MessageBubble({
     // Serialización segura de datos complejos para evitar truncamiento de URI
     try {
       const senderId = typeof item.senderId === 'object' ? item.senderId?._id : item.senderId;
-      
+
       router.push({
         pathname: '/chat/message-info',
         params: {
@@ -69,7 +89,9 @@ export default function MessageBubble({
   };
 
   const handleLongPress = () => {
-    onLongPress(item);
+    if (onLongPress) {
+      onLongPress(item);
+    }
   };
 
   // Clases base con NativeWind (Soporte Dark Mode)
@@ -95,8 +117,9 @@ export default function MessageBubble({
 
   return (
     <TouchableOpacity
-      activeOpacity={0.8}
-      onLongPress={() => onLongPress(item)}
+      onLongPress={handleLongPress}
+      delayLongPress={350}
+      activeOpacity={0.9}
       onPress={() => msgType === 'file' && onOpenFile ? onOpenFile(item) : null}
       className="mb-2"
     >
@@ -106,9 +129,9 @@ export default function MessageBubble({
           {isOnline && <View className="w-2 h-2 rounded-full bg-green-500" />}
         </View>
       )}
-      
+
       <View className={`${bubbleBase} ${isMe ? myBubble : otherBubble} shadow-sm ${msgType === 'file' || msgType === 'audio' ? 'flex-row' : 'flex-col items-start'}`}>
-        
+
         {/* Render de contenido eliminado */}
         {item.isDeleted ? (
           <View className="flex-row items-center gap-2">
@@ -143,17 +166,25 @@ export default function MessageBubble({
             <Text className={`text-[10px] italic ${isMe ? 'text-white/70' : 'text-gray-500'} mr-1`}>Editado</Text>
           )}
           <Text className={`text-[10px] ${isMe ? 'text-white/70' : 'text-gray-500'}`}>{timeStr}</Text>
-          {isMe && totalParticipants > 0 && (
-            <TouchableOpacity 
+          {isMe && status && (
+            <TouchableOpacity
               onPress={isGroupChat ? handleMessageInfoPress : undefined}
               disabled={!isGroupChat}
+              className="flex-row items-center justify-end"
             >
-              <Ionicons
-                name="checkmark-done-outline"
-                size={16}
-                color={isReadByAll ? '#34B7F1' : '#9ca3af'}
-                style={{ marginLeft: 4 }}
-              />
+              {status === 'sent' && <Feather name="check" size={14} color="#9ca3af" />}
+              {status === 'delivered' && (
+                <View className="flex-row">
+                  <Feather name="check" size={14} color="#9ca3af" />
+                  <Feather name="check" size={14} color="#9ca3af" style={{ marginLeft: -7 }} />
+                </View>
+              )}
+              {status === 'read' && (
+                <View className="flex-row">
+                  <Feather name="check" size={14} color="#3b82f6" />
+                  <Feather name="check" size={14} color="#3b82f6" style={{ marginLeft: -7 }} />
+                </View>
+              )}
             </TouchableOpacity>
           )}
         </View>

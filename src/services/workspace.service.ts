@@ -89,24 +89,11 @@ export const getWorkspaceMessages = async (workspaceId: string): Promise<Workspa
   }
 };
 
-export const updateWorkspaceImage = async (workspaceId: string, imageUri: string, mimeType: string = 'image/jpeg') => {
+export const leaveWorkspace = async (workspaceId: string): Promise<void> => {
   try {
-    const formData = new FormData();
-    formData.append('image', {
-      uri: imageUri,
-      name: `workspace_${workspaceId}.jpg`,
-      type: mimeType,
-    } as any);
-
-    const response = await api.post(`/api/workspaces/${workspaceId}/update-image`, formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    });
-
-    return response.data;
-  } catch (error: any) {
-    if (error.response && error.response.status === 404) {
-      throw new Error('ENDPOINT_PENDING');
-    }
+    await api.delete(`/api/workspaces/${workspaceId}/leave`);
+  } catch (error) {
+    console.error('Error abandonando workspace:', error);
     throw error;
   }
 };

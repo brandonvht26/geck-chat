@@ -194,6 +194,15 @@ export const markChatAsRead = async (chatId: string) => {
   }
 };
 
+export const deleteGroupChat = async (chatId: string): Promise<void> => {
+  try {
+    await api.delete(`/api/chat/${chatId}`);
+  } catch (error) {
+    console.error('Error eliminando grupo:', error);
+    throw error;
+  }
+};
+
 export const deleteChat = async (chatId: string) => {
   try {
     const response = await api.delete(`/api/chat/${chatId}/delete`);
