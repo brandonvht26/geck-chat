@@ -246,7 +246,7 @@ export default function WorkspaceScreen() {
     SocketService.emit('mark_read', { chatId: currentChatId, userId: currentUserId });
     api.patch(`/api/chat/${currentChatId}/read`).catch(() => {});
 
-    setTimeout(() => {
+    const timer = setTimeout(() => {
       queryClient.setQueryData(['chatMessages', currentChatId], (oldMessages: any[]) => {
         if (!oldMessages) return oldMessages;
         return oldMessages.map(msg => {
@@ -263,6 +263,8 @@ export default function WorkspaceScreen() {
         });
       });
     }, 800);
+
+    return () => clearTimeout(timer);
 
   }, [currentChatId, currentUserId, queryClient, messages.length]);
 

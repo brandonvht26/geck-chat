@@ -136,7 +136,7 @@ export default function ChatRoomScreen() {
     SocketService.emit('mark_read', { chatId: id, userId: currentUserId });
     api.patch(`/api/chat/${id}/read`).catch(() => {});
 
-    setTimeout(() => {
+    const timer = setTimeout(() => {
       queryClient.setQueryData(['chatMessages', id], (oldMessages: any[]) => {
         if (!oldMessages) return oldMessages;
         return oldMessages.map(msg => {
@@ -153,6 +153,8 @@ export default function ChatRoomScreen() {
         });
       });
     }, 800);
+
+    return () => clearTimeout(timer);
 
   }, [id, currentUserId, queryClient, messages.length]);
 
