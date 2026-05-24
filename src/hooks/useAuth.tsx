@@ -1,11 +1,8 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useRouter } from 'expo-router';
 import { loginUser, registerUser } from '../services/auth.service';
-import { setToken, removeToken, getToken, ApiError } from '../services/api';
+import { setToken, removeToken, getToken, ApiError, api } from '../services/api';
 import { SocketService } from '../services/socket.service';
-import { api } from '../services/api';
-import { registerForPushNotificationsAsync } from '@/src/services/notification.service';
-import { updatePushToken } from '@/src/services/user.service';
 
 interface User {
   _id: string;
@@ -52,28 +49,12 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         email: response.email,
         rol: response.rol,
         avatarUrl: response.avatarUrl,
-        preferences: (response as any).preferences, // <-- Parche de tipado
+        preferences: (response as any).preferences, 
       };
 
       setUser(loggedUser);
       SocketService.connect(response._id);
 
-      const initializePushNotifications = async () => {
-        try {
-          const expoPushToken = await registerForPushNotificationsAsync();
-          if (expoPushToken) {
-            await updatePushToken(expoPushToken);
-            console.log('✅ Push Token sincronizado con el servidor');
-          }
-        } catch (error: any) {
-          if (error.message?.includes('Expo Go') || error.message?.includes('development build')) {
-            console.log('ℹ️ Modo Expo Go detectado. Las notificaciones Push están desactivadas.');
-          } else {
-            console.log('⚠️ No se pudo registrar el Push Token:', error.message);
-          }
-        }
-      };
-      initializePushNotifications();
       return true;
     } catch (error) {
       const apiError = error as ApiError;
@@ -94,7 +75,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         email: response.email,
         rol: response.rol,
         avatarUrl: response.avatarUrl,
-        preferences: (response as any).preferences, // <-- Parche de tipado
+        preferences: (response as any).preferences, 
       });
       SocketService.connect(response._id);
       return true;
@@ -126,7 +107,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
       setUser({
         _id: response.data._id,
-        name: response.data.nombre || response.data.name, // El backend a veces envía 'nombre'
+        name: response.data.nombre || response.data.name,
         email: response.data.email,
         rol: response.data.rol,
         avatarUrl: response.data.avatarUrl,

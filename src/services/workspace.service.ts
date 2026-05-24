@@ -32,7 +32,8 @@ export interface WorkspaceListResponse {
 
 export const getWorkspaces = async (): Promise<WorkspaceResponse[]> => {
   try {
-    const response = await api.get<WorkspaceListResponse>('/api/workspaces');
+    // 🚀 CORREGIDO: Ahora apunta exactamente a la ventanilla de obtención del backend
+    const response = await api.get<WorkspaceListResponse>('/api/workspaces/fetch-user-workspaces');
     if (!response.data.ok) {
       throw new Error('Error del servidor al obtener workspaces');
     }
@@ -49,7 +50,8 @@ export const getWorkspaces = async (): Promise<WorkspaceResponse[]> => {
 
 export const createWorkspace = async (name: string, description: string): Promise<WorkspaceResponse> => {
   try {
-    const response = await api.post<WorkspaceResponse>('/api/workspaces', { name, description });
+    // 🚀 CORREGIDO: Ahora apunta exactamente a la oficina de creación del backend
+    const response = await api.post<WorkspaceResponse>('/api/workspaces/create', { name, description });
     return response.data;
   } catch (error) {
     if (error instanceof Error) {

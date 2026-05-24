@@ -47,9 +47,10 @@ interface AccessChatResponse {
 
 export const getChatHistory = async (otherUserId: string): Promise<ChatMessage[]> => {
   try {
-    const response = await api.get<ChatHistoryResponse>('/api/chat/history/' + otherUserId);
-    // ¡CLAVE! El backend ahora devuelve { ok: true, messages: [...], pagination: {...} }
-    // Extraemos el array 'messages' para mantener compatibilidad
+    // 🚀 BYPASS: Le exigimos al servidor 500 mensajes desde el frontend
+    const response = await api.get<ChatHistoryResponse>('/api/chat/history/' + otherUserId, {
+      params: { limit: 500 }
+    });
     return response.data?.messages || [];
   } catch (error) {
     const apiError = error as ApiError;
@@ -90,13 +91,13 @@ export const getPrivateChats = async (): Promise<Chat[]> => {
 export const getChatMessages = async (chatId: string): Promise<ChatMessage[]> => {
   try {
     const urlDestino = '/api/chat/' + chatId + '/chat';
-    // RADAR 4: La dirección exacta que intenta golpear Axios
     console.log("🕵️‍♂️ RADAR 4 - URL EXACTA DISPARADA POR AXIOS:", urlDestino);
     
-    const response = await api.get<GetMessagesResponse>(urlDestino);
+    // 🚀 BYPASS: Le exigimos al servidor 500 mensajes desde el frontend
+    const response = await api.get<GetMessagesResponse>(urlDestino, {
+      params: { limit: 500 }
+    });
     
-    // ¡CLAVE! El backend ahora devuelve { ok: true, messages: [...], pagination: {...} }
-    // Extraemos el array 'messages' para no romper el FlatList
     return response.data.messages || [];
   } catch (error) {
     const apiError = error as ApiError;

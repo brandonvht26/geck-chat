@@ -158,7 +158,7 @@ export default function WorkspaceScreen() {
         const m = messages[i];
         const senderStr = extractId(m.senderId);
         const readArr = Array.isArray((m as any).readBy) ? (m as any).readBy.map(extractId) : [];
-        
+
         if (senderStr !== currentUserId && !readArr.includes(currentUserId)) {
           foundUnreadId = m._id;
           foundIndex = i;
@@ -168,7 +168,7 @@ export default function WorkspaceScreen() {
 
       if (foundUnreadId) {
         setUnreadSeparatorId(foundUnreadId);
-        
+
         setTimeout(() => {
           if (flatListRef.current && !hasScrolled) {
             try {
@@ -249,7 +249,7 @@ export default function WorkspaceScreen() {
     });
 
     SocketService.emit('mark_read', { chatId: currentChatId, userId: currentUserId });
-    api.patch(`/api/chat/${currentChatId}/read`).catch(() => {});
+    api.patch(`/api/chat/${currentChatId}/read`).catch(() => { });
 
     const timer = setTimeout(() => {
       queryClient.setQueryData(['chatMessages', currentChatId], (oldMessages: any[]) => {
@@ -332,8 +332,8 @@ export default function WorkspaceScreen() {
     const handleMessageEdited = (payload: any) => {
       queryClient.setQueryData(['chatMessages', currentChatId], (old: MessageMessageType[] | undefined) => {
         if (!old) return [];
-        return old.map(msg => msg._id === payload._id 
-          ? { ...msg, contenido: payload.content || payload.contenido, isEdited: true } 
+        return old.map(msg => msg._id === payload._id
+          ? { ...msg, contenido: payload.content || payload.contenido, isEdited: true }
           : msg
         );
       });
@@ -342,8 +342,8 @@ export default function WorkspaceScreen() {
     const handleMessageDeleted = (payload: any) => {
       queryClient.setQueryData(['chatMessages', currentChatId], (old: MessageMessageType[] | undefined) => {
         if (!old) return [];
-        return old.map(msg => msg._id === payload.messageId 
-          ? { ...msg, contenido: 'Mensaje eliminado', isDeleted: true } 
+        return old.map(msg => msg._id === payload.messageId
+          ? { ...msg, contenido: 'Mensaje eliminado', isDeleted: true }
           : msg
         );
       });
@@ -526,32 +526,54 @@ export default function WorkspaceScreen() {
   const handleLeaveGroup = () => {
     Alert.alert('Abandonar grupo', '¿Estás seguro de que deseas salir de este grupo?', [
       { text: 'Cancelar', style: 'cancel' },
-      { text: 'Salir', style: 'destructive', onPress: async () => {
-        try {
-          await leaveWorkspace(id);
-          queryClient.invalidateQueries({ queryKey: ['userChats'] });
-          router.replace('/');
-          toast.success('Has salido del grupo');
-        } catch (error: any) {
-          toast.error(error.response?.data?.msg || 'Error al salir del grupo');
+      {
+        text: 'Salir', style: 'destructive', onPress: async () => {
+          try {
+            // 🚀 1. Congelamos las peticiones activas de React Query para este chat
+            queryClient.cancelQueries({ queryKey: ['chatMessages', currentChatId] });
+
+            // 🚀 2. Sacamos al usuario inmediatamente de la pantalla (Evasión)
+            router.replace('/home');
+
+            // 🚀 3. Ejecutamos la salida en background y limpiamos el caché
+            await leaveWorkspace(id);
+            queryClient.removeQueries({ queryKey: ['chatMessages', currentChatId] });
+            queryClient.invalidateQueries({ queryKey: ['userChats'] });
+
+            toast.success('Has salido del grupo');
+          } catch (error: any) {
+            toast.error(error.response?.data?.msg || 'Error al salir del grupo');
+          }
         }
-      }}
+      }
     ]);
   };
 
   const handleDeleteGroup = () => {
     Alert.alert('Eliminar grupo', 'Esta acción es irreversible. Se borrarán todos los mensajes.', [
       { text: 'Cancelar', style: 'cancel' },
-      { text: 'Eliminar', style: 'destructive', onPress: async () => {
-        try {
-          await deleteGroupChat(currentChatId!);
-          queryClient.invalidateQueries({ queryKey: ['userChats'] });
-          router.replace('/');
-          toast.success('Grupo eliminado correctamente');
-        } catch (error: any) {
-          toast.error(error.response?.data?.msg || 'Error al eliminar el grupo');
+      {
+        text: 'Eliminar', style: 'destructive', onPress: async () => {
+          try {
+            // 🚀 1. Congelamos cualquier re-fetch fantasma que cause el Error 404
+            queryClient.cancelQueries({ queryKey: ['chatMessages', currentChatId] });
+
+            // 🚀 2. Evacuamos la pantalla ANTES de detonar la orden en la base de datos
+            router.replace('/home');
+
+            // 🚀 3. Detonación en background
+            await deleteGroupChat(currentChatId!);
+
+            // 🚀 4. Borramos el historial del caché local
+            queryClient.removeQueries({ queryKey: ['chatMessages', currentChatId] });
+            queryClient.invalidateQueries({ queryKey: ['userChats'] });
+
+            toast.success('Grupo eliminado correctamente');
+          } catch (error: any) {
+            toast.error(error.response?.data?.msg || 'Error al eliminar el grupo');
+          }
         }
-      }}
+      }
     ]);
   };
 
@@ -610,227 +632,227 @@ export default function WorkspaceScreen() {
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         keyboardVerticalOffset={0}
       >
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <Feather name="chevron-left" size={24} color="#333" />
-        </TouchableOpacity>
-        <View style={styles.headerCenter}>
-          <View style={styles.groupAvatarContainer}>
-            {workspaceData?.imageUrl ? (
-              <Image source={{ uri: workspaceData.imageUrl }} style={styles.groupAvatar} />
-            ) : (
-              <View style={styles.groupAvatarPlaceholder}>
-                <Feather name="users" size={20} color="#007AFF" />
-              </View>
-            )}
-          </View>
-          <Text style={styles.headerTitle}>{name}</Text>
-        </View>
-        <TouchableOpacity
-          onPress={() =>
-            router.push({
-              pathname: '/workspace/invite',
-              params: { workspaceId: id },
-            })
-          }
-          style={styles.inviteButton}
-        >
-          <Feather name="user-plus" size={20} color="#007AFF" />
-        </TouchableOpacity>
-      </View>
-
-      {members.length > 0 && (
-        <TouchableOpacity style={styles.membersBar} activeOpacity={0.7} onPress={() => setShowMembersModal(true)}>
-          <View style={styles.membersAvatars}>
-            {members.slice(0, 5).map((member) => {
-              const memberData = member.userId || member;
-              // 2. Evaluación corregida con extractId
-              const isOnline = onlineUsers.includes(extractId(memberData._id));
-              return (
-                <View key={extractId(memberData._id)} style={styles.memberAvatarWrapper}>
-                  <UserAvatar uri={memberData.avatarUrl} size={32} />
-                  {isOnline && <View style={styles.onlineDot} />}
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+            <Feather name="chevron-left" size={24} color="#333" />
+          </TouchableOpacity>
+          <View style={styles.headerCenter}>
+            <View style={styles.groupAvatarContainer}>
+              {workspaceData?.imageUrl ? (
+                <Image source={{ uri: workspaceData.imageUrl }} style={styles.groupAvatar} />
+              ) : (
+                <View style={styles.groupAvatarPlaceholder}>
+                  <Feather name="users" size={20} color="#007AFF" />
                 </View>
-              );
-            })}
-            {members.length > 5 && (
-              <View style={styles.memberAvatar}>
-                <Text style={styles.moreMembersText}>+{members.length - 5}</Text>
-              </View>
-            )}
+              )}
+            </View>
+            <Text style={styles.headerTitle}>{name}</Text>
           </View>
-          <Text style={styles.onlineText}>{onlineCount} en línea <Feather name="chevron-down" size={14} /></Text>
-        </TouchableOpacity>
-      )}
-
-      {isLoading ? (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#007AFF" />
-        </View>
-      ) : (
-        <FlatList
-          ref={flatListRef}
-          style={{ flex: 1 }}
-          data={messages}
-          keyExtractor={(item) => item._id}
-          renderItem={renderMessage}
-          ListEmptyComponent={
-            isChatLoading ? (
-              <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-                <ActivityIndicator size="large" color="#007AFF" />
-              </View>
-            ) : (
-              <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-                <Text style={{ color: '#999', fontSize: 16, textAlign: 'center' }}>
-                  Aún no hay mensajes en este escritorio
-                </Text>
-                <View style={{ marginTop: 10 }}>
-                  <Feather name="message-square" size={32} color="#ccc" />
-                </View>
-              </View>
-            )
-          }
-          contentContainerStyle={styles.messagesList}
-          inverted={messages.length > 0}
-          showsVerticalScrollIndicator={false}
-        />
-      )}
-
-      <ChatInput
-        content={newMessage}
-        setContent={setNewMessage}
-        onSend={sendMessage}
-        onAttach={handleAttachFile}
-        isRecording={isRecording}
-        onStartRecord={startRecording}
-        onStopRecord={stopRecording}
-        isEditing={!!editingMessage}
-        onCancelEdit={() => { setEditingMessage(null); setNewMessage(''); }}
-      />
-      {/* Toast reemplazado por Toaster global en _layout.tsx */}
-
-      <Modal visible={!!selectedMsgOptions} transparent animationType="fade">
-        <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setSelectedMsgOptions(null)}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Opciones del mensaje</Text>
-
-            <TouchableOpacity style={styles.modalButton} onPress={() => {
-              const msg = selectedMsgOptions!;
-              setSelectedMsgOptions(null);
+          <TouchableOpacity
+            onPress={() =>
               router.push({
-                pathname: '/chat/message-info',
-                params: {
-                  messageId: msg._id,
-                  messageContent: msg.contenido || msg.content || '',
-                  senderId: currentUserId,
-                  chatParticipantsRaw: JSON.stringify(members || []),
-                  readByRaw: JSON.stringify(msg.readBy || []),
-                  deliveredToRaw: JSON.stringify(msg.deliveredTo || []),
-                }
-              });
-            }}>
-              <Feather name="info" size={20} color="#007AFF" />
-              <Text style={styles.modalButtonText}>Ver Información</Text>
-            </TouchableOpacity>
+                pathname: '/workspace/invite',
+                params: { workspaceId: id },
+              })
+            }
+            style={styles.inviteButton}
+          >
+            <Feather name="user-plus" size={20} color="#007AFF" />
+          </TouchableOpacity>
+        </View>
 
-            <TouchableOpacity style={styles.modalButton} onPress={() => {
-              setEditingMessage(selectedMsgOptions);
-              setNewMessage(selectedMsgOptions!.contenido);
-              setSelectedMsgOptions(null);
-            }}>
-              <Feather name="edit-2" size={20} color="#007AFF" />
-              <Text style={styles.modalButtonText}>Editar</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity style={styles.modalButton} onPress={async () => {
-              const msgId = selectedMsgOptions!._id;
-              setSelectedMsgOptions(null);
-              await deleteMessage(msgId, 'for_me');
-              queryClient.setQueryData(['chatMessages', currentChatId], (old: MessageMessageType[] | undefined) => {
-                if (!old) return [];
-                return old.filter(msg => msg._id !== msgId);
-              });
-            }}>
-              <Feather name="trash" size={20} color="#FF3B30" />
-              <Text style={[styles.modalButtonText, { color: '#FF3B30' }]}>Eliminar para mí</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity style={styles.modalButton} onPress={async () => {
-              const msgId = selectedMsgOptions!._id;
-              setSelectedMsgOptions(null);
-              await deleteMessage(msgId, 'for_all');
-              queryClient.setQueryData(['chatMessages', currentChatId], (old: MessageMessageType[] | undefined) => {
-                if (!old) return [];
-                return old.map(msg => msg._id === msgId ? { ...msg, contenido: 'Mensaje eliminado' } : msg);
-              });
-            }}>
-              <Feather name="trash-2" size={20} color="#FF3B30" />
-              <Text style={[styles.modalButtonText, { color: '#FF3B30' }]}>Eliminar para todos</Text>
-            </TouchableOpacity>
-          </View>
-        </TouchableOpacity>
-      </Modal>
-
-      <Modal visible={showMembersModal} transparent animationType="slide">
-        <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setShowMembersModal(false)}>
-          <View style={[styles.modalContent, { maxHeight: '60%' }]}>
-            <Text style={styles.modalTitle}>Miembros del Grupo</Text>
-            <FlatList
-              data={members}
-              keyExtractor={item => (item.userId || item)._id}
-              renderItem={({ item }) => {
-                const memberData = item.userId || item;
+        {members.length > 0 && (
+          <TouchableOpacity style={styles.membersBar} activeOpacity={0.7} onPress={() => setShowMembersModal(true)}>
+            <View style={styles.membersAvatars}>
+              {members.slice(0, 5).map((member) => {
+                const memberData = member.userId || member;
+                // 2. Evaluación corregida con extractId
                 const isOnline = onlineUsers.includes(extractId(memberData._id));
                 return (
-                  <TouchableOpacity
-                    style={styles.modalButton}
-                    onPress={() => {
-                      setShowMembersModal(false);
-                      if (String(memberData._id) !== String(currentUserId)) {
-                        router.push({
-                          pathname: '/user/[id]',
-                          params: { id: memberData._id, name: memberData.name || memberData.username, email: memberData.email || '', avatarUrl: memberData.avatarUrl || '' }
-                        });
-                      }
-                    }}
-                  >
-                    <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
-                      <View style={{ marginRight: 12 }}>
-                        <UserAvatar uri={memberData.avatarUrl} size={40} />
-                        {isOnline && <View style={[styles.onlineDot, { right: 0, bottom: 0 }]} />}
-                      </View>
-                      <View>
-                        <Text style={{ fontSize: 16, fontWeight: '500', color: '#333' }}>
-                          {memberData.name || memberData.username || 'Usuario'}
-                          {String(memberData._id) === String(currentUserId) && ' (Tú)'}
-                        </Text>
-                        <Text style={{ fontSize: 12, color: isOnline ? '#2E7D32' : '#999' }}>
-                          {isOnline ? 'En línea' : 'Desconectado'}
-                        </Text>
-                      </View>
-                    </View>
-                    {String(memberData._id) !== String(currentUserId) && (
-                      <Feather name="message-circle" size={20} color="#007AFF" />
-                    )}
-                  </TouchableOpacity>
+                  <View key={extractId(memberData._id)} style={styles.memberAvatarWrapper}>
+                    <UserAvatar uri={memberData.avatarUrl} size={32} />
+                    {isOnline && <View style={styles.onlineDot} />}
+                  </View>
                 );
-              }}
-              ListFooterComponent={() => (
-                <TouchableOpacity 
-                  style={[styles.modalButton, { justifyContent: 'center', marginTop: 10, borderBottomWidth: 0 }]} 
-                  onPress={isGroupAdmin ? handleDeleteGroup : handleLeaveGroup}
-                >
-                  <Feather name={isGroupAdmin ? "trash-2" : "log-out"} size={20} color="#FF3B30" />
-                  <Text style={[styles.modalButtonText, { color: '#FF3B30', fontWeight: 'bold' }]}>
-                    {isGroupAdmin ? 'Eliminar Grupo' : 'Abandonar Grupo'}
-                  </Text>
-                </TouchableOpacity>
+              })}
+              {members.length > 5 && (
+                <View style={styles.memberAvatar}>
+                  <Text style={styles.moreMembersText}>+{members.length - 5}</Text>
+                </View>
               )}
-            />
+            </View>
+            <Text style={styles.onlineText}>{onlineCount} en línea <Feather name="chevron-down" size={14} /></Text>
+          </TouchableOpacity>
+        )}
+
+        {isLoading ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color="#007AFF" />
           </View>
-        </TouchableOpacity>
-      </Modal>
-    </KeyboardAvoidingView>
+        ) : (
+          <FlatList
+            ref={flatListRef}
+            style={{ flex: 1 }}
+            data={messages}
+            keyExtractor={(item) => item._id}
+            renderItem={renderMessage}
+            ListEmptyComponent={
+              isChatLoading ? (
+                <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+                  <ActivityIndicator size="large" color="#007AFF" />
+                </View>
+              ) : (
+                <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+                  <Text style={{ color: '#999', fontSize: 16, textAlign: 'center' }}>
+                    Aún no hay mensajes en este escritorio
+                  </Text>
+                  <View style={{ marginTop: 10 }}>
+                    <Feather name="message-square" size={32} color="#ccc" />
+                  </View>
+                </View>
+              )
+            }
+            contentContainerStyle={styles.messagesList}
+            inverted={messages.length > 0}
+            showsVerticalScrollIndicator={false}
+          />
+        )}
+
+        <ChatInput
+          content={newMessage}
+          setContent={setNewMessage}
+          onSend={sendMessage}
+          onAttach={handleAttachFile}
+          isRecording={isRecording}
+          onStartRecord={startRecording}
+          onStopRecord={stopRecording}
+          isEditing={!!editingMessage}
+          onCancelEdit={() => { setEditingMessage(null); setNewMessage(''); }}
+        />
+        {/* Toast reemplazado por Toaster global en _layout.tsx */}
+
+        <Modal visible={!!selectedMsgOptions} transparent animationType="fade">
+          <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setSelectedMsgOptions(null)}>
+            <View style={styles.modalContent}>
+              <Text style={styles.modalTitle}>Opciones del mensaje</Text>
+
+              <TouchableOpacity style={styles.modalButton} onPress={() => {
+                const msg = selectedMsgOptions!;
+                setSelectedMsgOptions(null);
+                router.push({
+                  pathname: '/chat/message-info',
+                  params: {
+                    messageId: msg._id,
+                    messageContent: msg.contenido || msg.content || '',
+                    senderId: currentUserId,
+                    chatParticipantsRaw: JSON.stringify(members || []),
+                    readByRaw: JSON.stringify(msg.readBy || []),
+                    deliveredToRaw: JSON.stringify(msg.deliveredTo || []),
+                  }
+                });
+              }}>
+                <Feather name="info" size={20} color="#007AFF" />
+                <Text style={styles.modalButtonText}>Ver Información</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity style={styles.modalButton} onPress={() => {
+                setEditingMessage(selectedMsgOptions);
+                setNewMessage(selectedMsgOptions!.contenido);
+                setSelectedMsgOptions(null);
+              }}>
+                <Feather name="edit-2" size={20} color="#007AFF" />
+                <Text style={styles.modalButtonText}>Editar</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity style={styles.modalButton} onPress={async () => {
+                const msgId = selectedMsgOptions!._id;
+                setSelectedMsgOptions(null);
+                await deleteMessage(msgId, 'for_me');
+                queryClient.setQueryData(['chatMessages', currentChatId], (old: MessageMessageType[] | undefined) => {
+                  if (!old) return [];
+                  return old.filter(msg => msg._id !== msgId);
+                });
+              }}>
+                <Feather name="trash" size={20} color="#FF3B30" />
+                <Text style={[styles.modalButtonText, { color: '#FF3B30' }]}>Eliminar para mí</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity style={styles.modalButton} onPress={async () => {
+                const msgId = selectedMsgOptions!._id;
+                setSelectedMsgOptions(null);
+                await deleteMessage(msgId, 'for_all');
+                queryClient.setQueryData(['chatMessages', currentChatId], (old: MessageMessageType[] | undefined) => {
+                  if (!old) return [];
+                  return old.map(msg => msg._id === msgId ? { ...msg, contenido: 'Mensaje eliminado' } : msg);
+                });
+              }}>
+                <Feather name="trash-2" size={20} color="#FF3B30" />
+                <Text style={[styles.modalButtonText, { color: '#FF3B30' }]}>Eliminar para todos</Text>
+              </TouchableOpacity>
+            </View>
+          </TouchableOpacity>
+        </Modal>
+
+        <Modal visible={showMembersModal} transparent animationType="slide">
+          <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setShowMembersModal(false)}>
+            <View style={[styles.modalContent, { maxHeight: '60%' }]}>
+              <Text style={styles.modalTitle}>Miembros del Grupo</Text>
+              <FlatList
+                data={members}
+                keyExtractor={item => (item.userId || item)._id}
+                renderItem={({ item }) => {
+                  const memberData = item.userId || item;
+                  const isOnline = onlineUsers.includes(extractId(memberData._id));
+                  return (
+                    <TouchableOpacity
+                      style={styles.modalButton}
+                      onPress={() => {
+                        setShowMembersModal(false);
+                        if (String(memberData._id) !== String(currentUserId)) {
+                          router.push({
+                            pathname: '/user/[id]',
+                            params: { id: memberData._id, name: memberData.name || memberData.username, email: memberData.email || '', avatarUrl: memberData.avatarUrl || '' }
+                          });
+                        }
+                      }}
+                    >
+                      <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
+                        <View style={{ marginRight: 12 }}>
+                          <UserAvatar uri={memberData.avatarUrl} size={40} />
+                          {isOnline && <View style={[styles.onlineDot, { right: 0, bottom: 0 }]} />}
+                        </View>
+                        <View>
+                          <Text style={{ fontSize: 16, fontWeight: '500', color: '#333' }}>
+                            {memberData.name || memberData.username || 'Usuario'}
+                            {String(memberData._id) === String(currentUserId) && ' (Tú)'}
+                          </Text>
+                          <Text style={{ fontSize: 12, color: isOnline ? '#2E7D32' : '#999' }}>
+                            {isOnline ? 'En línea' : 'Desconectado'}
+                          </Text>
+                        </View>
+                      </View>
+                      {String(memberData._id) !== String(currentUserId) && (
+                        <Feather name="message-circle" size={20} color="#007AFF" />
+                      )}
+                    </TouchableOpacity>
+                  );
+                }}
+                ListFooterComponent={() => (
+                  <TouchableOpacity
+                    style={[styles.modalButton, { justifyContent: 'center', marginTop: 10, borderBottomWidth: 0 }]}
+                    onPress={isGroupAdmin ? handleDeleteGroup : handleLeaveGroup}
+                  >
+                    <Feather name={isGroupAdmin ? "trash-2" : "log-out"} size={20} color="#FF3B30" />
+                    <Text style={[styles.modalButtonText, { color: '#FF3B30', fontWeight: 'bold' }]}>
+                      {isGroupAdmin ? 'Eliminar Grupo' : 'Abandonar Grupo'}
+                    </Text>
+                  </TouchableOpacity>
+                )}
+              />
+            </View>
+          </TouchableOpacity>
+        </Modal>
+      </KeyboardAvoidingView>
     </RootWrapper>
   );
 }

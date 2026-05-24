@@ -14,11 +14,13 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { toast } from 'sonner-native';
 import { useRouter } from 'expo-router';
+import { useQueryClient } from '@tanstack/react-query'; // 🚀 Importación para reactividad
 import { createWorkspace } from '@/src/services/workspace.service';
 import { ApiError } from '@/src/services/api';
 
 export default function CreateWorkspaceScreen() {
   const router = useRouter();
+  const queryClient = useQueryClient(); // 🚀 Instancia del gestor de caché
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -39,6 +41,11 @@ export default function CreateWorkspaceScreen() {
     setIsLoading(true);
     try {
       await createWorkspace(name.trim(), description.trim());
+      
+      // 🚀 RECOLECCIÓN REACTIVA: Invalidamos las consultas para forzar el re-renderizado automático
+      queryClient.invalidateQueries({ queryKey: ['userChats'] });
+      queryClient.invalidateQueries({ queryKey: ['workspaces'] });
+
       toast.success('El espacio de trabajo ha sido generado');
       setTimeout(() => { goBackSafely(); }, 2000);
     } catch (error: any) {
@@ -101,8 +108,6 @@ export default function CreateWorkspaceScreen() {
             )}
           </Pressable>
         </View>
-
-        {/* Toast reemplazado por Toaster global en _layout.tsx */}
       </KeyboardAvoidingView>
     </SafeAreaView>
   );

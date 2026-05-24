@@ -72,7 +72,7 @@ export default function SplashScreen() {
           GeckChat
         </Text>
         
-        <Text className="text-sm font-elms text-gray-400 dark:text-gray-500 mt-3 tracking-widest uppercase">
+        <Text className="text-sm font-elms-bold text-gray-400 dark:text-gray-500 mt-3 tracking-widest uppercase">
           Tu equipo, sin límites
         </Text>
       </Animated.View>

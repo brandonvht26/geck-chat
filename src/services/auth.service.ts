@@ -2,12 +2,16 @@ import { api, ApiError } from './api';
 import { LoginPayload, RegisterPayload, ForgotPasswordPayload, AuthResponse } from '../types/auth.types';
 
 export const loginUser = async (payload: LoginPayload): Promise<AuthResponse> => {
-  const response = await api.post<AuthResponse>('/api/auth/login', payload);
+  // 🚀 Inyectamos la plataforma móvil dinámicamente para exigir el token de 1 año
+  const dataToSend = { ...payload, platform: 'mobile' };
+  const response = await api.post<AuthResponse>('/api/auth/login', dataToSend);
   return response.data;
 };
 
 export const registerUser = async (payload: RegisterPayload): Promise<AuthResponse> => {
-  const response = await api.post<AuthResponse>('/api/auth/register', payload);
+  // 🚀 Inyectamos la plataforma aquí también, garantizando que el auto-login del registro dure 1 año
+  const dataToSend = { ...payload, platform: 'mobile' };
+  const response = await api.post<AuthResponse>('/api/auth/register', dataToSend);
   return response.data;
 };
 
