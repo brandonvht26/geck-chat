@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Alert, Modal, TextInput } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
-import Toast from 'react-native-toast-message';
+import { toast } from 'sonner-native';
 import { useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import { UserAvatar } from '@/src/components/ui/UserAvatar';
@@ -26,11 +26,7 @@ export default function ProfileScreen() {
       .then(setProfileData)
       .catch((error) => {
         const apiError = error as ApiError;
-        Toast.show({
-          type: 'error',
-          text1: 'Algo salió mal',
-          text2: apiError.message || 'No se pudo cargar el perfil',
-        });
+        toast.error('Algo salió mal', { description: apiError.message || 'No se pudo cargar el perfil' });
       })
       .finally(() => setIsLoading(false));
   }, []);
@@ -55,7 +51,7 @@ export default function ProfileScreen() {
         onPress: async () => {
           const { status } = await ImagePicker.requestCameraPermissionsAsync();
           if (status !== 'granted') {
-            Toast.show({ type: 'error', text1: 'Permiso requerido', text2: 'Se necesita acceso a la cámara' });
+            toast.error('Permiso requerido', { description: 'Se necesita acceso a la cámara' });
             return;
           }
           const result = await ImagePicker.launchCameraAsync({
@@ -74,11 +70,11 @@ export default function ProfileScreen() {
                 setProfileData((prev: any) =>
                   prev ? { ...prev, avatarUrl: res.avatarUrl } : prev
                 );
-                Toast.show({ type: 'success', text1: 'Avatar actualizado correctamente' });
+                toast.success('Avatar actualizado correctamente');
               }
             } catch (error) {
               console.error(error);
-              Toast.show({ type: 'error', text1: 'Error al actualizar el avatar' });
+              toast.error('Error al actualizar el avatar');
             } finally {
               setIsUploading(false);
             }
@@ -90,7 +86,7 @@ export default function ProfileScreen() {
         onPress: async () => {
           const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
           if (status !== 'granted') {
-            Toast.show({ type: 'error', text1: 'Permiso requerido', text2: 'Se necesita acceso a la galería' });
+            toast.error('Permiso requerido', { description: 'Se necesita acceso a la galería' });
             return;
           }
           const result = await ImagePicker.launchImageLibraryAsync({
@@ -102,7 +98,7 @@ export default function ProfileScreen() {
             const asset = result.assets[0];
             const sizeInMB = asset.fileSize ? asset.fileSize / (1024 * 1024) : 0;
             if (sizeInMB > 5) {
-              Toast.show({ type: 'error', text1: 'Imagen muy pesada', text2: 'La imagen supera el límite de 5MB. Elige una más ligera.' });
+              toast.error('Imagen muy pesada', { description: 'La imagen supera el límite de 5MB. Elige una más ligera.' });
               return;
             }
             setIsUploading(true);
@@ -115,11 +111,11 @@ export default function ProfileScreen() {
                 setProfileData((prev: any) =>
                   prev ? { ...prev, avatarUrl: res.avatarUrl } : prev
                 );
-                Toast.show({ type: 'success', text1: 'Avatar actualizado correctamente' });
+                toast.success('Avatar actualizado correctamente');
               }
             } catch (error) {
               console.error(error);
-              Toast.show({ type: 'error', text1: 'Error al actualizar el avatar' });
+              toast.error('Error al actualizar el avatar');
             } finally {
               setIsUploading(false);
             }
@@ -141,11 +137,11 @@ export default function ProfileScreen() {
     setIsDeleting(true);
     try {
       await deleteAccount(confirmationText);
-      Toast.show({ type: 'success', text1: 'Cuenta eliminada', text2: 'Tus datos han sido borrados permanentemente' });
+      toast.success('Cuenta eliminada', { description: 'Tus datos han sido borrados permanentemente' });
       await signOut();
     } catch (error) {
       const apiError = error as ApiError;
-      Toast.show({ type: 'error', text1: 'Algo salió mal', text2: apiError.message || 'No se pudo eliminar la cuenta' });
+      toast.error('Algo salió mal', { description: apiError.message || 'No se pudo eliminar la cuenta' });
     } finally {
       setIsDeleting(false);
       setConfirmationText('');

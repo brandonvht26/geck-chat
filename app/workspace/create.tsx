@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
-import Toast from 'react-native-toast-message';
+import { toast } from 'sonner-native';
 import { useRouter } from 'expo-router';
 import { createWorkspace } from '@/src/services/workspace.service';
 import { ApiError } from '@/src/services/api';
@@ -33,16 +33,16 @@ export default function CreateWorkspaceScreen() {
 
   const handleCreate = async (): Promise<void> => {
     if (!name.trim()) {
-      Toast.show({ type: 'error', text1: 'Campo requerido', text2: 'El nombre es obligatorio' });
+      toast.error('Campo requerido', { description: 'El nombre es obligatorio' });
       return;
     }
     setIsLoading(true);
     try {
       await createWorkspace(name.trim(), description.trim());
-      Toast.show({ type: 'success', text1: 'El espacio de trabajo ha sido generado' });
+      toast.success('El espacio de trabajo ha sido generado');
       setTimeout(() => { goBackSafely(); }, 2000);
     } catch (error: any) {
-      Toast.show({ type: 'error', text1: error?.response?.data?.message || 'Error al crear el espacio' });
+      toast.error(error?.response?.data?.message || 'Error al crear el espacio');
     } finally {
       setIsLoading(false);
     }
@@ -102,7 +102,7 @@ export default function CreateWorkspaceScreen() {
           </Pressable>
         </View>
 
-        <Toast />
+        {/* Toast reemplazado por Toaster global en _layout.tsx */}
       </KeyboardAvoidingView>
     </SafeAreaView>
   );

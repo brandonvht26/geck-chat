@@ -9,23 +9,19 @@ import { useFonts } from 'expo-font';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useColorScheme } from 'nativewind';
 import * as SplashScreen from 'expo-splash-screen';
+import { SafeAreaProvider } from 'react-native-safe-area-context'; // 🚀 NUEVA IMPORTACIÓN
 
 SplashScreen.preventAutoHideAsync();
 
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      // Condicionamos los reintentos basándonos en el código de error de Axios
       retry: (failureCount, error: any) => {
-        // Si el servidor devolvió 401 (Unauthorized), no reintentamos ni una sola vez
         if (error?.response?.status === 401) {
           return false;
         }
-
-        // Para cualquier otro error de red o servidor, mantenemos un máximo de 2 reintentos normales
         return failureCount < 2;
       },
-      // Evita que las peticiones se ejecuten en segundo plano inmediatamente si el token está roto
       refetchOnWindowFocus: false,
     },
   },
@@ -35,17 +31,20 @@ function RootLayoutContent() {
   const { user } = useAuth();
   const { colorScheme, setColorScheme } = useColorScheme();
 
-  const [loaded, error] = useFonts({
-    'ElmsSans': require('../assets/fonts/ElmsSans-Regular.ttf'),
-    'SNPro': require('../assets/fonts/SNPro-Regular.ttf'),
-    'Nunito': require('../assets/fonts/Nunito-Regular.ttf'),
+  const [fontsLoaded] = useFonts({
+    'ElmsSans-Regular': require('../assets/fonts/ElmsSans-Regular.ttf'),
+    'ElmsSans-Bold': require('../assets/fonts/ElmsSans-Bold.ttf'),
+    'Nunito-Regular': require('../assets/fonts/Nunito-Regular.ttf'),
+    'Nunito-Bold': require('../assets/fonts/Nunito-Bold.ttf'),
+    'SNPro-Regular': require('../assets/fonts/SNPro-Regular.ttf'),
+    'SNPro-Bold': require('../assets/fonts/SNPro-Bold.ttf'),
   });
 
   useEffect(() => {
-    if (loaded || error) {
+    if (fontsLoaded) {
       SplashScreen.hideAsync();
     }
-  }, [loaded, error]);
+  }, [fontsLoaded]);
 
   useEffect(() => {
     if (user?.preferences?.theme) {
@@ -53,7 +52,7 @@ function RootLayoutContent() {
     }
   }, [user?.preferences?.theme]);
 
-  if (!loaded && !error) {
+  if (!fontsLoaded) {
     return null;
   }
 
@@ -71,8 +70,8 @@ function RootLayoutContent() {
         position="top-center"
         offset={50}
         toastOptions={{
-          titleStyle: { fontFamily: 'Nunito' },
-          descriptionStyle: { fontFamily: 'Nunito' }
+          titleStyle: { fontFamily: 'Nunito-Bold' },
+          descriptionStyle: { fontFamily: 'Nunito-Regular' }
         }}
       />
     </GestureHandlerRootView>
@@ -81,10 +80,13 @@ function RootLayoutContent() {
 
 export default function RootLayout() {
   return (
-    <QueryClientProvider client={queryClient}>
-      <AuthProvider>
-        <RootLayoutContent />
-      </AuthProvider>
-    </QueryClientProvider>
+    // 🚀 ENVOLVEMOS LA RAÍZ CON EL PROVEEDOR DE ÁREAS SEGURAS
+    <SafeAreaProvider>
+      <QueryClientProvider client={queryClient}>
+        <AuthProvider>
+          <RootLayoutContent />
+        </AuthProvider>
+      </QueryClientProvider>
+    </SafeAreaProvider>
   );
 }

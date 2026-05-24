@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, TextInput, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
-import Toast from 'react-native-toast-message';
+import { toast } from 'sonner-native';
 import { useRouter } from 'expo-router';
 import { updatePassword } from '@/src/services/user.service';
 import { ApiError } from '@/src/services/api';
@@ -18,32 +18,20 @@ export default function ChangePasswordScreen() {
 
   const handleSave = async () => {
     if (!passwordActual.trim() || !passwordNuevo.trim()) {
-      Toast.show({
-        type: 'error',
-        text1: 'Atención',
-        text2: 'Todos los campos son requeridos',
-      });
+      toast.error('Atención', { description: 'Todos los campos son requeridos' });
       return;
     }
 
     setLoading(true);
     try {
       await updatePassword(passwordActual, passwordNuevo);
-      Toast.show({
-        type: 'success',
-        text1: '¡Logrado!',
-        text2: 'Contraseña actualizada correctamente',
-      });
+      toast.success('¡Logrado!', { description: 'Contraseña actualizada correctamente' });
       setPasswordActual('');
       setPasswordNuevo('');
       router.back();
     } catch (error) {
       const apiError = error as ApiError;
-      Toast.show({
-        type: 'error',
-        text1: 'Algo salió mal',
-        text2: apiError.message || 'No se pudo actualizar la contraseña',
-      });
+      toast.error('Algo salió mal', { description: apiError.message || 'No se pudo actualizar la contraseña' });
     } finally {
       setLoading(false);
     }

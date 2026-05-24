@@ -19,7 +19,7 @@ import { Feather, Ionicons } from '@expo/vector-icons';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
-import Toast from 'react-native-toast-message';
+import { toast } from 'sonner-native';
 import { useQueryClient } from '@tanstack/react-query';
 import { useChatMessages } from '@/src/hooks/queries/useChatMessages';
 import { useUserChats } from '@/src/hooks/queries/useUserChats';
@@ -225,10 +225,7 @@ export default function WorkspaceScreen() {
         SocketService.emit('join-workspace-room', wsId);
       }
     } catch (error) {
-      Toast.show({
-        type: 'error',
-        text1: 'Error cargando historial',
-      });
+      toast.error('Error cargando historial');
     } finally {
       setIsLoading(false);
     }
@@ -448,7 +445,7 @@ export default function WorkspaceScreen() {
         setNewMessage('');
         setEditingMessage(null);
       } catch {
-        Toast.show({ type: 'error', text1: 'Error al editar mensaje' });
+        toast.error('Error al editar mensaje');
       }
       return;
     }
@@ -476,7 +473,7 @@ export default function WorkspaceScreen() {
       setNewMessage('');
       queryClient.invalidateQueries({ queryKey: ['userChats'] });
     } catch (error) {
-      Toast.show({ type: 'error', text1: 'Error enviando mensaje' });
+      toast.error('Error enviando mensaje');
     }
   }, [newMessage, currentChatId, editingMessage, currentUserId, queryClient]);
 
@@ -534,9 +531,9 @@ export default function WorkspaceScreen() {
           await leaveWorkspace(id);
           queryClient.invalidateQueries({ queryKey: ['userChats'] });
           router.replace('/');
-          Toast.show({ type: 'success', text1: 'Has salido del grupo' });
+          toast.success('Has salido del grupo');
         } catch (error: any) {
-          Toast.show({ type: 'error', text1: error.response?.data?.msg || 'Error al salir del grupo' });
+          toast.error(error.response?.data?.msg || 'Error al salir del grupo');
         }
       }}
     ]);
@@ -550,9 +547,9 @@ export default function WorkspaceScreen() {
           await deleteGroupChat(currentChatId!);
           queryClient.invalidateQueries({ queryKey: ['userChats'] });
           router.replace('/');
-          Toast.show({ type: 'success', text1: 'Grupo eliminado correctamente' });
+          toast.success('Grupo eliminado correctamente');
         } catch (error: any) {
-          Toast.show({ type: 'error', text1: error.response?.data?.msg || 'Error al eliminar el grupo' });
+          toast.error(error.response?.data?.msg || 'Error al eliminar el grupo');
         }
       }}
     ]);
@@ -710,7 +707,7 @@ export default function WorkspaceScreen() {
         isEditing={!!editingMessage}
         onCancelEdit={() => { setEditingMessage(null); setNewMessage(''); }}
       />
-      <Toast />
+      {/* Toast reemplazado por Toaster global en _layout.tsx */}
 
       <Modal visible={!!selectedMsgOptions} transparent animationType="fade">
         <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setSelectedMsgOptions(null)}>
