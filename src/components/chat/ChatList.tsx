@@ -13,12 +13,11 @@ export default function ChatList() {
   const currentUserId = user?._id;
   
   const { data: chats = [], isLoading, isRefetching, refetch } = useUserChats();
-
   const queryClient = useQueryClient();
 
   useEffect(() => {
     const handleGlobalUpdate = (payload: any) => {
-      // 1. Refrescamos la lista de chats
+      // 1. Refrescamos la lista de chats automáticamente
       queryClient.invalidateQueries({ queryKey: ['userChats'] });
       
       // 2. Si el evento trae un chatId, invalidamos la caché interna de ese chat
@@ -44,20 +43,28 @@ export default function ChatList() {
       }
     };
 
+    // 🚀 SUSCRIPCIONES A EVENTOS GLOBALES (Antenas activadas)
     SocketService.on('message_received', handleMessageReceived);
     SocketService.on('chat_read', handleGlobalUpdate);
     SocketService.on('chat_deleted', handleGlobalUpdate);
     SocketService.on('new_chat_created', handleGlobalUpdate);
     SocketService.on('message_status_update', handleGlobalUpdate);
     SocketService.on('chat_status_bulk_update', handleGlobalUpdate);
+    
+    // 🚀 NUEVO: Escuchadores para cuando te unes a un grupo externamente (email)
+    SocketService.on('workspace-member-joined', handleGlobalUpdate);
+    SocketService.on('workspace_joined', handleGlobalUpdate);
 
     return () => {
+      // Limpieza de antenas al desmontar el componente
       SocketService.off('message_received', handleMessageReceived);
       SocketService.off('chat_read', handleGlobalUpdate);
       SocketService.off('chat_deleted', handleGlobalUpdate);
       SocketService.off('new_chat_created', handleGlobalUpdate);
       SocketService.off('message_status_update', handleGlobalUpdate);
       SocketService.off('chat_status_bulk_update', handleGlobalUpdate);
+      SocketService.off('workspace-member-joined', handleGlobalUpdate);
+      SocketService.off('workspace_joined', handleGlobalUpdate);
     };
   }, [queryClient, currentUserId]);
 
@@ -109,10 +116,7 @@ export default function ChatList() {
             }
           }
 
-          // Obtener el contador de no leídos para el usuario actual
           const unreadCount = currentUserId ? (item.unreadCounts?.[currentUserId] || 0) : 0;
-
-          // Saber si el último mensaje fue enviado por el usuario actual
           const senderId = typeof item.lastMessage?.senderId === 'object' 
             ? item.lastMessage?.senderId?._id 
             : item.lastMessage?.senderId;
@@ -148,8 +152,8 @@ export default function ChatList() {
                   resizeMode="cover"
                 />
               ) : (
-                <View className={`w-12 h-12 rounded-full justify-center items-center mr-4 ${item.isGroup ? 'bg-blue-100 dark:bg-blue-900/40' : 'bg-gray-100 dark:bg-gray-800'}`}>
-                  <Feather name={item.isGroup ? "users" : "user"} size={24} color={item.isGroup ? "#1976D2" : "#757575"} />
+                <View className={`w-12 h-12 rounded-full justify-center items-center mr-4 ${item.isGroup ? 'bg-primary/20 dark:bg-primary-dark/30' : 'bg-gray-100 dark:bg-gray-800'}`}>
+                  <Feather name={item.isGroup ? "users" : "user"} size={24} color={item.isGroup ? "#2A72D4" : "#757575"} />
                 </View>
               )}
 
@@ -165,9 +169,7 @@ export default function ChatList() {
                 </Text>
               </View>
 
-              {/* CONTENEDOR HORA Y BURBUJA DE NO LEÍDOS */}
               <View className="items-end justify-center ml-3">
-                {/* Hora del último mensaje */}
                 {item.updatedAt && (
                   <Text className="text-xs text-gray-500 dark:text-gray-400 mb-1">
                     {new Date(item.updatedAt).toLocaleTimeString([], {
@@ -176,8 +178,6 @@ export default function ChatList() {
                     })}
                   </Text>
                 )}
-
-                {/* BURBUJA DE MENSAJES NO LEÍDOS - ESTILO WHATSAPP */}
                 {unreadCount > 0 && (
                   <View className="bg-green-500 h-5 min-w-[20px] rounded-full items-center justify-center px-1.5">
                     <Text className="text-white text-xs font-bold">
