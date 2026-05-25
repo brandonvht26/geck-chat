@@ -1,14 +1,37 @@
 import { useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, TextInput } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { Feather } from '@expo/vector-icons';
+import { View, Text, Pressable, TextInput } from 'react-native';
+import { Feather, Ionicons } from '@expo/vector-icons';
 import { toast } from 'sonner-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { updateProfileData } from '@/src/services/user.service';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useColorScheme } from 'nativewind';
+import Animated, { useSharedValue, useAnimatedStyle, withSpring } from 'react-native-reanimated';
+
+// 🚀 Botón Premium Squish
+const AnimatedSquishButton = ({ onPress, text }: { onPress: () => void, text: string }) => {
+  const scale = useSharedValue(1);
+  const animatedStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
+  
+  return (
+    <Animated.View style={animatedStyle} className="mt-8">
+      <Pressable
+        onPressIn={() => { scale.value = withSpring(0.96, { damping: 15 }); }}
+        onPressOut={() => { scale.value = withSpring(1, { damping: 15 }); }}
+        onPress={onPress}
+        className="bg-primary dark:bg-primary-dark py-4 rounded-2xl items-center shadow-sm shadow-primary/30"
+      >
+        <Text className="text-white font-snpro-bold text-base">{text}</Text>
+      </Pressable>
+    </Animated.View>
+  );
+};
 
 export default function EditProfileScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
+  const { colorScheme } = useColorScheme();
   const params = useLocalSearchParams<{ id: string; nombre: string; email: string }>();
   const queryClient = useQueryClient();
 
@@ -24,7 +47,7 @@ export default function EditProfileScreen() {
     const updatePromise = updateProfileData(params.id, { name: nombre, email })
       .then(() => {
         queryClient.invalidateQueries({ queryKey: ['profile'] });
-        queryClient.invalidateQueries({ queryKey: ['user-chats'] });
+        queryClient.invalidateQueries({ queryKey: ['userChats'] });
         queryClient.invalidateQueries({ queryKey: ['currentUser'] });
         router.back();
       });
@@ -37,95 +60,59 @@ export default function EditProfileScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <Feather name="arrow-left" size={24} color="#333" />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Editar Perfil</Text>
-        <View style={styles.placeholder} />
+    <View className="flex-1 bg-white dark:bg-authEnd-dark">
+      
+      {/* 🚀 Header */}
+      <View style={{ paddingTop: insets.top }} className="px-4 pb-4 flex-row items-center justify-between border-b border-gray-100 dark:border-gray-800">
+        <Pressable onPress={() => router.back()} className="p-2 -ml-2">
+          <Feather name="arrow-left" size={24} color={colorScheme === 'dark' ? '#E5E7EB' : '#141E30'} />
+        </Pressable>
+        <Text className="text-xl font-snpro-bold text-textMain dark:text-textMain-dark">
+          Editar Perfil
+        </Text>
+        <View className="w-10" /> {/* Espaciador fantasma para centrar el título */}
       </View>
 
-      <View style={styles.content}>
-        <Text style={styles.label}>Nombre</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="Ingresa tu nombre"
-          value={nombre}
-          onChangeText={setNombre}
-        />
+      <View className="flex-1 px-6 pt-6">
+        
+        {/* 🚀 Inputs Modernos */}
+        <View className="mb-6">
+          <Text className="text-sm font-snpro-bold text-gray-500 dark:text-gray-400 mb-2 ml-1">
+            Nombre Público
+          </Text>
+          <View className="flex-row items-center bg-gray-50 dark:bg-zinc-800/50 border border-gray-200 dark:border-zinc-700 rounded-2xl px-4 h-14">
+            <Ionicons name="person-outline" size={20} color={colorScheme === 'dark' ? '#9CA3AF' : '#6B7280'} />
+            <TextInput
+              className="flex-1 ml-3 text-base font-nunito-bold text-textMain dark:text-textMain-dark"
+              placeholder="¿Cómo quieres que te llamen?"
+              placeholderTextColor={colorScheme === 'dark' ? '#6B7280' : '#9CA3AF'}
+              value={nombre}
+              onChangeText={setNombre}
+            />
+          </View>
+        </View>
 
-        <Text style={styles.label}>Correo Electrónico</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="Ingresa tu correo"
-          value={email}
-          onChangeText={setEmail}
-          autoCapitalize="none"
-          keyboardType="email-address"
-        />
+        <View className="mb-6">
+          <Text className="text-sm font-snpro-bold text-gray-500 dark:text-gray-400 mb-2 ml-1">
+            Correo Electrónico
+          </Text>
+          <View className="flex-row items-center bg-gray-50 dark:bg-zinc-800/50 border border-gray-200 dark:border-zinc-700 rounded-2xl px-4 h-14">
+            <Ionicons name="mail-outline" size={20} color={colorScheme === 'dark' ? '#9CA3AF' : '#6B7280'} />
+            <TextInput
+              className="flex-1 ml-3 text-base font-nunito-bold text-textMain dark:text-textMain-dark"
+              placeholder="tu@correo.com"
+              placeholderTextColor={colorScheme === 'dark' ? '#6B7280' : '#9CA3AF'}
+              value={email}
+              onChangeText={setEmail}
+              autoCapitalize="none"
+              keyboardType="email-address"
+            />
+          </View>
+        </View>
 
-        <TouchableOpacity style={styles.button} onPress={handleSave}>
-          <Text style={styles.buttonText}>Guardar Cambios</Text>
-        </TouchableOpacity>
+        <AnimatedSquishButton text="Guardar Cambios" onPress={handleSave} />
+
       </View>
-    </SafeAreaView>
+    </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#fff',
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
-  },
-  backButton: {
-    padding: 4,
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#333',
-  },
-  placeholder: {
-    width: 32,
-  },
-  content: {
-    flex: 1,
-    padding: 16,
-  },
-  label: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#333',
-    marginBottom: 8,
-    marginTop: 16,
-  },
-  input: {
-    borderWidth: 1,
-    borderColor: '#ccc',
-    borderRadius: 8,
-    padding: 12,
-    fontSize: 16,
-  },
-  button: {
-    backgroundColor: '#007AFF',
-    padding: 16,
-    borderRadius: 8,
-    alignItems: 'center',
-    marginTop: 24,
-  },
-  buttonText: {
-    color: '#fff',
-    fontWeight: 'bold',
-    fontSize: 16,
-  },
-});

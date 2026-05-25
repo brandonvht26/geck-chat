@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { View, Text, Switch, Pressable, Image, Modal } from 'react-native';
 import { useColorScheme } from 'nativewind';
-import { Feather, Ionicons } from '@expo/vector-icons'; // 🚀 Ionicons importados
+import { Feather, Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { toast } from 'sonner-native';
 import * as ImagePicker from 'expo-image-picker';
@@ -11,7 +11,6 @@ import { updateUserPreferences } from '@/src/services/user.service';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, { useSharedValue, useAnimatedStyle, withSpring } from 'react-native-reanimated';
 
-// 🚀 Diccionario estático para cargar las imágenes físicas generadas
 const bundledWallpapers = {
   primary: require('../../assets/wallpapers/primary.webp'),
   secondary: require('../../assets/wallpapers/secondary.webp'),
@@ -126,7 +125,6 @@ export default function PersonalizationScreen() {
 
   const currentWallpaper = (user as any)?.preferences?.phoneWallpaperUrl;
 
-  // 🚀 Renderizado inteligente de la miniatura
   const renderWallpaperThumbnail = () => {
     if (!currentWallpaper) {
       return (
@@ -149,18 +147,26 @@ export default function PersonalizationScreen() {
   return (
     <View className="flex-1 bg-white dark:bg-authEnd-dark">
       
-      <View style={{ paddingTop: insets.top }} className="px-4 pb-4 flex-row items-center border-b border-gray-100 dark:border-gray-800">
-        <Pressable onPress={() => router.back()} className="p-2 -ml-2">
-          <Feather name="arrow-left" size={24} color={colorScheme === 'dark' ? '#E5E7EB' : '#141E30'} />
-        </Pressable>
-        <Text className="text-xl font-snpro-bold text-textMain dark:text-textMain-dark ml-2">
-          Personalización
-        </Text>
+      {/* 🚀 Header Pixel-Perfect (Réplica 1:1 de MainHeader) */}
+      <View style={{ paddingTop: insets.top }} className="bg-white dark:bg-authEnd-dark z-20">
+        <View className="flex-row justify-between items-center px-4 py-3 bg-white dark:bg-authEnd-dark border-b border-gray-100 dark:border-gray-800">
+          <Pressable onPress={() => router.back()} className="p-2 -ml-2 active:opacity-60">
+            <Feather name="arrow-left" size={24} color={colorScheme === 'dark' ? '#E5E7EB' : '#333333'} />
+          </Pressable>
+
+          <Text className="text-2xl font-snpro-bold text-textMain dark:text-textMain-dark tracking-tight">
+            Personalización
+          </Text>
+
+          {/* View Fantasma para equilibrar matemáticamente el centro */}
+          <View className="p-2 -mr-2 opacity-0" pointerEvents="none">
+            <Feather name="arrow-left" size={24} />
+          </View>
+        </View>
       </View>
 
       <View className="flex-1 px-4 pt-6">
         
-        {/* 🎨 SECCIÓN APARIENCIA (Sin mayúsculas, usando Ionicons) */}
         <View className="flex-row items-center mb-4 ml-2">
           <Ionicons name="color-palette-outline" size={18} color={colorScheme === 'dark' ? '#9CA3AF' : '#6B7280'} />
           <Text className="text-sm font-snpro-bold text-gray-500 dark:text-gray-400 ml-2">
@@ -201,7 +207,6 @@ export default function PersonalizationScreen() {
           </View>
         </View>
 
-        {/* 🖼️ SECCIÓN FONDOS DE PANTALLA (Sin mayúsculas, usando Ionicons) */}
         <View className="flex-row items-center mb-4 ml-2">
           <Ionicons name="image-outline" size={18} color={colorScheme === 'dark' ? '#9CA3AF' : '#6B7280'} />
           <Text className="text-sm font-snpro-bold text-gray-500 dark:text-gray-400 ml-2">
@@ -226,7 +231,6 @@ export default function PersonalizationScreen() {
         </AnimatedSquishItem>
       </View>
 
-      {/* 🚀 MODAL REDISEÑADO CON VISTAS PREVIAS */}
       <Modal visible={showWallpaperModal} transparent animationType="fade">
         <Pressable className="flex-1 bg-black/60 justify-end" onPress={() => setShowWallpaperModal(false)}>
           <Pressable 
@@ -239,7 +243,6 @@ export default function PersonalizationScreen() {
               Elige un fondo
             </Text>
 
-            {/* 🚀 Catálogo de Imágenes (Proporción 9:16) */}
             <View className="flex-row justify-between mb-8 gap-3">
               {(['primary', 'secondary', 'tertiary'] as const).map((type) => (
                 <View key={type} className="flex-1">
@@ -259,7 +262,6 @@ export default function PersonalizationScreen() {
               ))}
             </View>
 
-            {/* Opción Galería */}
             <AnimatedSquishItem 
               onPress={() => handleWallpaperSelection('gallery')}
               className="bg-gray-100 dark:bg-zinc-800/80 rounded-2xl py-4 flex-row justify-center items-center border border-gray-200 dark:border-zinc-700"

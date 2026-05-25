@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { View, Pressable, Text, Dimensions, TextInput } from 'react-native';
-import { Feather } from '@expo/vector-icons';
+import { Feather, Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useColorScheme } from 'nativewind';
@@ -13,7 +13,6 @@ const { width } = Dimensions.get('window');
 const TAB_CONTAINER_WIDTH = width - 32; 
 const TAB_WIDTH = TAB_CONTAINER_WIDTH / 2;
 
-// 🚀 Nuestro botón oficial con física Squish para la creación de grupos
 const AnimatedSquishCreate = ({ onPress }: { onPress: () => void }) => {
   const scale = useSharedValue(1);
   const animatedStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
@@ -38,9 +37,8 @@ export default function HomeScreen() {
   const { colorScheme } = useColorScheme();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'privados' | 'workspaces'>('privados');
-  const [searchTerm, setSearchTerm] = useState(''); // 🚀 Estado de la barra de búsqueda
+  const [searchTerm, setSearchTerm] = useState(''); 
 
-  // Deslizador de pestañas
   const indicatorStyle = useAnimatedStyle(() => {
     return {
       transform: [
@@ -49,13 +47,13 @@ export default function HomeScreen() {
     };
   }, [activeTab]);
 
-  // 🚀 Animación mágica para revelar el botón de "Crear Grupo" empujando la barra de búsqueda
+  // 🚀 Cero rebotes layout: usamos withTiming para evitar el overshoot y la deformación de la barra
   const createBtnContainerStyle = useAnimatedStyle(() => {
     const isWorkspaces = activeTab === 'workspaces';
     return {
-      width: withSpring(isWorkspaces ? 44 : 0, { damping: 20, stiffness: 90 }),
-      opacity: withTiming(isWorkspaces ? 1 : 0, { duration: 200 }),
-      marginLeft: withSpring(isWorkspaces ? 12 : 0, { damping: 20, stiffness: 90 })
+      width: withTiming(isWorkspaces ? 44 : 0, { duration: 200 }),
+      opacity: withTiming(isWorkspaces ? 1 : 0, { duration: 150 }),
+      marginLeft: withTiming(isWorkspaces ? 12 : 0, { duration: 200 })
     };
   }, [activeTab]);
 
@@ -67,7 +65,6 @@ export default function HomeScreen() {
         
         <View className="px-4 pb-4 pt-1 bg-white dark:bg-authEnd-dark z-10 border-b border-gray-100 dark:border-gray-800">
             
-            {/* Segmented Control */}
             <View className="flex-row bg-gray-100 dark:bg-zinc-800/80 rounded-xl p-1 relative mb-3">
                 <Animated.View
                     style={[
@@ -84,9 +81,8 @@ export default function HomeScreen() {
                 </Pressable>
             </View>
 
-            {/* 🚀 Barra de Búsqueda Contextual + Botón de Crear */}
             <View className="flex-row items-center">
-              <View className="flex-1 flex-row items-center bg-gray-50 dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-xl px-3 h-11">
+              <View className="flex-1 flex-row items-center bg-gray-50 dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-xl px-3 h-11 overflow-hidden">
                 <Feather name="search" size={18} color={colorScheme === 'dark' ? '#9CA3AF' : '#9CA3AF'} />
                 <TextInput 
                   className="flex-1 ml-2 text-base font-nunito-regular text-textMain dark:text-textMain-dark"
@@ -103,7 +99,6 @@ export default function HomeScreen() {
                 )}
               </View>
 
-              {/* Botón dinámico que aparece solo en Workspaces */}
               <Animated.View style={createBtnContainerStyle} className="overflow-hidden">
                 <AnimatedSquishCreate onPress={() => router.push('/workspace/create')} />
               </Animated.View>
@@ -121,7 +116,6 @@ export default function HomeScreen() {
         )}
         {isMenuOpen && <SideMenu />}
         
-        {/* 🚀 Le enviamos el término de búsqueda a la lista */}
         <ChatList activeTab={activeTab} searchTerm={searchTerm} />
       </View>
     </View>
