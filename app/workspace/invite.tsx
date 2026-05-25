@@ -41,7 +41,7 @@ export default function InviteMemberScreen() {
           headerShown: true,
           headerTitle: 'Añadir Miembros',
           headerTitleStyle: { fontFamily: 'SNPro-Bold', fontSize: 18 },
-          headerStyle: { backgroundColor: colorScheme === 'dark' ? '#161121' : '#FFFBF5' },
+          headerStyle: { backgroundColor: colorScheme === 'dark' ? '#161121' : '#ffffff' },
           headerTintColor: colorScheme === 'dark' ? '#EBF1FA' : '#141E30',
           headerShadowVisible: false,
         }}

@@ -1,13 +1,16 @@
 import { useEffect, useState, useRef } from 'react';
-import { View, FlatList, KeyboardAvoidingView, Platform, Alert, Modal, TouchableOpacity, Text, StyleSheet, ActivityIndicator, ImageBackground } from 'react-native';
-import { Feather } from '@expo/vector-icons';
-import { useAudioRecorder, RecordingOptions } from 'expo-audio'; // 🚀 Opciones importadas
+import { View, FlatList, KeyboardAvoidingView, Platform, Alert, Modal, Pressable, Text, ActivityIndicator, ImageBackground } from 'react-native';
+import { Feather, Ionicons } from '@expo/vector-icons';
+import { useAudioRecorder, RecordingOptions } from 'expo-audio';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Stack, useRouter, useLocalSearchParams } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
+import { toast } from 'sonner-native';
 import { useQueryClient } from '@tanstack/react-query';
+import { useColorScheme } from 'nativewind';
+import Animated, { useSharedValue, useAnimatedStyle, withSpring } from 'react-native-reanimated';
 import { useChatMessages } from '@/src/hooks/queries/useChatMessages';
 import { sendMessage, sendFileMessage, sendAudioMessage, editMessage, deleteMessage, ChatMessage } from '@/src/services/chat.service';
 import { SocketService } from '@/src/services/socket.service';
@@ -28,7 +31,6 @@ const extractId = (obj: any): string => {
   return String(obj);
 };
 
-// 🚀 OPCIONES OBLIGATORIAS DE EXPO AUDIO (Evita el crash de "extension undefined")
 const audioOptions: RecordingOptions = {
   extension: '.m4a',
   sampleRate: 44100,
@@ -36,11 +38,37 @@ const audioOptions: RecordingOptions = {
   bitRate: 128000,
 };
 
+const AnimatedMenuRow = ({ icon, title, onPress, danger }: any) => {
+  const scale = useSharedValue(1);
+  const animatedStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
+  const { colorScheme } = useColorScheme();
+  const iconColor = danger ? '#E14B4B' : (colorScheme === 'dark' ? '#9CA3AF' : '#6B7280');
+  const textColor = danger ? 'text-warning dark:text-warning-dark' : 'text-textMain dark:text-textMain-dark';
+
+  return (
+    <Animated.View style={animatedStyle} className="w-full">
+      <Pressable
+        onPressIn={() => scale.value = withSpring(0.96, { damping: 15 })}
+        onPressOut={() => scale.value = withSpring(1, { damping: 15 })}
+        onPress={onPress}
+        className="flex-row items-center px-4 py-4 border-b border-gray-100 dark:border-zinc-800/60"
+      >
+        <View className={`w-10 h-10 rounded-xl items-center justify-center mr-4 ${danger ? 'bg-red-50 dark:bg-red-900/20' : 'bg-gray-50 dark:bg-zinc-800'}`}>
+            <Ionicons name={icon} size={20} color={iconColor} />
+        </View>
+        <Text className={`flex-1 text-base font-nunito-bold ${textColor}`}>{title}</Text>
+      </Pressable>
+    </Animated.View>
+  );
+};
+
 export default function ChatRoomScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { colorScheme } = useColorScheme();
   const { id } = useLocalSearchParams();
   const queryClient = useQueryClient();
+  
   const { data: messages = [], isLoading } = useChatMessages(id as string);
   const [content, setContent] = useState('');
   const [currentUserId, setCurrentUserId] = useState<string>('');
@@ -58,21 +86,16 @@ export default function ChatRoomScreen() {
   const [editingMessage, setEditingMessage] = useState<any | null>(null);
   const [selectedMsgOptions, setSelectedMsgOptions] = useState<any | null>(null);
   
-  // 🚀 Inyectamos la configuración
   const audioRecorder = useAudioRecorder(audioOptions);
   const [isRecording, setIsRecording] = useState(false);
   const startTimeRef = useRef(0);
   
   const hasMarkedRead = useRef(false);
   const [unreadSeparatorId, setUnreadSeparatorId] = useState<string | null>(null);
-  const [hasScrolled, setHasScrolled] = useState(false);
 
   useEffect(() => { if (user) setCurrentUserId(user._id); }, [user]);
 
-  useChatSocket({
-    chatId: id as string,
-    currentUserId: currentUserId,
-  });
+  useChatSocket({ chatId: id as string, currentUserId: currentUserId });
 
   useEffect(() => {
     if (id) SocketService.emit('join_chat', id as string);
@@ -102,11 +125,7 @@ export default function ChatRoomScreen() {
           const senderStr = extractId(msg.senderId);
           const readArr = Array.isArray((msg as any).readBy) ? (msg as any).readBy.map(extractId) : [];
           if (senderStr !== String(currentUserId) && !readArr.includes(String(currentUserId))) {
-            return {
-              ...msg,
-              readBy: [...(msg.readBy || []), currentUserId],
-              deliveredTo: [...(msg.deliveredTo || []), currentUserId]
-            };
+            return { ...msg, readBy: [...(msg.readBy || []), currentUserId], deliveredTo: [...(msg.deliveredTo || []), currentUserId] };
           }
           return msg;
         });
@@ -120,34 +139,23 @@ export default function ChatRoomScreen() {
     if (messages.length > 0 && !unreadSeparatorId && currentUserId) {
       let foundUnreadId = null;
       let foundIndex = -1;
-
       for (let i = messages.length - 1; i >= 0; i--) {
         const m = messages[i];
         const senderStr = extractId(m.senderId);
         const readArr = Array.isArray((m as any).readBy) ? (m as any).readBy.map(extractId) : [];
-        
         if (senderStr !== currentUserId && !readArr.includes(currentUserId)) {
           foundUnreadId = m._id;
           foundIndex = i;
           break;
         }
       }
-
       if (foundUnreadId) {
         setUnreadSeparatorId(foundUnreadId);
-        setTimeout(() => {
-          if (flatListRef.current && !hasScrolled) {
-            try {
-              flatListRef.current.scrollToIndex({ index: foundIndex, animated: true, viewPosition: 0.1 });
-              setHasScrolled(true);
-            } catch (e) { console.log('Fallo silencioso de scroll', e); }
-          }
-        }, 300);
       } else {
         setUnreadSeparatorId('none');
       }
     }
-  }, [messages.length, currentUserId, unreadSeparatorId, hasScrolled]);
+  }, [messages.length, currentUserId, unreadSeparatorId]);
 
   const handleSendMessage = async () => {
     const cleanedMessage = content.trim();
@@ -158,26 +166,21 @@ export default function ChatRoomScreen() {
         SocketService.emit('edit_message', { messageId: editingMessage._id, senderId: currentUserId, content: cleanedMessage });
         queryClient.setQueryData(['chatMessages', id], (old: ChatMessage[] | undefined) => old ? old.map(m => m._id === editingMessage._id ? { ...m, content: updatedMsg.content || updatedMsg.contenido } : m) : []);
         setEditingMessage(null);
-        queryClient.invalidateQueries({ queryKey: ['userChats'] });
       } else {
         const newMsg = await sendMessage(id as string, cleanedMessage);
         queryClient.setQueryData(['chatMessages', id], (old: ChatMessage[] | undefined) => old ? (old.some(msg => msg._id === newMsg._id) ? old : [newMsg, ...old]) : [newMsg]);
       }
       setContent('');
       queryClient.invalidateQueries({ queryKey: ['userChats'] });
-    } catch (error) { console.error('Error enviando/editando mensaje:', error); }
+    } catch (error) { toast.error('Error enviando mensaje'); }
   };
 
   const handleAttachFile = async () => {
     try {
       const result = await DocumentPicker.getDocumentAsync({ type: '*/*', copyToCacheDirectory: true });
       if (result.canceled) return;
-      
       const asset = result.assets[0];
-      if (asset.size && asset.size > 5 * 1024 * 1024) {
-        Alert.alert('Archivo muy pesado', 'Por favor, selecciona un archivo menor a 5MB.');
-        return;
-      }
+      if (asset.size && asset.size > 5 * 1024 * 1024) return Alert.alert('Archivo muy pesado', 'Por favor, selecciona un archivo menor a 5MB.');
 
       const safeFileName = asset.name.replace(/[^a-zA-Z0-9.-]/g, '_');
       const safeMimeType = asset.mimeType || 'application/octet-stream';
@@ -189,9 +192,7 @@ export default function ChatRoomScreen() {
         return old.some(msg => msg._id === newMsg._id) ? old : [newMsg, ...old];
       });
       queryClient.invalidateQueries({ queryKey: ['userChats'] });
-    } catch (error) { 
-      Alert.alert('Error', 'No se pudo adjuntar el archivo al chat.');
-    }
+    } catch (error) { toast.error('No se pudo adjuntar el archivo'); }
   };
 
   const handleOpenFile = async (item: any) => {
@@ -210,13 +211,22 @@ export default function ChatRoomScreen() {
     if (senderId === currentUserId) setSelectedMsgOptions(item);
   };
 
+  // 🚀 Lógica Acorazada de Grabación
   const startRecording = async () => {
     try {
       await audioRecorder.record();
       setIsRecording(true);
       startTimeRef.current = Date.now();
       try { require('expo-haptics').impactAsync(); } catch {}
-    } catch (err) { console.error('Failed to start recording', err); }
+    } catch (err) { toast.error('Error al iniciar el micrófono'); }
+  };
+
+  const cancelRecording = async () => {
+    if (!isRecording) return;
+    setIsRecording(false);
+    try {
+      await audioRecorder.stop();
+    } catch (error) { console.error('Cancel error', error); }
   };
 
   const stopRecording = async () => {
@@ -226,7 +236,10 @@ export default function ChatRoomScreen() {
     
     try {
       await audioRecorder.stop();
-      if (elapsed < 500) return; 
+      if (elapsed < 800) {
+        toast.info('Audio muy corto', { description: 'Mantén presionado o graba más tiempo.' });
+        return; 
+      }
       
       const uri = audioRecorder.uri;
       if (uri && id) {
@@ -234,150 +247,160 @@ export default function ChatRoomScreen() {
         const newMsg = await sendAudioMessage(id as string, uri, duration);
         queryClient.setQueryData(['chatMessages', id], (old: ChatMessage[] | undefined) => old ? (old.some(msg => msg._id === newMsg._id) ? old : [newMsg, ...old]) : [newMsg]);
       }
-    } catch (error) { console.error('Error enviando audio', error); }
+    } catch (error) { 
+      toast.error('Error enviando nota de voz', { description: 'Puede que el formato no sea soportado.' }); 
+    }
   };
 
   const wallpaperUrl = user?.preferences?.phoneWallpaperUrl;
   const RootWrapper = wallpaperUrl ? ImageBackground : (View as any);
   const wrapperProps = wallpaperUrl
     ? { source: { uri: wallpaperUrl }, style: { flex: 1 }, resizeMode: "cover" as const }
-    : { style: { flex: 1, backgroundColor: '#f5f5f5' } };
+    : { style: { flex: 1, backgroundColor: colorScheme === 'dark' ? '#161121' : '#f5f5f5' } };
 
   return (
-    <RootWrapper {...wrapperProps as any}>
-      <Stack.Screen
-        options={{
-          presentation: 'modal',
-          headerShown: true,
-          headerTransparent: true,
-          headerBlurEffect: 'dark',
-          headerTitle: '',
-          headerLeft: () => {
-            const avatarSrc = otherUser?.avatarUrl || otherUser?.userId?.avatarUrl;
-            const displayName = otherUser?.name || otherUser?.userId?.name || 'Usuario';
-
-            return (
-              <View className="flex-row items-center gap-3 pl-2" style={{ paddingTop: Platform.OS === 'android' ? 30 : 0 }}>
-                <TouchableOpacity onPress={() => router.back()}>
-                  <Feather name="arrow-left" size={24} color="#fff" />
-                </TouchableOpacity>
-                <UserAvatar uri={avatarSrc} size={38} />
-                <View>
-                  <Text className="text-white font-semibold text-base">{displayName}</Text>
-                  <Text className="text-gray-400 text-xs">{isOtherOnline ? 'En línea' : 'Desconectado'}</Text>
-                </View>
+    <View className="flex-1 bg-white dark:bg-authEnd-dark">
+      
+      {/* 🚀 Cabecera Personalizada Pixel-Perfect */}
+      <View style={{ paddingTop: insets.top }} className="bg-white dark:bg-authEnd-dark z-20 border-b border-gray-100 dark:border-zinc-800 shadow-sm">
+        <View className="flex-row items-center justify-between px-4 py-3">
+          <View className="flex-row items-center flex-1">
+            <Pressable onPress={() => router.back()} className="p-2 -ml-2 mr-2 active:opacity-60">
+              <Feather name="arrow-left" size={24} color={colorScheme === 'dark' ? '#E5E7EB' : '#141E30'} />
+            </Pressable>
+            
+            <Pressable 
+              className="flex-row items-center flex-1"
+              onPress={() => router.push({ pathname: '/user/[id]', params: { id: otherUser?._id, name: otherUser?.name, email: otherUser?.email, avatarUrl: otherUser?.avatarUrl || otherUser?.profilePicture } })}
+            >
+              <UserAvatar uri={otherUser?.avatarUrl || otherUser?.profilePicture} size={40} />
+              <View className="ml-3 flex-1">
+                <Text className="text-lg font-snpro-bold text-textMain dark:text-textMain-dark" numberOfLines={1}>
+                  {otherUser?.name || otherUser?.username || 'Usuario'}
+                </Text>
+                <Text className="text-xs font-nunito-regular text-gray-500 dark:text-gray-400">
+                  {isOtherOnline ? 'En línea' : 'Desconectado'}
+                </Text>
               </View>
-            );
-          },
-          headerStyle: { backgroundColor: 'rgba(0,0,0,0.4)' },
-        }}
-      />
-      <KeyboardAvoidingView style={[styles.container, { paddingBottom: Math.max(insets.bottom, 16) }]} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}>
-      <FlatList
-        ref={flatListRef}
-        data={messages}
-        inverted={messages.length > 0}
-        keyExtractor={(item, index) => item._id ? item._id.toString() : index.toString()}
-        contentContainerStyle={{ flexGrow: 1, padding: 16 }}
-        ListEmptyComponent={
-          isLoading ? (
-            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-              <ActivityIndicator size="large" color="#007AFF" />
-            </View>
-          ) : (
-            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-              <Text style={{ color: '#999', fontSize: 16, textAlign: 'center' }}>
-                Aún no hay mensajes en este escritorio
-              </Text>
-              <View style={{ marginTop: 10 }}>
-                <Feather name="message-square" size={32} color="#ccc" />
-              </View>
-            </View>
-          )
-        }
-        renderItem={({ item }) => {
-          const senderId = typeof item.senderId === 'object' ? (item.senderId as any)?._id : item.senderId;
-          const isMe = senderId === currentUserId;
-          const isSeparator = item._id === unreadSeparatorId;
-          return (
-            <View>
-              {isSeparator && (
-                <View className="flex-row items-center justify-center my-4 opacity-90">
-                  <View className="flex-1 h-[1px] bg-indigo-200 dark:bg-indigo-900/50" />
-                  <View className="bg-indigo-50 dark:bg-indigo-900/40 px-4 py-1.5 rounded-full mx-3 border border-indigo-200/60 dark:border-indigo-800/60 shadow-sm">
-                    <Text className="text-[10px] text-indigo-600 dark:text-indigo-400 font-bold uppercase tracking-widest">Mensajes no leídos</Text>
-                  </View>
-                  <View className="flex-1 h-[1px] bg-indigo-200 dark:bg-indigo-900/50" />
-                </View>
-              )}
-              <MessageBubble
-                item={item}
-                isMe={isMe}
-                senderName={typeof item.senderId === 'object' && item.senderId !== null ? (item.senderId as any)?.name : 'Usuario'}
-                isOnline={onlineUsers.includes(senderId)}
-                onLongPress={handleLongPress}
-                onOpenFile={handleOpenFile}
-                totalParticipants={currentChat?.isGroup ? (currentChat?.participants?.length || 0) : 2}
-                AudioPlayerComponent={AudioPlayer}
-                isGroupChat={currentChat?.isGroup || false}
-                chatParticipants={currentChat?.participants || []}
-              />
-            </View>
-          );
-        }}
-      />
-      <ChatInput
-        content={content}
-        setContent={setContent}
-        onSend={handleSendMessage}
-        onAttach={handleAttachFile}
-        isRecording={isRecording}
-        onStartRecord={startRecording}
-        onStopRecord={stopRecording}
-        isEditing={!!editingMessage}
-        onCancelEdit={() => { setEditingMessage(null); setContent(''); }}
-      />
-      <Modal visible={!!selectedMsgOptions} transparent animationType="fade">
-        <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setSelectedMsgOptions(null)}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Opciones del mensaje</Text>
-            {!selectedMsgOptions?.isDeleted && (
-              <>
-                <TouchableOpacity style={styles.modalButton} onPress={() => { setEditingMessage(selectedMsgOptions); setContent(selectedMsgOptions!.content || selectedMsgOptions!.contenido); setSelectedMsgOptions(null); }}>
-                  <Feather name="edit-2" size={20} color="#007AFF" />
-                  <Text style={styles.modalButtonText}>Editar</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.modalButton} onPress={async () => {
-                  const msgId = selectedMsgOptions!._id; setSelectedMsgOptions(null); await deleteMessage(msgId, 'for_all');
-                  SocketService.emit('delete_message', { messageId: msgId, userId: currentUserId, type: 'for_all' });
-                  queryClient.invalidateQueries({ queryKey: ['userChats'] });
-                  queryClient.setQueryData(['chatMessages', id], (old: ChatMessage[] | undefined) => old ? old.map(msg => msg._id === msgId ? { ...msg, content: 'Mensaje eliminado', isDeleted: true } : msg) : []);
-                }}>
-                  <Feather name="trash-2" size={20} color="#FF3B30" />
-                  <Text style={[styles.modalButtonText, { color: '#FF3B30' }]}>Eliminar para todos</Text>
-                </TouchableOpacity>
-              </>
-            )}
-            <TouchableOpacity style={styles.modalButton} onPress={async () => {
-              const msgId = selectedMsgOptions!._id; setSelectedMsgOptions(null); await deleteMessage(msgId, 'for_me');
-              queryClient.setQueryData(['chatMessages', id], (old: ChatMessage[] | undefined) => old ? old.filter(msg => msg._id !== msgId) : []);
-            }}>
-              <Feather name="trash" size={20} color="#FF3B30" />
-              <Text style={[styles.modalButtonText, { color: '#FF3B30' }]}>Eliminar para mí</Text>
-            </TouchableOpacity>
+            </Pressable>
           </View>
-        </TouchableOpacity>
-       </Modal>
-      </KeyboardAvoidingView>
-    </RootWrapper>
+        </View>
+      </View>
+
+      <RootWrapper {...wrapperProps as any}>
+        {/* 🚀 Cero salto de teclado */}
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={0}>
+          <FlatList
+            ref={flatListRef}
+            data={messages}
+            inverted={messages.length > 0}
+            keyExtractor={(item, index) => item._id ? item._id.toString() : index.toString()}
+            contentContainerStyle={{ flexGrow: 1, padding: 16, paddingBottom: Math.max(insets.bottom, 16) }}
+            ListEmptyComponent={
+              isLoading ? (
+                <View className="flex-1 justify-center items-center">
+                  <ActivityIndicator size="large" className="text-primary dark:text-primary-dark" />
+                </View>
+              ) : (
+                <View className="flex-1 justify-center items-center px-8">
+                  <View className="w-20 h-20 rounded-full bg-gray-50 dark:bg-zinc-800/80 justify-center items-center mb-6">
+                    <Feather name="message-square" size={32} color={colorScheme === 'dark' ? '#9CA3AF' : '#D1D5DB'} />
+                  </View>
+                  <Text className="text-center text-lg font-nunito-bold text-gray-400 dark:text-gray-500">
+                    Comienza la conversación
+                  </Text>
+                </View>
+              )
+            }
+            renderItem={({ item }) => {
+              const senderId = typeof item.senderId === 'object' ? (item.senderId as any)?._id : item.senderId;
+              const isMe = senderId === currentUserId;
+              const isSeparator = item._id === unreadSeparatorId;
+              return (
+                <View>
+                  {isSeparator && (
+                    <View className="flex-row items-center justify-center my-4 opacity-90">
+                      <View className="flex-1 h-[1px] bg-indigo-200 dark:bg-indigo-900/50" />
+                      <View className="bg-indigo-50 dark:bg-indigo-900/40 px-4 py-1.5 rounded-full mx-3 border border-indigo-200/60 dark:border-indigo-800/60 shadow-sm">
+                        <Text className="text-[10px] text-indigo-600 dark:text-indigo-400 font-bold uppercase tracking-widest">Mensajes no leídos</Text>
+                      </View>
+                      <View className="flex-1 h-[1px] bg-indigo-200 dark:bg-indigo-900/50" />
+                    </View>
+                  )}
+                  <MessageBubble
+                    item={item}
+                    isMe={isMe}
+                    senderName={typeof item.senderId === 'object' && item.senderId !== null ? (item.senderId as any)?.name : 'Usuario'}
+                    isOnline={onlineUsers.includes(senderId)}
+                    onLongPress={handleLongPress}
+                    onOpenFile={handleOpenFile}
+                    totalParticipants={currentChat?.isGroup ? (currentChat?.participants?.length || 0) : 2}
+                    AudioPlayerComponent={AudioPlayer}
+                    isGroupChat={currentChat?.isGroup || false}
+                    chatParticipants={currentChat?.participants || []}
+                  />
+                </View>
+              );
+            }}
+          />
+          <ChatInput
+            content={content}
+            setContent={setContent}
+            onSend={handleSendMessage}
+            onAttach={handleAttachFile}
+            isRecording={isRecording}
+            onStartRecord={startRecording}
+            onStopRecord={stopRecording}
+            onCancelRecord={cancelRecording} // 🚀 Conectado el basurero
+            isEditing={!!editingMessage}
+            onCancelEdit={() => { setEditingMessage(null); setContent(''); }}
+          />
+        </KeyboardAvoidingView>
+      </RootWrapper>
+
+      {/* 🚀 Modal Bottom Sheet de Opciones */}
+      <Modal visible={!!selectedMsgOptions} transparent animationType="fade">
+        <Pressable className="flex-1 bg-black/60 justify-end" onPress={() => setSelectedMsgOptions(null)}>
+          <Pressable 
+            className="bg-white dark:bg-authEnd-dark rounded-t-3xl px-6 pt-6 pb-10" 
+            style={{ paddingBottom: Math.max(insets.bottom, 24) }}
+            onPress={(e) => e.stopPropagation()}
+          >
+            <View className="w-12 h-1.5 bg-gray-200 dark:bg-zinc-700 rounded-full self-center mb-6" />
+            <Text className="text-xl font-snpro-bold text-textMain dark:text-textMain-dark text-center mb-4">
+              Opciones del mensaje
+            </Text>
+
+            {!selectedMsgOptions?.isDeleted && (
+              <AnimatedMenuRow 
+                icon="create-outline" title="Editar mensaje" 
+                onPress={() => { setEditingMessage(selectedMsgOptions); setContent(selectedMsgOptions!.content || selectedMsgOptions!.contenido); setSelectedMsgOptions(null); }} 
+              />
+            )}
+            
+            <AnimatedMenuRow 
+                icon="trash-outline" title="Eliminar para mí" danger={true}
+                onPress={async () => {
+                  const msgId = selectedMsgOptions!._id; setSelectedMsgOptions(null); await deleteMessage(msgId, 'for_me');
+                  queryClient.setQueryData(['chatMessages', id], (old: ChatMessage[] | undefined) => old ? old.filter(msg => msg._id !== msgId) : []);
+                }} 
+            />
+
+            {!selectedMsgOptions?.isDeleted && (
+              <AnimatedMenuRow 
+                  icon="trash-bin-outline" title="Eliminar para todos" danger={true}
+                  onPress={async () => {
+                    const msgId = selectedMsgOptions!._id; setSelectedMsgOptions(null); await deleteMessage(msgId, 'for_all');
+                    SocketService.emit('delete_message', { messageId: msgId, userId: currentUserId, type: 'for_all' });
+                    queryClient.invalidateQueries({ queryKey: ['userChats'] });
+                    queryClient.setQueryData(['chatMessages', id], (old: ChatMessage[] | undefined) => old ? old.map(msg => msg._id === msgId ? { ...msg, content: 'Mensaje eliminado', isDeleted: true } : msg) : []);
+                  }} 
+              />
+            )}
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+    </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: 'transparent' },
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' },
-  modalContent: { width: '80%', backgroundColor: '#fff', borderRadius: 12, padding: 16, elevation: 5 },
-  modalTitle: { fontSize: 18, fontWeight: 'bold', marginBottom: 16, color: '#333', textAlign: 'center' },
-  modalButton: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#f0f0f0' },
-  modalButtonText: { fontSize: 16, marginLeft: 12, color: '#007AFF' },
-});

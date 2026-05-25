@@ -8,7 +8,7 @@ import Animated, { useSharedValue, useAnimatedStyle, withSpring } from 'react-na
 import { UserAvatar } from '@/src/components/ui/UserAvatar';
 import { searchUsers, SearchedUser } from '@/src/services/user.service';
 
-// 🚀 Componente Squish para la lista de usuarios
+// 🚀 Fila de usuario elástica (Squish)
 const AnimatedSquishUser = ({ onPress, children }: { onPress: () => void, children: React.ReactNode }) => {
   const scale = useSharedValue(1);
   const animatedStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
@@ -31,13 +31,14 @@ export default function SearchScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { colorScheme } = useColorScheme();
+  const iconColor = colorScheme === 'dark' ? '#E5E7EB' : '#333333';
   
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<SearchedUser[]>([]);
   const [isSearching, setIsSearching] = useState(false);
 
   useEffect(() => {
-    if (query.length < 2) {
+    if (query.trim().length < 2) {
       setResults([]);
       return;
     }
@@ -62,7 +63,7 @@ export default function SearchScreen() {
       onPress={() =>
         router.push({
           pathname: '/user/[id]',
-          params: { id: item._id, name: item.name, email: item.email, avatarUrl: item.avatarUrl },
+          params: { id: item._id, name: item.name, email: item.email, avatarUrl: item.avatarUrl || item.profilePicture },
         })
       }
     >
@@ -78,32 +79,36 @@ export default function SearchScreen() {
   return (
     <View className="flex-1 bg-white dark:bg-authEnd-dark">
       
-      {/* 🚀 Header de Búsqueda Integrado */}
-      <View 
-        style={{ paddingTop: Math.max(insets.top, 16) }} 
-        className="flex-row items-center px-4 pb-3 border-b border-gray-100 dark:border-gray-800 bg-white dark:bg-authEnd-dark"
-      >
-        <View className="flex-1 flex-row items-center bg-gray-100 dark:bg-zinc-800/80 rounded-xl px-3 h-11 mr-3 border border-transparent dark:border-zinc-700/50">
-          <Ionicons name="search" size={20} color={colorScheme === 'dark' ? '#9CA3AF' : '#6B7280'} />
-          <TextInput
-            className="flex-1 ml-2 text-base font-nunito-regular text-textMain dark:text-textMain-dark"
-            placeholder="Buscar por nombre o correo..."
-            placeholderTextColor={colorScheme === 'dark' ? '#6B7280' : '#9CA3AF'}
-            value={query}
-            onChangeText={setQuery}
-            autoCapitalize="none"
-            autoCorrect={false}
-            autoFocus
-          />
-          {query.length > 0 && (
-            <Pressable onPress={() => setQuery('')} className="p-1">
-              <Ionicons name="close-circle" size={20} color={colorScheme === 'dark' ? '#9CA3AF' : '#9CA3AF'} />
-            </Pressable>
-          )}
+      {/* 🚀 Header estandarizado: Misma altura y paddings que MainHeader */}
+      <View style={{ paddingTop: insets.top }} className="bg-white dark:bg-authEnd-dark z-20">
+        <View className="flex-row items-center px-4 py-3 border-b border-gray-100 dark:border-gray-800">
+          
+          {/* Botón de regreso universal */}
+          <Pressable onPress={() => router.back()} className="p-2 -ml-2 mr-2 active:opacity-60">
+            <Feather name="arrow-left" size={24} color={iconColor} />
+          </Pressable>
+
+          {/* Barra de búsqueda premium (Misma altura que el input de Workspace) */}
+          <View className="flex-1 flex-row items-center bg-gray-50 dark:bg-zinc-800/50 border border-gray-200 dark:border-zinc-700 rounded-xl px-3 h-12">
+            <Ionicons name="search" size={20} color={colorScheme === 'dark' ? '#9CA3AF' : '#6B7280'} />
+            <TextInput
+              className="flex-1 ml-2 text-base font-nunito-regular text-textMain dark:text-textMain-dark"
+              placeholder="Buscar por nombre o correo..."
+              placeholderTextColor={colorScheme === 'dark' ? '#6B7280' : '#9CA3AF'}
+              value={query}
+              onChangeText={setQuery}
+              autoCapitalize="none"
+              autoCorrect={false}
+              autoFocus
+            />
+            {query.length > 0 && (
+              <Pressable onPress={() => setQuery('')} className="p-1">
+                <Ionicons name="close-circle" size={20} color={colorScheme === 'dark' ? '#9CA3AF' : '#9CA3AF'} />
+              </Pressable>
+            )}
+          </View>
+
         </View>
-        <Pressable onPress={() => router.back()} className="py-2">
-          <Text className="text-primary dark:text-primary-dark font-snpro-bold text-base">Cancelar</Text>
-        </Pressable>
       </View>
 
       {/* 🚀 Resultados */}
@@ -119,15 +124,15 @@ export default function SearchScreen() {
           keyboardShouldPersistTaps="handled"
           contentContainerStyle={{ paddingBottom: insets.bottom }}
         />
-      ) : query.length >= 2 ? (
+      ) : query.trim().length >= 2 ? (
         <View className="flex-1 justify-center items-center px-8">
-          <View className="w-20 h-20 rounded-full bg-gray-50 dark:bg-zinc-800 justify-center items-center mb-6">
+          <View className="w-20 h-20 rounded-full bg-gray-50 dark:bg-zinc-800 justify-center items-center mb-6 border border-gray-100 dark:border-zinc-700">
             <Ionicons name="people-outline" size={40} color={colorScheme === 'dark' ? '#6B7280' : '#9CA3AF'} />
           </View>
           <Text className="text-lg font-nunito-bold text-textMain dark:text-textMain-dark mb-2 text-center">
             No se encontraron usuarios
           </Text>
-          <Text className="text-base text-gray-500 dark:text-gray-400 text-center font-nunito-regular">
+          <Text className="text-base text-gray-500 dark:text-gray-400 text-center font-nunito-regular leading-6">
             Asegúrate de que el nombre o correo electrónico esté escrito correctamente.
           </Text>
         </View>

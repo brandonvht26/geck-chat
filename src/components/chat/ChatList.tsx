@@ -1,21 +1,41 @@
-import { View, Text, TouchableOpacity, ActivityIndicator, Image, FlatList } from 'react-native';
+import { View, Text, Pressable, ActivityIndicator, Image, FlatList } from 'react-native';
 import { useEffect } from 'react';
 import { useRouter } from 'expo-router';
-import { Feather } from '@expo/vector-icons';
+import { Feather, Ionicons } from '@expo/vector-icons';
 import { useAuth } from '@/src/hooks/useAuth';
 import { useUserChats } from '@/src/hooks/queries/useUserChats';
 import { SocketService } from '@/src/services/socket.service';
 import { useQueryClient } from '@tanstack/react-query';
+import { useColorScheme } from 'nativewind';
+import Animated, { useSharedValue, useAnimatedStyle, withTiming } from 'react-native-reanimated';
 
-// 🚀 Recibimos el término de búsqueda desde el Home
 interface ChatListProps {
   activeTab: 'privados' | 'workspaces';
   searchTerm: string; 
 }
 
+// 🚀 Nueva física suave para listas (Fade en lugar de Squish)
+const AnimatedFadeRow = ({ onPress, children }: { onPress: () => void, children: React.ReactNode }) => {
+    const opacity = useSharedValue(1);
+    const animatedStyle = useAnimatedStyle(() => ({ opacity: opacity.value }));
+    return (
+      <Animated.View style={animatedStyle} className="w-full">
+        <Pressable
+          onPressIn={() => { opacity.value = withTiming(0.5, { duration: 100 }); }}
+          onPressOut={() => { opacity.value = withTiming(1, { duration: 200 }); }}
+          onPress={onPress}
+          className="flex-row p-4 items-center border-b border-gray-100 dark:border-zinc-800/60 bg-white dark:bg-authEnd-dark"
+        >
+          {children}
+        </Pressable>
+      </Animated.View>
+    );
+};
+
 export default function ChatList({ activeTab, searchTerm }: ChatListProps) {
   const router = useRouter();
   const { user } = useAuth();
+  const { colorScheme } = useColorScheme();
   const currentUserId = user?._id;
   
   const { data: chats = [], isLoading, isRefetching, refetch } = useUserChats();
@@ -61,24 +81,18 @@ export default function ChatList({ activeTab, searchTerm }: ChatListProps) {
     };
   }, [queryClient, currentUserId]);
 
-  // 🚀 EL FILTRO MÁGICO DOBLE: Por pestaña y por texto
   const filteredChats = chats.filter((chat) => {
-    // 1. Filtro de Pestaña
     if (activeTab === 'privados' && chat.isGroup) return false;
     if (activeTab === 'workspaces' && !chat.isGroup) return false;
 
-    // 2. Filtro de Búsqueda (Sensible a mayúsculas y minúsculas)
     if (searchTerm.trim() !== '') {
         const otherUser = chat.isGroup ? null : chat.participants?.find((p: any) => (p?._id || p) !== user?._id);
         const displayTitle = chat.isGroup
             ? chat.workspaceId?.name || 'Grupo sin nombre'
             : otherUser?.name || otherUser?.username || 'Usuario';
         
-        if (!displayTitle.toLowerCase().includes(searchTerm.toLowerCase())) {
-            return false;
-        }
+        if (!displayTitle.toLowerCase().includes(searchTerm.toLowerCase())) return false;
     }
-
     return true;
   });
 
@@ -98,17 +112,15 @@ export default function ChatList({ activeTab, searchTerm }: ChatListProps) {
         onRefresh={refetch}
         ListEmptyComponent={
           <View className="flex-1 justify-center items-center mt-20 px-8">
-            <View className="w-20 h-20 rounded-full bg-primary/10 dark:bg-primary-dark/20 justify-center items-center mb-6">
-                <Feather 
-                    name={searchTerm ? 'search' : (activeTab === 'privados' ? 'message-circle' : 'briefcase')} 
+            <View className="w-20 h-20 rounded-full bg-gray-50 dark:bg-zinc-800 justify-center items-center mb-6 border border-gray-100 dark:border-zinc-700">
+                <Ionicons 
+                    name={searchTerm ? 'search' : (activeTab === 'privados' ? 'chatbubble-ellipses-outline' : 'briefcase-outline')} 
                     size={36} 
-                    className="text-primary dark:text-primary-dark" 
+                    color={colorScheme === 'dark' ? '#6B7280' : '#9CA3AF'} 
                 />
             </View>
             <Text className="text-center text-lg font-nunito-bold text-textMain dark:text-textMain-dark mb-2">
-                {searchTerm 
-                  ? 'No hay resultados' 
-                  : (activeTab === 'privados' ? 'Sin mensajes recientes' : 'Sin Workspaces')}
+                {searchTerm ? 'No hay resultados' : (activeTab === 'privados' ? 'Sin mensajes recientes' : 'Sin Workspaces')}
             </Text>
             <Text className="text-center text-gray-500 dark:text-gray-400 font-nunito-regular leading-6">
                 {searchTerm
@@ -121,55 +133,31 @@ export default function ChatList({ activeTab, searchTerm }: ChatListProps) {
         }
         keyExtractor={(item, index) => item._id ? item._id.toString() : index.toString()}
         renderItem={({ item }) => {
-          const otherUser = item.isGroup ? null : item.participants?.find((p: any) =>
-            (p?._id || p) !== (user?._id)
-          );
-
-          const displayTitle = item.isGroup
-            ? item.workspaceId?.name || 'Grupo sin nombre'
-            : otherUser?.name || otherUser?.username || 'Usuario';
-
-          const imageUrl = item.isGroup
-            ? item.workspaceId?.imageUrl
-            : otherUser?.avatarUrl || otherUser?.userId?.avatarUrl || otherUser?.profilePicture;
+          const otherUser = item.isGroup ? null : item.participants?.find((p: any) => (p?._id || p) !== (user?._id));
+          const displayTitle = item.isGroup ? item.workspaceId?.name || 'Grupo sin nombre' : otherUser?.name || otherUser?.username || 'Usuario';
+          const imageUrl = item.isGroup ? item.workspaceId?.imageUrl : otherUser?.avatarUrl || otherUser?.userId?.avatarUrl || otherUser?.profilePicture;
 
           let lastMsgText = 'Envía un mensaje para iniciar...';
-          
           if (item.lastMessage) {
             const msgType = item.lastMessage.type;
-            if (msgType === 'audio') {
-              lastMsgText = '🎵 Audio';
-            } else if (msgType === 'file') {
-              lastMsgText = `📄 ${item.lastMessage.content || 'Archivo'}`;
-            } else {
-              lastMsgText = typeof item.lastMessage === 'string' 
-                ? item.lastMessage 
-                : (item.lastMessage.content || item.lastMessage.contenido || lastMsgText);
-            }
+            if (msgType === 'audio') lastMsgText = '🎵 Audio';
+            else if (msgType === 'file') lastMsgText = `📄 ${item.lastMessage.content || 'Archivo'}`;
+            else lastMsgText = typeof item.lastMessage === 'string' ? item.lastMessage : (item.lastMessage.content || item.lastMessage.contenido || lastMsgText);
           }
 
           const unreadCount = currentUserId ? (item.unreadCounts?.[currentUserId] || 0) : 0;
-          const senderId = typeof item.lastMessage?.senderId === 'object' 
-            ? item.lastMessage?.senderId?._id 
-            : item.lastMessage?.senderId;
+          const senderId = typeof item.lastMessage?.senderId === 'object' ? item.lastMessage?.senderId?._id : item.lastMessage?.senderId;
           const isMyLastMessage = !!senderId && !!currentUserId && String(senderId) === String(currentUserId);
 
           return (
-            <TouchableOpacity
-              activeOpacity={0.7}
-              className="flex-row p-4 items-center border-b border-gray-100 dark:border-gray-800/60"
+            <AnimatedFadeRow
               onPress={() => {
                 if (currentUserId) {
                   queryClient.setQueryData(['userChats'], (oldChats: any[]) => {
                     if (!oldChats) return oldChats;
-                    return oldChats.map(c => 
-                      c._id === item._id 
-                        ? { ...c, unreadCounts: { ...c.unreadCounts, [currentUserId]: 0 } }
-                        : c
-                    );
+                    return oldChats.map(c => c._id === item._id ? { ...c, unreadCounts: { ...c.unreadCounts, [currentUserId]: 0 } } : c);
                   });
                 }
-
                 if (item.isGroup) {
                   const wsId = typeof item.workspaceId === 'object' ? item.workspaceId._id : item.workspaceId;
                   router.push(`/workspace/${wsId}?name=${encodeURIComponent(displayTitle)}`);
@@ -179,25 +167,17 @@ export default function ChatList({ activeTab, searchTerm }: ChatListProps) {
               }}
             >
               {imageUrl ? (
-                <Image
-                  source={{ uri: imageUrl }}
-                  className="w-14 h-14 rounded-full mr-4 border border-gray-200 dark:border-gray-700"
-                  resizeMode="cover"
-                />
+                <Image source={{ uri: imageUrl }} className="w-14 h-14 rounded-full mr-4 border border-gray-100 dark:border-zinc-800" resizeMode="cover" />
               ) : (
-                <View className={`w-14 h-14 rounded-full justify-center items-center mr-4 border border-transparent ${item.isGroup ? 'bg-primary/10 dark:bg-primary-dark/20 border-primary/20' : 'bg-gray-100 dark:bg-zinc-800 border-gray-200 dark:border-zinc-700'}`}>
-                  <Feather name={item.isGroup ? "users" : "user"} size={24} color={item.isGroup ? "#2A72D4" : "#9CA3AF"} />
+                <View className={`w-14 h-14 rounded-full justify-center items-center mr-4 border border-transparent ${item.isGroup ? 'bg-primary/10 dark:bg-primary-dark/20' : 'bg-gray-100 dark:bg-zinc-800'}`}>
+                  <Ionicons name={item.isGroup ? "people" : "person"} size={24} color={item.isGroup ? "#2A72D4" : "#9CA3AF"} />
                 </View>
               )}
 
               <View className="flex-1">
-                <Text className="text-base font-nunito-bold text-textMain dark:text-textMain-dark" numberOfLines={1}>
-                  {displayTitle}
-                </Text>
+                <Text className="text-base font-nunito-bold text-textMain dark:text-textMain-dark" numberOfLines={1}>{displayTitle}</Text>
                 <Text className="text-sm text-gray-500 dark:text-gray-400 mt-1" numberOfLines={1}>
-                  {isMyLastMessage && (
-                    <Text className="text-gray-700 dark:text-gray-300 font-bold">Tú: </Text>
-                  )}
+                  {isMyLastMessage && <Text className="text-gray-700 dark:text-gray-300 font-bold">Tú: </Text>}
                   {lastMsgText}
                 </Text>
               </View>
@@ -205,21 +185,16 @@ export default function ChatList({ activeTab, searchTerm }: ChatListProps) {
               <View className="items-end justify-center ml-3">
                 {item.updatedAt && (
                   <Text className="text-xs font-snpro-regular text-gray-400 dark:text-gray-500 mb-1.5">
-                    {new Date(item.updatedAt).toLocaleTimeString([], {
-                      hour: '2-digit',
-                      minute: '2-digit'
-                    })}
+                    {new Date(item.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                   </Text>
                 )}
                 {unreadCount > 0 && (
-                  <View className="bg-green-500 min-w-[22px] h-[22px] rounded-full items-center justify-center px-1.5 shadow-sm shadow-green-500/30">
-                    <Text className="text-white text-xs font-snpro-bold">
-                      {unreadCount > 99 ? '99+' : unreadCount}
-                    </Text>
+                  <View className="bg-primary dark:bg-primary-dark min-w-[22px] h-[22px] rounded-full items-center justify-center px-1.5 shadow-sm shadow-primary/30">
+                    <Text className="text-white text-xs font-snpro-bold">{unreadCount > 99 ? '99+' : unreadCount}</Text>
                   </View>
                 )}
               </View>
-            </TouchableOpacity>
+            </AnimatedFadeRow>
           );
         }}
       />
