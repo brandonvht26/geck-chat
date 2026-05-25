@@ -309,11 +309,12 @@ export default function WorkspaceScreen() {
     );
   };
 
-  const wallpaperUrl = user?.preferences?.phoneWallpaperUrl;
-  const RootWrapper = wallpaperUrl ? ImageBackground : (View as any);
-  const wrapperProps = wallpaperUrl
-    ? { source: { uri: wallpaperUrl }, style: { flex: 1 }, resizeMode: "cover" as const }
-    : { style: { flex: 1, backgroundColor: colorScheme === 'dark' ? '#161121' : '#f5f5f5' } };
+  const userWallpaper = user?.preferences?.phoneWallpaperUrl;
+  const wallpaperStr = userWallpaper ? userWallpaper : 'bundled:primary';
+  const isBundled = wallpaperStr.startsWith('bundled:');
+  const imageSource = isBundled 
+    ? bundledWallpapers[wallpaperStr.split(':')[1] as keyof typeof bundledWallpapers] 
+    : { uri: wallpaperStr };
 
   return (
     <View className="flex-1 bg-white dark:bg-authEnd-dark">
@@ -345,8 +346,8 @@ export default function WorkspaceScreen() {
         </View>
       </View>
 
-      <RootWrapper {...wrapperProps as any}>
-        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={0}>
+      <ImageBackground source={imageSource} resizeMode="cover" style={{ flex: 1 }}>
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top + 50 : 0}>
           
           {/* Barra de Miembros Online */}
           {members.length > 0 && (
@@ -393,6 +394,8 @@ export default function WorkspaceScreen() {
             contentContainerStyle={{ flexGrow: 1, padding: 16, paddingBottom: Math.max(insets.bottom, 16) }}
             inverted={messages.length > 0}
             showsVerticalScrollIndicator={false}
+            keyboardDismissMode="interactive"
+            keyboardShouldPersistTaps="handled"
           />
           <ChatInput
             content={newMessage}
@@ -402,12 +405,12 @@ export default function WorkspaceScreen() {
             isRecording={isRecording}
             onStartRecord={startRecording}
             onStopRecord={stopRecording}
-            onCancelRecord={cancelRecording} // 🚀 Conectado el basurero
+            onCancelRecord={cancelRecording}
             isEditing={!!editingMessage}
             onCancelEdit={() => { setEditingMessage(null); setNewMessage(''); }}
           />
         </KeyboardAvoidingView>
-      </RootWrapper>
+      </ImageBackground>
 
       {/* 🚀 Modal de Opciones del Mensaje */}
       <Modal visible={!!selectedMsgOptions} transparent animationType="fade">

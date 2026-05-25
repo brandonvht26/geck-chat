@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { View, Text, TouchableOpacity } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { useAudioPlayer } from 'expo-audio';
@@ -10,6 +11,8 @@ interface AudioPlayerProps {
 export default function AudioPlayer({ fileUrl, isSent }: AudioPlayerProps) {
     const player = useAudioPlayer(fileUrl);
 
+    const timeToDisplay = player.playing ? player.currentTime : (player.duration || 0);
+
     const formatTime = (millis: number) => {
         const totalSeconds = Math.floor(millis / 1000);
         const minutes = Math.floor(totalSeconds / 60);
@@ -17,10 +20,20 @@ export default function AudioPlayer({ fileUrl, isSent }: AudioPlayerProps) {
         return `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
     };
 
+    useEffect(() => {
+        if (player.duration && player.currentTime >= player.duration - 100) {
+            player.pause();
+            player.seekTo(0);
+        }
+    }, [player.currentTime, player.duration]);
+
     const handlePress = () => {
         if (player.playing) {
             player.pause();
         } else {
+            if (player.duration && player.currentTime >= player.duration - 100) {
+                player.seekTo(0);
+            }
             player.play();
         }
     };
@@ -46,7 +59,7 @@ export default function AudioPlayer({ fileUrl, isSent }: AudioPlayerProps) {
                 }`}
             />
             <Text className={`text-xs font-nunito-bold ${isSent ? 'text-white' : 'text-gray-600 dark:text-gray-300'}`}>
-                {player.duration ? formatTime(player.duration) : "0:00"}
+                {formatTime(timeToDisplay)}
             </Text>
         </TouchableOpacity>
     );

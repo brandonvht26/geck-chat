@@ -38,6 +38,12 @@ const audioOptions: RecordingOptions = {
   bitRate: 128000,
 };
 
+const bundledWallpapers: Record<string, any> = {
+  primary: require('../../assets/wallpapers/primary.webp'),
+  secondary: require('../../assets/wallpapers/secondary.webp'),
+  tertiary: require('../../assets/wallpapers/tertiary.webp'),
+};
+
 const AnimatedMenuRow = ({ icon, title, onPress, danger }: any) => {
   const scale = useSharedValue(1);
   const animatedStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
@@ -252,11 +258,12 @@ export default function ChatRoomScreen() {
     }
   };
 
-  const wallpaperUrl = user?.preferences?.phoneWallpaperUrl;
-  const RootWrapper = wallpaperUrl ? ImageBackground : (View as any);
-  const wrapperProps = wallpaperUrl
-    ? { source: { uri: wallpaperUrl }, style: { flex: 1 }, resizeMode: "cover" as const }
-    : { style: { flex: 1, backgroundColor: colorScheme === 'dark' ? '#161121' : '#f5f5f5' } };
+  const userWallpaper = user?.preferences?.phoneWallpaperUrl;
+  const wallpaperStr = userWallpaper ? userWallpaper : 'bundled:primary';
+  const isBundled = wallpaperStr.startsWith('bundled:');
+  const imageSource = isBundled 
+    ? bundledWallpapers[wallpaperStr.split(':')[1] as keyof typeof bundledWallpapers] 
+    : { uri: wallpaperStr };
 
   return (
     <View className="flex-1 bg-white dark:bg-authEnd-dark">
@@ -287,15 +294,16 @@ export default function ChatRoomScreen() {
         </View>
       </View>
 
-      <RootWrapper {...wrapperProps as any}>
-        {/* 🚀 Cero salto de teclado */}
-        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={0}>
+      <ImageBackground source={imageSource} resizeMode="cover" style={{ flex: 1 }}>
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top + 50 : 0}>
           <FlatList
             ref={flatListRef}
             data={messages}
             inverted={messages.length > 0}
             keyExtractor={(item, index) => item._id ? item._id.toString() : index.toString()}
             contentContainerStyle={{ flexGrow: 1, padding: 16, paddingBottom: Math.max(insets.bottom, 16) }}
+            keyboardDismissMode="interactive"
+            keyboardShouldPersistTaps="handled"
             ListEmptyComponent={
               isLoading ? (
                 <View className="flex-1 justify-center items-center">
@@ -351,12 +359,12 @@ export default function ChatRoomScreen() {
             isRecording={isRecording}
             onStartRecord={startRecording}
             onStopRecord={stopRecording}
-            onCancelRecord={cancelRecording} // 🚀 Conectado el basurero
+            onCancelRecord={cancelRecording}
             isEditing={!!editingMessage}
             onCancelEdit={() => { setEditingMessage(null); setContent(''); }}
           />
         </KeyboardAvoidingView>
-      </RootWrapper>
+      </ImageBackground>
 
       {/* 🚀 Modal Bottom Sheet de Opciones */}
       <Modal visible={!!selectedMsgOptions} transparent animationType="fade">

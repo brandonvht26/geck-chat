@@ -1,7 +1,9 @@
-import { View, TextInput, Pressable, Text, Platform } from 'react-native';
+import { useState, useEffect } from 'react';
+import { View, TextInput, Pressable, Text, Platform, Keyboard } from 'react-native';
 import { Feather, Ionicons } from '@expo/vector-icons';
 import { useColorScheme } from 'nativewind';
-import Reanimated, { useSharedValue, useAnimatedStyle, withSpring, withRepeat, withSequence, withTiming, useEffect } from 'react-native-reanimated';
+import { useSafeAreaInsets } from 'react-native-safe-area-context'; // 🚀 Inyección del área segura
+import Reanimated, { useSharedValue, useAnimatedStyle, withSpring, withRepeat, withSequence, withTiming } from 'react-native-reanimated';
 
 interface ChatInputProps {
   content: string;
@@ -10,8 +12,8 @@ interface ChatInputProps {
   onAttach: () => void;
   isRecording?: boolean;
   onStartRecord?: () => void;
-  onStopRecord?: () => void; // Funcionará como "Enviar"
-  onCancelRecord?: () => void; // 🚀 Nueva prop para el botón de basura
+  onStopRecord?: () => void; 
+  onCancelRecord?: () => void; 
   isEditing?: boolean;
   onCancelEdit?: () => void;
 }
@@ -35,13 +37,11 @@ const AnimatedSquishBtn = ({ onPress, onLongPress, disabled, children, className
     );
 };
 
-// 🚀 Animación de parpadeo rojo para "Grabando..."
 const PulsingMic = () => {
     const opacity = useSharedValue(1);
     // eslint-disable-next-line react-hooks/exhaustive-deps
     opacity.value = withRepeat(withSequence(withTiming(0.4, { duration: 500 }), withTiming(1, { duration: 500 })), -1, true);
     const style = useAnimatedStyle(() => ({ opacity: opacity.value }));
-    
     return (
         <Reanimated.View style={style} className="flex-row items-center flex-1 justify-center">
             <View className="w-2.5 h-2.5 bg-red-500 rounded-full mr-2" />
@@ -55,29 +55,36 @@ export default function ChatInput({
 }: ChatInputProps) {
   const hasContent = content.trim().length > 0;
   const { colorScheme } = useColorScheme();
+  const insets = useSafeAreaInsets(); // 🚀 Extraemos las medidas del dispositivo
+  const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
+
+  useEffect(() => {
+    const showSub = Platform.OS === 'ios'
+      ? Keyboard.addListener('keyboardWillShow', () => setIsKeyboardVisible(true))
+      : Keyboard.addListener('keyboardDidShow', () => setIsKeyboardVisible(true));
+    const hideSub = Platform.OS === 'ios'
+      ? Keyboard.addListener('keyboardWillHide', () => setIsKeyboardVisible(false))
+      : Keyboard.addListener('keyboardDidHide', () => setIsKeyboardVisible(false));
+    return () => { showSub.remove(); hideSub.remove(); };
+  }, []);
 
   return (
-    <View className={`flex-row items-end px-3 py-2 ${Platform.OS === 'ios' ? 'mb-2' : 'mb-0'} bg-transparent w-full`}>
-      
+    // 🚀 paddingBottom dinámico: Se separa de la barra home de iOS/Android; se elimina cuando el teclado está abierto
+    <View 
+        style={{ paddingBottom: isKeyboardVisible ? 12 : Math.max(insets.bottom, 12), paddingTop: 8 }} 
+        className="flex-row items-end px-3 bg-transparent w-full"
+    >
       {isRecording ? (
-        // 🚀 NUEVA INTERFAZ DE GRABACIÓN ACTIVA
         <View className="flex-1 flex-row items-center bg-white dark:bg-zinc-900 border border-red-200 dark:border-red-900/50 rounded-full h-12 shadow-sm px-2 justify-between">
-            {/* Botón Cancelar (Basurero) */}
             <Pressable onPress={onCancelRecord} className="p-2 bg-red-50 dark:bg-red-900/30 rounded-full border border-red-100 dark:border-red-900/50">
                 <Feather name="trash-2" size={20} color="#EF4444" />
             </Pressable>
-
-            {/* Indicador */}
             <PulsingMic />
-
-            {/* Botón Enviar Audio */}
             <AnimatedSquishBtn onPress={onStopRecord} className="w-10 h-10 items-center justify-center rounded-full bg-primary dark:bg-primary-dark shadow-sm shadow-primary/30">
                 <Ionicons name="send" size={18} color="#fff" style={{ marginLeft: 2 }} />
             </AnimatedSquishBtn>
         </View>
-
       ) : (
-        // INTERFAZ DE TEXTO NORMAL
         <>
           <View className="flex-1 flex-row items-end bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-3xl pl-2 pr-1 py-1 shadow-sm">
             <Pressable onPress={onAttach} className="p-2.5 bg-gray-100 dark:bg-zinc-800 rounded-full mr-1">
@@ -111,7 +118,7 @@ export default function ChatInput({
               </AnimatedSquishBtn>
             ) : (
               <AnimatedSquishBtn
-                onPress={onStartRecord} // 🚀 Ahora con un TAP activas la grabación
+                onPress={onStartRecord} 
                 className="w-12 h-12 items-center justify-center rounded-full bg-primary dark:bg-primary-dark shadow-sm shadow-primary/30"
               >
                 <Ionicons name="mic" size={22} color="#fff" />
