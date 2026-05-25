@@ -14,8 +14,8 @@ import {
   ImageBackground,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { Audio } from 'expo-av';
-import { Feather, Ionicons } from '@expo/vector-icons';
+import { Feather } from '@expo/vector-icons';
+import { useAudioRecorder, RecordingOptions } from 'expo-audio'; // 🚀 Opciones Importadas
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
@@ -27,92 +27,33 @@ import { useAuth } from '@/src/hooks/useAuth';
 import { api } from '@/src/services/api';
 import { SocketService } from '@/src/services/socket.service';
 import { useSocket } from '@/src/context/SocketContext';
-import { getUserChats, getChatMessages, editMessage, deleteMessage, sendAudioMessage, ChatMessage as ChatMessageType } from '@/src/services/chat.service';
+import { useChatSocket } from '@/src/hooks/useChatSocket';
+import { getUserChats, editMessage, deleteMessage, sendAudioMessage, ChatMessage as ChatMessageType } from '@/src/services/chat.service';
 import { sendFileMessage, deleteGroupChat } from '@/src/services/chat.service';
 import { leaveWorkspace } from '@/src/services/workspace.service';
 import { UserAvatar } from '@/src/components/ui/UserAvatar';
 import MessageBubble from '@/src/components/chat/MessageBubble';
 import ChatInput from '@/src/components/chat/ChatInput';
+import AudioPlayer from '@/src/components/chat/AudioPlayer'; 
 
 interface WorkspaceParams {
   id: string;
   name: string;
 }
 
-interface MessageReceivedPayload {
-  chatId: string;
-  content: string;
-  senderId: string;
-  createdAt: string;
-  _id?: string;
-}
-
-const AudioPlayer = ({ fileUrl, isSent }: { fileUrl: string, isSent: boolean }) => {
-  const [sound, setSound] = useState<Audio.Sound | null>(null);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [durationText, setDurationText] = useState("0:00");
-
-  async function playSound() {
-    try {
-      if (sound) {
-        if (isPlaying) {
-          await sound.pauseAsync();
-          setIsPlaying(false);
-        } else {
-          const status = await sound.getStatusAsync();
-          if (status.isLoaded && status.positionMillis === status.durationMillis) {
-            await sound.setPositionAsync(0);
-          }
-          await sound.playAsync();
-          setIsPlaying(true);
-        }
-      } else {
-        const { sound: newSound } = await Audio.Sound.createAsync(
-          { uri: fileUrl },
-          { shouldPlay: true, isLooping: false }
-        );
-        setSound(newSound);
-        setIsPlaying(true);
-
-        newSound.setOnPlaybackStatusUpdate((status: any) => {
-          if (status.isLoaded) {
-            if (status.durationMillis) {
-              const totalSeconds = Math.floor(status.durationMillis / 1000);
-              const minutes = Math.floor(totalSeconds / 60);
-              const seconds = totalSeconds % 60;
-              setDurationText(`${minutes}:${seconds < 10 ? '0' : ''}${seconds}`);
-            }
-            if (status.didJustFinish) {
-              setIsPlaying(false);
-              newSound.setPositionAsync(0);
-              newSound.pauseAsync();
-            }
-          }
-        });
-      }
-    } catch (error) {
-      console.error("Error reproduciendo audio:", error);
-    }
-  }
-
-  useEffect(() => {
-    return () => { if (sound) { sound.unloadAsync(); } };
-  }, [sound]);
-
-  return (
-    <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: isSent ? 'rgba(255,255,255,0.2)' : '#f0f0f0', padding: 8, borderRadius: 20, minWidth: 120 }} onPress={playSound}>
-      <Feather name={isPlaying ? "pause" : "play"} size={24} color={isSent ? '#fff' : '#007AFF'} />
-      <View style={{ flex: 1, height: 2, backgroundColor: isSent ? '#fff' : '#007AFF', marginHorizontal: 8 }} />
-      <Text style={{ fontSize: 12, color: isSent ? '#fff' : '#666', fontWeight: '500' }}>{durationText}</Text>
-    </TouchableOpacity>
-  );
-};
-
 const extractId = (obj: any): string => {
   if (!obj) return '';
   if (typeof obj === 'string') return obj;
   if (typeof obj === 'object' && obj._id) return String(obj._id);
   return String(obj);
+};
+
+// 🚀 OPCIONES OBLIGATORIAS DE EXPO AUDIO
+const audioOptions: RecordingOptions = {
+  extension: '.m4a',
+  sampleRate: 44100,
+  numberOfChannels: 2,
+  bitRate: 128000,
 };
 
 export default function WorkspaceScreen() {
@@ -126,11 +67,13 @@ export default function WorkspaceScreen() {
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [members, setMembers] = useState<any[]>([]);
   const [editingMessage, setEditingMessage] = useState<MessageMessageType | null>(null);
-  const [readBy, setReadBy] = useState<Record<string, string[]>>({});
   const [selectedMsgOptions, setSelectedMsgOptions] = useState<MessageMessageType | null>(null);
-  const [recording, setRecording] = useState<Audio.Recording | null>(null);
+  
+  // 🚀 Inyectamos configuración
+  const audioRecorder = useAudioRecorder(audioOptions);
   const [isRecording, setIsRecording] = useState(false);
   const startTimeRef = useRef(0);
+  
   const hasMarkedRead = useRef(false);
   const [showMembersModal, setShowMembersModal] = useState(false);
   const [unreadSeparatorId, setUnreadSeparatorId] = useState<string | null>(null);
@@ -138,16 +81,47 @@ export default function WorkspaceScreen() {
   const [workspaceData, setWorkspaceData] = useState<any>(null);
 
   const { user } = useAuth();
-
   const queryClient = useQueryClient();
   const { data: messages = [], isLoading: isChatLoading } = useChatMessages(currentChatId);
   const { data: userChats } = useUserChats();
 
-  useEffect(() => {
-    if (user) {
-      setCurrentUserId(user._id);
+  useEffect(() => { if (user) setCurrentUserId(user._id); }, [user]);
+
+  const loadWorkspaceChat = useCallback(async () => {
+    try {
+      const chatsResponse = await getUserChats();
+      const foundChat = chatsResponse.find((c) => {
+        const workspaceIdValue = typeof c.workspaceId === 'object' && c.workspaceId !== null ? c.workspaceId._id : c.workspaceId;
+        return workspaceIdValue === id;
+      });
+
+      if (foundChat) {
+        setCurrentChatId(foundChat._id);
+        setMembers(foundChat.participants || []);
+        setWorkspaceData(foundChat.workspaceId || null);
+
+        SocketService.emit('join_chat', foundChat._id);
+        const wsId = foundChat.workspaceId?._id || foundChat.workspaceId;
+        SocketService.emit('join-workspace-room', wsId);
+      }
+    } catch (error) {
+      toast.error('Error cargando historial');
+    } finally {
+      setIsLoading(false);
     }
-  }, [user]);
+  }, [id]);
+
+  useEffect(() => { loadWorkspaceChat(); }, [loadWorkspaceChat]);
+
+  // 🚀 ANTENA CONECTADA
+  useChatSocket({
+    chatId: currentChatId,
+    currentUserId: currentUserId,
+    onMembersChange: () => {
+      loadWorkspaceChat();
+      queryClient.invalidateQueries({ queryKey: ['userChats'] });
+    }
+  });
 
   useEffect(() => {
     if (messages.length > 0 && !unreadSeparatorId && currentUserId) {
@@ -168,19 +142,12 @@ export default function WorkspaceScreen() {
 
       if (foundUnreadId) {
         setUnreadSeparatorId(foundUnreadId);
-
         setTimeout(() => {
           if (flatListRef.current && !hasScrolled) {
             try {
-              flatListRef.current.scrollToIndex({
-                index: foundIndex,
-                animated: true,
-                viewPosition: 0.1
-              });
+              flatListRef.current.scrollToIndex({ index: foundIndex, animated: true, viewPosition: 0.1 });
               setHasScrolled(true);
-            } catch (e) {
-              console.log('Fallo silencioso de scroll', e);
-            }
+            } catch (e) { console.log('Fallo silencioso de scroll', e); }
           }
         }, 300);
       } else {
@@ -203,49 +170,13 @@ export default function WorkspaceScreen() {
     (admin: any) => extractId(admin) === String(currentUserId)
   ) || currentChatData?.workspaceId?.owner === currentUserId;
 
-  const loadWorkspaceChat = useCallback(async () => {
-    try {
-      const chatsResponse = await getUserChats();
-      const foundChat = chatsResponse.find((c) => {
-        const workspaceIdValue =
-          typeof c.workspaceId === 'object' && c.workspaceId !== null
-            ? c.workspaceId._id
-            : c.workspaceId;
-        return workspaceIdValue === id;
-      });
-
-      if (foundChat) {
-        setCurrentChatId(foundChat._id);
-        setMembers(foundChat.participants || []);
-        setWorkspaceData(foundChat.workspaceId || null);
-
-        // UNIRSE A AMBAS SALAS: Al chat y al Workspace global
-        SocketService.emit('join_chat', foundChat._id);
-        const wsId = foundChat.workspaceId?._id || foundChat.workspaceId;
-        SocketService.emit('join-workspace-room', wsId);
-      }
-    } catch (error) {
-      toast.error('Error cargando historial');
-    } finally {
-      setIsLoading(false);
-    }
-  }, [id]);
-
-  useEffect(() => {
-    loadWorkspaceChat();
-  }, [loadWorkspaceChat]);
-
   useEffect(() => {
     if (!currentChatId || !currentUserId || messages.length === 0 || hasMarkedRead.current) return;
     hasMarkedRead.current = true;
 
     queryClient.setQueryData(['userChats'], (oldChats: any[]) => {
       if (!oldChats) return oldChats;
-      return oldChats.map(chat =>
-        String(chat._id) === String(currentChatId)
-          ? { ...chat, unreadCounts: { ...chat.unreadCounts, [currentUserId]: 0 } }
-          : chat
-      );
+      return oldChats.map(chat => String(chat._id) === String(currentChatId) ? { ...chat, unreadCounts: { ...chat.unreadCounts, [currentUserId]: 0 } } : chat);
     });
 
     SocketService.emit('mark_read', { chatId: currentChatId, userId: currentUserId });
@@ -270,123 +201,12 @@ export default function WorkspaceScreen() {
     }, 800);
 
     return () => clearTimeout(timer);
-
   }, [currentChatId, currentUserId, queryClient, messages.length]);
-
-  useEffect(() => {
-    const handleMessageReceived = (payload: any) => {
-      const incomingChatId = extractId(payload.chatId || payload.workspaceId || payload.roomId);
-      if (incomingChatId === String(currentChatId)) {
-        const message: MessageMessageType = {
-          _id: payload._id || Date.now().toString(),
-          senderId: payload.senderId,
-          receiverId: payload.chatId,
-          contenido: payload.content,
-          createdAt: payload.createdAt,
-        };
-
-        queryClient.setQueryData(['chatMessages', currentChatId], (old: MessageMessageType[] | undefined) => {
-          if (!old) return [message];
-          const exists = old.some(msg => msg._id === message._id);
-          return exists ? old : [message, ...old];
-        });
-
-        // 🚀 ACUSE DE RECIBO: Si el mensaje no es mío y tengo el chat abierto, firmo como leído
-        const senderStr = extractId(payload.senderId);
-        if (senderStr !== String(currentUserId)) {
-          SocketService.emit('mark_read', { chatId: currentChatId, userId: currentUserId });
-        }
-      }
-      queryClient.invalidateQueries({ queryKey: ['userChats'] });
-    };
-
-    const handleMessageStatusUpdate = (payload: any) => {
-      // Sincroniza exactamente con el payload del backend: { messageId, deliveredTo, readBy }
-      queryClient.setQueryData(['chatMessages', currentChatId], (old: MessageMessageType[] | undefined) => {
-        if (!old) return [];
-        return old.map(msg => msg._id === payload.messageId
-          ? { ...msg, deliveredTo: payload.deliveredTo, readBy: payload.readBy }
-          : msg
-        );
-      });
-    };
-
-    const handleBulkUpdate = (payload: any) => {
-      // Sincroniza múltiples mensajes (Ej. al entrar al chat) sin inyectar un status fantasma
-      queryClient.setQueryData(['chatMessages', currentChatId], (old: MessageMessageType[] | undefined) => {
-        if (!old) return [];
-        return old.map(msg => {
-          const updatedMsg = payload.updatedMessages?.find((u: any) => u._id === msg._id);
-          if (updatedMsg) {
-            return {
-              ...msg,
-              readBy: updatedMsg.readBy || msg.readBy,
-              deliveredTo: updatedMsg.deliveredTo || msg.deliveredTo
-            };
-          }
-          return msg;
-        });
-      });
-    };
-
-    const handleMessageEdited = (payload: any) => {
-      queryClient.setQueryData(['chatMessages', currentChatId], (old: MessageMessageType[] | undefined) => {
-        if (!old) return [];
-        return old.map(msg => msg._id === payload._id
-          ? { ...msg, contenido: payload.content || payload.contenido, isEdited: true }
-          : msg
-        );
-      });
-    };
-
-    const handleMessageDeleted = (payload: any) => {
-      queryClient.setQueryData(['chatMessages', currentChatId], (old: MessageMessageType[] | undefined) => {
-        if (!old) return [];
-        return old.map(msg => msg._id === payload.messageId
-          ? { ...msg, contenido: 'Mensaje eliminado', isDeleted: true }
-          : msg
-        );
-      });
-    };
-
-    // Handler para re-cargar los miembros cuando alguien entra o sale
-    const handleMembersChange = () => {
-      loadWorkspaceChat();
-      queryClient.invalidateQueries({ queryKey: ['userChats'] });
-    };
-
-    // Limpiamos y asignamos los listeners correctos
-    SocketService.on('new_message', handleMessageReceived);
-    SocketService.on('message_received', handleMessageReceived);
-    SocketService.on('message_status_update', handleMessageStatusUpdate);
-    SocketService.on('chat_status_bulk_update', handleBulkUpdate);
-    SocketService.on('message_edited', handleMessageEdited);
-    SocketService.on('message_deleted', handleMessageDeleted);
-    SocketService.on('workspace-member-joined', handleMembersChange);
-    SocketService.on('workspace-member-left', handleMembersChange);
-    SocketService.on('group-member-left', handleMembersChange);
-
-    return () => {
-      SocketService.off('new_message', handleMessageReceived);
-      SocketService.off('message_received', handleMessageReceived);
-      SocketService.off('message_status_update', handleMessageStatusUpdate);
-      SocketService.off('chat_status_bulk_update', handleBulkUpdate);
-      SocketService.off('message_edited', handleMessageEdited);
-      SocketService.off('message_deleted', handleMessageDeleted);
-      SocketService.off('workspace-member-joined', handleMembersChange);
-      SocketService.off('workspace-member-left', handleMembersChange);
-      SocketService.off('group-member-left', handleMembersChange);
-    };
-  }, [currentChatId, loadWorkspaceChat, queryClient]);
 
   const handleLongPress = useCallback((item: MessageMessageType) => {
     const senderIdStr = typeof item.senderId === 'object' ? (item.senderId as any)._id : item.senderId;
-    if (senderIdStr === currentUserId) {
-      setSelectedMsgOptions(item);
-    }
+    if (senderIdStr === currentUserId) setSelectedMsgOptions(item);
   }, [currentUserId]);
-
-
 
   const handleAttachFile = async () => {
     try {
@@ -394,7 +214,6 @@ export default function WorkspaceScreen() {
       if (result.canceled) return;
 
       const asset = result.assets[0];
-
       if (asset.size && asset.size > 5 * 1024 * 1024) {
         Alert.alert('Archivo muy pesado', 'Por favor, selecciona un archivo menor a 5MB.');
         return;
@@ -402,15 +221,13 @@ export default function WorkspaceScreen() {
 
       const safeFileName = asset.name.replace(/[^a-zA-Z0-9.-]/g, '_');
       const safeMimeType = asset.mimeType || 'application/octet-stream';
-
-      const newMsg = await sendFileMessage(currentChatId, asset.uri, safeFileName, safeMimeType);
+      const newMsg = await sendFileMessage(currentChatId!, asset.uri, safeFileName, safeMimeType);
 
       queryClient.setQueryData(['chatMessages', currentChatId], (old: MessageMessageType[] | undefined) => {
         if (!old) return [newMsg];
         return old.some(msg => msg._id === newMsg._id) ? old : [newMsg, ...old];
       });
     } catch (error) {
-      console.error('Error attaching file:', error);
       Alert.alert('Error', 'No se pudo adjuntar el archivo al grupo.');
     }
   };
@@ -427,12 +244,10 @@ export default function WorkspaceScreen() {
         await FileSystem.downloadAsync(message.fileUrl, fileUri);
         await Sharing.shareAsync(fileUri, { UTI: 'public.item' });
       }
-    } catch (error) {
-      console.error('Error opening file:', error);
-    }
+    } catch (error) { console.error('Error opening file:', error); }
   };
 
-  const sendMessage = useCallback(async () => {
+  const sendMessageLocal = useCallback(async () => {
     const cleanedMessage = newMessage.trim();
     if (!cleanedMessage || !currentChatId) return;
 
@@ -444,73 +259,46 @@ export default function WorkspaceScreen() {
         );
         setNewMessage('');
         setEditingMessage(null);
-      } catch {
-        toast.error('Error al editar mensaje');
-      }
+      } catch { toast.error('Error al editar mensaje'); }
       return;
     }
 
-    const msgData = {
-      chatId: currentChatId,
-      content: cleanedMessage,
-      clientTimestamp: new Date().toISOString(),
-    };
-
+    const msgData = { chatId: currentChatId, content: cleanedMessage, clientTimestamp: new Date().toISOString() };
     const localMsg: MessageMessageType = {
-      _id: Date.now().toString(),
-      senderId: currentUserId!,
-      receiverId: currentChatId,
-      contenido: cleanedMessage,
-      createdAt: new Date().toISOString(),
+      _id: Date.now().toString(), senderId: currentUserId!, receiverId: currentChatId,
+      contenido: cleanedMessage, createdAt: new Date().toISOString()
     };
 
-    queryClient.setQueryData(['chatMessages', currentChatId], (old: MessageMessageType[] | undefined) =>
-      old ? [localMsg, ...old] : [localMsg]
-    );
+    queryClient.setQueryData(['chatMessages', currentChatId], (old: MessageMessageType[] | undefined) => old ? [localMsg, ...old] : [localMsg]);
 
     try {
       await api.post('/api/chat/message', msgData);
       setNewMessage('');
       queryClient.invalidateQueries({ queryKey: ['userChats'] });
-    } catch (error) {
-      toast.error('Error enviando mensaje');
-    }
+    } catch (error) { toast.error('Error enviando mensaje'); }
   }, [newMessage, currentChatId, editingMessage, currentUserId, queryClient]);
 
   const startRecording = async () => {
     try {
-      await Audio.requestPermissionsAsync();
-      await Audio.setAudioModeAsync({ allowsRecordingIOS: true, playsInSilentModeIOS: true });
-      const { recording } = await Audio.Recording.createAsync(Audio.RecordingOptionsPresets.HIGH_QUALITY);
-      setRecording(recording);
+      await audioRecorder.record();
       setIsRecording(true);
       startTimeRef.current = Date.now();
       try { require('expo-haptics').impactAsync(); } catch { }
-    } catch (err) {
-      console.error('Error al iniciar grabación', err);
-    }
+    } catch (err) { console.error('Error al iniciar grabación', err); }
   };
 
   const stopRecording = async () => {
-    if (!recording || !currentChatId) return;
+    if (!isRecording || !currentChatId) return;
     setIsRecording(false);
     const elapsed = Date.now() - startTimeRef.current;
-    if (elapsed < 500) {
-      try { await recording.stopAndUnloadAsync(); } catch { }
-      setRecording(null);
-      return;
-    }
+    
     try {
-      try { await recording.stopAndUnloadAsync(); } catch (e) {
-        setRecording(null);
-        return;
-      }
-      const uri = recording.getURI();
-      const duration = elapsed / 1000;
-
-      setRecording(null);
-
+      await audioRecorder.stop();
+      if (elapsed < 500) return; 
+      
+      const uri = audioRecorder.uri;
       if (uri) {
+        const duration = elapsed / 1000;
         const newMsg = await sendAudioMessage(currentChatId, uri, duration);
         queryClient.setQueryData(['chatMessages', currentChatId], (old: MessageMessageType[] | undefined) => {
           if (!old) return [newMsg];
@@ -518,60 +306,38 @@ export default function WorkspaceScreen() {
           return exists ? old : [newMsg, ...old];
         });
       }
-    } catch (error) {
-      console.error('Error enviando audio grupal', error);
-    }
+    } catch (error) { console.error('Error enviando audio grupal', error); }
   };
 
   const handleLeaveGroup = () => {
     Alert.alert('Abandonar grupo', '¿Estás seguro de que deseas salir de este grupo?', [
       { text: 'Cancelar', style: 'cancel' },
-      {
-        text: 'Salir', style: 'destructive', onPress: async () => {
+      { text: 'Salir', style: 'destructive', onPress: async () => {
           try {
-            // 🚀 1. Congelamos las peticiones activas de React Query para este chat
             queryClient.cancelQueries({ queryKey: ['chatMessages', currentChatId] });
-
-            // 🚀 2. Sacamos al usuario inmediatamente de la pantalla (Evasión)
             router.replace('/home');
-
-            // 🚀 3. Ejecutamos la salida en background y limpiamos el caché
             await leaveWorkspace(id);
             queryClient.removeQueries({ queryKey: ['chatMessages', currentChatId] });
             queryClient.invalidateQueries({ queryKey: ['userChats'] });
-
             toast.success('Has salido del grupo');
-          } catch (error: any) {
-            toast.error(error.response?.data?.msg || 'Error al salir del grupo');
-          }
+          } catch (error: any) { toast.error(error.response?.data?.msg || 'Error al salir del grupo'); }
         }
       }
     ]);
   };
 
   const handleDeleteGroup = () => {
-    Alert.alert('Eliminar grupo', 'Esta acción es irreversible. Se borrarán todos los mensajes.', [
+    Alert.alert('Eliminar grupo', 'Esta acción es irreversible.', [
       { text: 'Cancelar', style: 'cancel' },
-      {
-        text: 'Eliminar', style: 'destructive', onPress: async () => {
+      { text: 'Eliminar', style: 'destructive', onPress: async () => {
           try {
-            // 🚀 1. Congelamos cualquier re-fetch fantasma que cause el Error 404
             queryClient.cancelQueries({ queryKey: ['chatMessages', currentChatId] });
-
-            // 🚀 2. Evacuamos la pantalla ANTES de detonar la orden en la base de datos
             router.replace('/home');
-
-            // 🚀 3. Detonación en background
             await deleteGroupChat(currentChatId!);
-
-            // 🚀 4. Borramos el historial del caché local
             queryClient.removeQueries({ queryKey: ['chatMessages', currentChatId] });
             queryClient.invalidateQueries({ queryKey: ['userChats'] });
-
             toast.success('Grupo eliminado correctamente');
-          } catch (error: any) {
-            toast.error(error.response?.data?.msg || 'Error al eliminar el grupo');
-          }
+          } catch (error: any) { toast.error(error.response?.data?.msg || 'Error al eliminar el grupo'); }
         }
       }
     ]);
@@ -583,7 +349,6 @@ export default function WorkspaceScreen() {
     const senderNameStr = isSenderObject ? (item.senderId as any).name : getMemberName(senderIdStr);
     const isSent = senderIdStr === String(currentUserId);
     const isOnline = onlineUsers.includes(senderIdStr);
-
     const isSeparator = item._id === unreadSeparatorId;
 
     return (
@@ -608,7 +373,7 @@ export default function WorkspaceScreen() {
           onLongPress={handleLongPress}
           onOpenFile={handleOpenFile}
           totalParticipants={members.length}
-          AudioPlayerComponent={AudioPlayer}
+          AudioPlayerComponent={AudioPlayer} 
           isGroupChat={true}
           chatParticipants={members}
         />
@@ -616,9 +381,6 @@ export default function WorkspaceScreen() {
     );
   };
 
-
-
-  // Lógica de Wrapper Dinámico
   const wallpaperUrl = user?.preferences?.phoneWallpaperUrl;
   const RootWrapper = wallpaperUrl ? ImageBackground : (View as any);
   const wrapperProps = wallpaperUrl
@@ -627,11 +389,7 @@ export default function WorkspaceScreen() {
 
   return (
     <RootWrapper {...wrapperProps as any}>
-      <KeyboardAvoidingView
-        style={styles.container}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={0}
-      >
+      <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={0}>
         <View style={styles.header}>
           <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
             <Feather name="chevron-left" size={24} color="#333" />
@@ -648,15 +406,7 @@ export default function WorkspaceScreen() {
             </View>
             <Text style={styles.headerTitle}>{name}</Text>
           </View>
-          <TouchableOpacity
-            onPress={() =>
-              router.push({
-                pathname: '/workspace/invite',
-                params: { workspaceId: id },
-              })
-            }
-            style={styles.inviteButton}
-          >
+          <TouchableOpacity onPress={() => router.push({ pathname: '/workspace/invite', params: { workspaceId: id } })} style={styles.inviteButton}>
             <Feather name="user-plus" size={20} color="#007AFF" />
           </TouchableOpacity>
         </View>
@@ -666,7 +416,6 @@ export default function WorkspaceScreen() {
             <View style={styles.membersAvatars}>
               {members.slice(0, 5).map((member) => {
                 const memberData = member.userId || member;
-                // 2. Evaluación corregida con extractId
                 const isOnline = onlineUsers.includes(extractId(memberData._id));
                 return (
                   <View key={extractId(memberData._id)} style={styles.memberAvatarWrapper}>
@@ -703,12 +452,8 @@ export default function WorkspaceScreen() {
                 </View>
               ) : (
                 <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-                  <Text style={{ color: '#999', fontSize: 16, textAlign: 'center' }}>
-                    Aún no hay mensajes en este escritorio
-                  </Text>
-                  <View style={{ marginTop: 10 }}>
-                    <Feather name="message-square" size={32} color="#ccc" />
-                  </View>
+                  <Text style={{ color: '#999', fontSize: 16, textAlign: 'center' }}>Aún no hay mensajes en este escritorio</Text>
+                  <View style={{ marginTop: 10 }}><Feather name="message-square" size={32} color="#ccc" /></View>
                 </View>
               )
             }
@@ -721,7 +466,7 @@ export default function WorkspaceScreen() {
         <ChatInput
           content={newMessage}
           setContent={setNewMessage}
-          onSend={sendMessage}
+          onSend={sendMessageLocal}
           onAttach={handleAttachFile}
           isRecording={isRecording}
           onStartRecord={startRecording}
@@ -729,7 +474,6 @@ export default function WorkspaceScreen() {
           isEditing={!!editingMessage}
           onCancelEdit={() => { setEditingMessage(null); setNewMessage(''); }}
         />
-        {/* Toast reemplazado por Toaster global en _layout.tsx */}
 
         <Modal visible={!!selectedMsgOptions} transparent animationType="fade">
           <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setSelectedMsgOptions(null)}>
@@ -826,14 +570,10 @@ export default function WorkspaceScreen() {
                             {memberData.name || memberData.username || 'Usuario'}
                             {String(memberData._id) === String(currentUserId) && ' (Tú)'}
                           </Text>
-                          <Text style={{ fontSize: 12, color: isOnline ? '#2E7D32' : '#999' }}>
-                            {isOnline ? 'En línea' : 'Desconectado'}
-                          </Text>
+                          <Text style={{ fontSize: 12, color: isOnline ? '#2E7D32' : '#999' }}>{isOnline ? 'En línea' : 'Desconectado'}</Text>
                         </View>
                       </View>
-                      {String(memberData._id) !== String(currentUserId) && (
-                        <Feather name="message-circle" size={20} color="#007AFF" />
-                      )}
+                      {String(memberData._id) !== String(currentUserId) && <Feather name="message-circle" size={20} color="#007AFF" />}
                     </TouchableOpacity>
                   );
                 }}
@@ -860,162 +600,30 @@ export default function WorkspaceScreen() {
 type MessageMessageType = ChatMessageType;
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: 'transparent',
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingTop: 50,
-    paddingHorizontal: 16,
-    paddingBottom: 12,
-    backgroundColor: '#fff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
-  },
-  backButton: {
-    padding: 8,
-  },
-  headerCenter: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-    justifyContent: 'center',
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#333',
-    marginLeft: 8,
-  },
-  groupAvatarContainer: {
-    position: 'relative',
-    marginRight: 8,
-  },
-  groupAvatar: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-  },
-  groupAvatarPlaceholder: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#E3F2FD',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  inviteButton: {
-    padding: 8,
-  },
-  membersBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    backgroundColor: '#fff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
-  },
-  membersAvatars: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  memberAvatarWrapper: {
-    marginRight: -6,
-    position: 'relative',
-  },
-  memberAvatar: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 2,
-    borderColor: '#fff',
-  },
-  onlineDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: '#4CAF50',
-    borderWidth: 2,
-    borderColor: '#fff',
-    position: 'absolute',
-    bottom: -2,
-    right: -2,
-  },
-  onlineText: {
-    fontSize: 13,
-    color: '#888',
-  },
-  moreMembersText: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: '#666',
-  },
-  messagesList: {
-    paddingHorizontal: 16,
-    paddingBottom: 16,
-    flexGrow: 1,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  emptyContainer: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  emptyText: {
-    fontSize: 16,
-    color: '#999',
-    marginTop: 12,
-  },
-  emptySubtext: {
-    fontSize: 14,
-    color: '#bbb',
-    marginTop: 4,
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  modalContent: {
-    width: '80%',
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
-    elevation: 5,
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginBottom: 16,
-    color: '#333',
-    textAlign: 'center',
-  },
-  modalButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
-  },
-  modalButtonText: {
-    fontSize: 16,
-    marginLeft: 12,
-    color: '#007AFF',
-  },
+  container: { flex: 1, backgroundColor: 'transparent' },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingTop: 50, paddingHorizontal: 16, paddingBottom: 12, backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#e0e0e0' },
+  backButton: { padding: 8 },
+  headerCenter: { flexDirection: 'row', alignItems: 'center', flex: 1, justifyContent: 'center' },
+  headerTitle: { fontSize: 18, fontWeight: '600', color: '#333', marginLeft: 8 },
+  groupAvatarContainer: { position: 'relative', marginRight: 8 },
+  groupAvatar: { width: 36, height: 36, borderRadius: 18 },
+  groupAvatarPlaceholder: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#E3F2FD', justifyContent: 'center', alignItems: 'center' },
+  inviteButton: { padding: 8 },
+  membersBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 10, backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#e0e0e0' },
+  membersAvatars: { flexDirection: 'row', alignItems: 'center' },
+  memberAvatarWrapper: { marginRight: -6, position: 'relative' },
+  memberAvatar: { width: 32, height: 32, borderRadius: 16, justifyContent: 'center', alignItems: 'center', borderWidth: 2, borderColor: '#fff' },
+  onlineDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: '#4CAF50', borderWidth: 2, borderColor: '#fff', position: 'absolute', bottom: -2, right: -2 },
+  onlineText: { fontSize: 13, color: '#888' },
+  moreMembersText: { fontSize: 11, fontWeight: '600', color: '#666' },
+  messagesList: { paddingHorizontal: 16, paddingBottom: 16, flexGrow: 1 },
+  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  emptyContainer: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  emptyText: { fontSize: 16, color: '#999', marginTop: 12 },
+  emptySubtext: { fontSize: 14, color: '#bbb', marginTop: 4 },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' },
+  modalContent: { width: '80%', backgroundColor: '#fff', borderRadius: 12, padding: 16, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.25, shadowRadius: 4, elevation: 5 },
+  modalTitle: { fontSize: 18, fontWeight: 'bold', marginBottom: 16, color: '#333', textAlign: 'center' },
+  modalButton: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#f0f0f0' },
+  modalButtonText: { fontSize: 16, marginLeft: 12, color: '#007AFF' },
 });

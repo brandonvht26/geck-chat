@@ -7,7 +7,13 @@ import { useUserChats } from '@/src/hooks/queries/useUserChats';
 import { SocketService } from '@/src/services/socket.service';
 import { useQueryClient } from '@tanstack/react-query';
 
-export default function ChatList() {
+// 🚀 Recibimos el término de búsqueda desde el Home
+interface ChatListProps {
+  activeTab: 'privados' | 'workspaces';
+  searchTerm: string; 
+}
+
+export default function ChatList({ activeTab, searchTerm }: ChatListProps) {
   const router = useRouter();
   const { user } = useAuth();
   const currentUserId = user?._id;
@@ -17,10 +23,7 @@ export default function ChatList() {
 
   useEffect(() => {
     const handleGlobalUpdate = (payload: any) => {
-      // 1. Refrescamos la lista de chats automáticamente
       queryClient.invalidateQueries({ queryKey: ['userChats'] });
-      
-      // 2. Si el evento trae un chatId, invalidamos la caché interna de ese chat
       const targetChatId = payload?.chatId || payload?.workspaceId || payload?.roomId;
       if (targetChatId) {
         queryClient.invalidateQueries({ queryKey: ['chatMessages', targetChatId] });
@@ -29,34 +32,24 @@ export default function ChatList() {
 
     const handleMessageReceived = (payload: any) => {
       handleGlobalUpdate(payload);
-
-      // Firma de recibido en segundo plano
       if (payload && payload.chatId && currentUserId) {
         const senderIdStr = typeof payload.senderId === 'object' ? payload.senderId._id : payload.senderId;
         if (String(senderIdStr) !== String(currentUserId)) {
-          SocketService.emit('mark_delivered', {
-            messageId: payload._id,
-            chatId: payload.chatId,
-            userId: currentUserId
-          });
+          SocketService.emit('mark_delivered', { messageId: payload._id, chatId: payload.chatId, userId: currentUserId });
         }
       }
     };
 
-    // 🚀 SUSCRIPCIONES A EVENTOS GLOBALES (Antenas activadas)
     SocketService.on('message_received', handleMessageReceived);
     SocketService.on('chat_read', handleGlobalUpdate);
     SocketService.on('chat_deleted', handleGlobalUpdate);
     SocketService.on('new_chat_created', handleGlobalUpdate);
     SocketService.on('message_status_update', handleGlobalUpdate);
     SocketService.on('chat_status_bulk_update', handleGlobalUpdate);
-    
-    // 🚀 NUEVO: Escuchadores para cuando te unes a un grupo externamente (email)
     SocketService.on('workspace-member-joined', handleGlobalUpdate);
     SocketService.on('workspace_joined', handleGlobalUpdate);
 
     return () => {
-      // Limpieza de antenas al desmontar el componente
       SocketService.off('message_received', handleMessageReceived);
       SocketService.off('chat_read', handleGlobalUpdate);
       SocketService.off('chat_deleted', handleGlobalUpdate);
@@ -67,6 +60,27 @@ export default function ChatList() {
       SocketService.off('workspace_joined', handleGlobalUpdate);
     };
   }, [queryClient, currentUserId]);
+
+  // 🚀 EL FILTRO MÁGICO DOBLE: Por pestaña y por texto
+  const filteredChats = chats.filter((chat) => {
+    // 1. Filtro de Pestaña
+    if (activeTab === 'privados' && chat.isGroup) return false;
+    if (activeTab === 'workspaces' && !chat.isGroup) return false;
+
+    // 2. Filtro de Búsqueda (Sensible a mayúsculas y minúsculas)
+    if (searchTerm.trim() !== '') {
+        const otherUser = chat.isGroup ? null : chat.participants?.find((p: any) => (p?._id || p) !== user?._id);
+        const displayTitle = chat.isGroup
+            ? chat.workspaceId?.name || 'Grupo sin nombre'
+            : otherUser?.name || otherUser?.username || 'Usuario';
+        
+        if (!displayTitle.toLowerCase().includes(searchTerm.toLowerCase())) {
+            return false;
+        }
+    }
+
+    return true;
+  });
 
   if (isLoading && !isRefetching) {
     return (
@@ -79,13 +93,31 @@ export default function ChatList() {
   return (
     <View className="flex-1 bg-white dark:bg-authEnd-dark">
       <FlatList
-        data={chats}
+        data={filteredChats}
         refreshing={isRefetching}
         onRefresh={refetch}
         ListEmptyComponent={
-          <Text className="text-center mt-5 text-gray-500 dark:text-gray-400">
-            No tienes conversaciones
-          </Text>
+          <View className="flex-1 justify-center items-center mt-20 px-8">
+            <View className="w-20 h-20 rounded-full bg-primary/10 dark:bg-primary-dark/20 justify-center items-center mb-6">
+                <Feather 
+                    name={searchTerm ? 'search' : (activeTab === 'privados' ? 'message-circle' : 'briefcase')} 
+                    size={36} 
+                    className="text-primary dark:text-primary-dark" 
+                />
+            </View>
+            <Text className="text-center text-lg font-nunito-bold text-textMain dark:text-textMain-dark mb-2">
+                {searchTerm 
+                  ? 'No hay resultados' 
+                  : (activeTab === 'privados' ? 'Sin mensajes recientes' : 'Sin Workspaces')}
+            </Text>
+            <Text className="text-center text-gray-500 dark:text-gray-400 font-nunito-regular leading-6">
+                {searchTerm
+                  ? `No encontramos nada que coincida con "${searchTerm}".`
+                  : (activeTab === 'privados' 
+                    ? 'Willy está descansando 🦎.\n¡Busca a alguien e inicia una conversación!' 
+                    : 'Willy no tiene equipos asignados 🦎.\nCrea un workspace para colaborar sin límites.')}
+            </Text>
+          </View>
         }
         keyExtractor={(item, index) => item._id ? item._id.toString() : index.toString()}
         renderItem={({ item }) => {
@@ -124,7 +156,8 @@ export default function ChatList() {
 
           return (
             <TouchableOpacity
-              className="flex-row p-4 items-center border-b border-gray-200 dark:border-gray-800"
+              activeOpacity={0.7}
+              className="flex-row p-4 items-center border-b border-gray-100 dark:border-gray-800/60"
               onPress={() => {
                 if (currentUserId) {
                   queryClient.setQueryData(['userChats'], (oldChats: any[]) => {
@@ -148,17 +181,17 @@ export default function ChatList() {
               {imageUrl ? (
                 <Image
                   source={{ uri: imageUrl }}
-                  className="w-12 h-12 rounded-full mr-4"
+                  className="w-14 h-14 rounded-full mr-4 border border-gray-200 dark:border-gray-700"
                   resizeMode="cover"
                 />
               ) : (
-                <View className={`w-12 h-12 rounded-full justify-center items-center mr-4 ${item.isGroup ? 'bg-primary/20 dark:bg-primary-dark/30' : 'bg-gray-100 dark:bg-gray-800'}`}>
-                  <Feather name={item.isGroup ? "users" : "user"} size={24} color={item.isGroup ? "#2A72D4" : "#757575"} />
+                <View className={`w-14 h-14 rounded-full justify-center items-center mr-4 border border-transparent ${item.isGroup ? 'bg-primary/10 dark:bg-primary-dark/20 border-primary/20' : 'bg-gray-100 dark:bg-zinc-800 border-gray-200 dark:border-zinc-700'}`}>
+                  <Feather name={item.isGroup ? "users" : "user"} size={24} color={item.isGroup ? "#2A72D4" : "#9CA3AF"} />
                 </View>
               )}
 
               <View className="flex-1">
-                <Text className="text-base font-semibold text-textMain dark:text-textMain-dark">
+                <Text className="text-base font-nunito-bold text-textMain dark:text-textMain-dark" numberOfLines={1}>
                   {displayTitle}
                 </Text>
                 <Text className="text-sm text-gray-500 dark:text-gray-400 mt-1" numberOfLines={1}>
@@ -171,7 +204,7 @@ export default function ChatList() {
 
               <View className="items-end justify-center ml-3">
                 {item.updatedAt && (
-                  <Text className="text-xs text-gray-500 dark:text-gray-400 mb-1">
+                  <Text className="text-xs font-snpro-regular text-gray-400 dark:text-gray-500 mb-1.5">
                     {new Date(item.updatedAt).toLocaleTimeString([], {
                       hour: '2-digit',
                       minute: '2-digit'
@@ -179,15 +212,13 @@ export default function ChatList() {
                   </Text>
                 )}
                 {unreadCount > 0 && (
-                  <View className="bg-green-500 h-5 min-w-[20px] rounded-full items-center justify-center px-1.5">
-                    <Text className="text-white text-xs font-bold">
+                  <View className="bg-green-500 min-w-[22px] h-[22px] rounded-full items-center justify-center px-1.5 shadow-sm shadow-green-500/30">
+                    <Text className="text-white text-xs font-snpro-bold">
                       {unreadCount > 99 ? '99+' : unreadCount}
                     </Text>
                   </View>
                 )}
               </View>
-
-              <Feather name="chevron-right" size={20} className="text-gray-400 dark:text-gray-600 ml-2" />
             </TouchableOpacity>
           );
         }}

@@ -9,7 +9,7 @@ import { useFonts } from 'expo-font';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useColorScheme } from 'nativewind';
 import * as SplashScreen from 'expo-splash-screen';
-import { SafeAreaProvider } from 'react-native-safe-area-context'; // 🚀 NUEVA IMPORTACIÓN
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -69,6 +69,7 @@ function RootLayoutContent() {
         theme={colorScheme === 'dark' ? 'dark' : 'light'}
         position="top-center"
         offset={50}
+        duration={1500} // 🚀 El estándar de 1.5 segundos
         toastOptions={{
           titleStyle: { fontFamily: 'Nunito-Bold' },
           descriptionStyle: { fontFamily: 'Nunito-Regular' }
@@ -80,7 +81,6 @@ function RootLayoutContent() {
 
 export default function RootLayout() {
   return (
-    // 🚀 ENVOLVEMOS LA RAÍZ CON EL PROVEEDOR DE ÁREAS SEGURAS
     <SafeAreaProvider>
       <QueryClientProvider client={queryClient}>
         <AuthProvider>

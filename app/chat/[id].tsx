@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { View, FlatList, KeyboardAvoidingView, Platform, Alert, Modal, TouchableOpacity, Text, StyleSheet, ActivityIndicator, ImageBackground } from 'react-native';
 import { Feather } from '@expo/vector-icons';
-import { Audio } from 'expo-av';
+import { useAudioRecorder, RecordingOptions } from 'expo-audio'; // 🚀 Opciones importadas
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Stack, useRouter, useLocalSearchParams } from 'expo-router';
 import * as DocumentPicker from 'expo-document-picker';
@@ -13,78 +13,27 @@ import { sendMessage, sendFileMessage, sendAudioMessage, editMessage, deleteMess
 import { SocketService } from '@/src/services/socket.service';
 import { useAuth } from '@/src/hooks/useAuth';
 import { useSocket } from '@/src/context/SocketContext';
+import { useChatSocket } from '@/src/hooks/useChatSocket'; 
 import { UserAvatar } from '@/src/components/ui/UserAvatar';
 import MessageBubble from '@/src/components/chat/MessageBubble';
 import ChatInput from '@/src/components/chat/ChatInput';
 import { useUserChats } from '@/src/hooks/queries/useUserChats';
 import { api } from '@/src/services/api';
-
-const AudioPlayer = ({ fileUrl, isSent }: { fileUrl: string, isSent: boolean }) => {
-  const [sound, setSound] = useState<Audio.Sound | null>(null);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [durationText, setDurationText] = useState("0:00");
-
-  async function playSound() {
-    try {
-      if (sound) {
-        if (isPlaying) { 
-          await sound.pauseAsync(); 
-          setIsPlaying(false); 
-        } else { 
-          const status = await sound.getStatusAsync();
-          if (status.isLoaded && status.positionMillis === status.durationMillis) {
-            await sound.setPositionAsync(0);
-          }
-          await sound.playAsync(); 
-          setIsPlaying(true); 
-        }
-      } else {
-        const { sound: newSound } = await Audio.Sound.createAsync(
-          { uri: fileUrl }, 
-          { shouldPlay: true, isLooping: false }
-        );
-        setSound(newSound); 
-        setIsPlaying(true);
-        
-        newSound.setOnPlaybackStatusUpdate((status: any) => {
-          if (status.isLoaded) {
-            if (status.durationMillis) {
-              const totalSeconds = Math.floor(status.durationMillis / 1000);
-              const minutes = Math.floor(totalSeconds / 60);
-              const seconds = totalSeconds % 60;
-              setDurationText(`${minutes}:${seconds < 10 ? '0' : ''}${seconds}`);
-            }
-            if (status.didJustFinish) { 
-              setIsPlaying(false); 
-              newSound.setPositionAsync(0);
-              newSound.pauseAsync();
-            }
-          }
-        });
-      }
-    } catch (error) {
-      console.error("Error reproduciendo audio:", error);
-    }
-  }
-
-  useEffect(() => { 
-    return () => { if (sound) { sound.unloadAsync(); } }; 
-  }, [sound]);
-
-  return (
-    <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: isSent ? 'rgba(255,255,255,0.2)' : '#f0f0f0', padding: 8, borderRadius: 20, minWidth: 120 }} onPress={playSound}>
-      <Feather name={isPlaying ? "pause" : "play"} size={24} color={isSent ? '#fff' : '#007AFF'} />
-      <View style={{ flex: 1, height: 2, backgroundColor: isSent ? '#fff' : '#007AFF', marginHorizontal: 8 }} />
-      <Text style={{ fontSize: 12, color: isSent ? '#fff' : '#666', fontWeight: '500' }}>{durationText}</Text>
-    </TouchableOpacity>
-  );
-};
+import AudioPlayer from '@/src/components/chat/AudioPlayer';
 
 const extractId = (obj: any): string => {
   if (!obj) return '';
   if (typeof obj === 'string') return obj;
   if (typeof obj === 'object' && obj._id) return String(obj._id);
   return String(obj);
+};
+
+// 🚀 OPCIONES OBLIGATORIAS DE EXPO AUDIO (Evita el crash de "extension undefined")
+const audioOptions: RecordingOptions = {
+  extension: '.m4a',
+  sampleRate: 44100,
+  numberOfChannels: 2,
+  bitRate: 128000,
 };
 
 export default function ChatRoomScreen() {
@@ -99,21 +48,31 @@ export default function ChatRoomScreen() {
   const { user } = useAuth();
   const { onlineUsers } = useSocket();
   const { data: chats } = useUserChats();
+  
   const currentChat = chats?.find(c => c._id === id);
   const otherUser = currentChat?.isGroup ? null : currentChat?.participants?.find(
     (p: any) => (p?._id || p) !== user?._id
   );
   const isOtherOnline = onlineUsers.includes(otherUser?._id || '');
+  
   const [editingMessage, setEditingMessage] = useState<any | null>(null);
   const [selectedMsgOptions, setSelectedMsgOptions] = useState<any | null>(null);
-  const [recording, setRecording] = useState<Audio.Recording | null>(null);
+  
+  // 🚀 Inyectamos la configuración
+  const audioRecorder = useAudioRecorder(audioOptions);
   const [isRecording, setIsRecording] = useState(false);
   const startTimeRef = useRef(0);
+  
   const hasMarkedRead = useRef(false);
   const [unreadSeparatorId, setUnreadSeparatorId] = useState<string | null>(null);
   const [hasScrolled, setHasScrolled] = useState(false);
 
   useEffect(() => { if (user) setCurrentUserId(user._id); }, [user]);
+
+  useChatSocket({
+    chatId: id as string,
+    currentUserId: currentUserId,
+  });
 
   useEffect(() => {
     if (id) SocketService.emit('join_chat', id as string);
@@ -155,101 +114,7 @@ export default function ChatRoomScreen() {
     }, 800);
 
     return () => clearTimeout(timer);
-
   }, [id, currentUserId, queryClient, messages.length]);
-
-  useEffect(() => {
-    if (!id || !currentUserId) return;
-
-    const handleMessageReceived = (payload: any) => {
-      const incomingChatId = extractId(payload.chatId || payload.workspaceId || payload.roomId);
-      if (incomingChatId !== String(id)) return;
-
-      const message: ChatMessage = {
-        _id: payload._id || Date.now().toString(),
-        senderId: payload.senderId,
-        receiverId: payload.chatId,
-        contenido: payload.content,
-        createdAt: payload.createdAt,
-      } as ChatMessage;
-
-      queryClient.setQueryData(['chatMessages', id], (old: ChatMessage[] | undefined) => {
-        if (!old) return [message];
-        const exists = old.some(msg => msg._id === message._id);
-        return exists ? old : [message, ...old];
-      });
-
-      const senderStr = extractId(payload.senderId);
-      if (senderStr !== String(currentUserId)) {
-        SocketService.emit('mark_read', { chatId: id, userId: currentUserId });
-      }
-
-      queryClient.invalidateQueries({ queryKey: ['userChats'] });
-    };
-
-    const handleMessageStatusUpdate = (payload: any) => {
-      queryClient.setQueryData(['chatMessages', id], (old: ChatMessage[] | undefined) => {
-        if (!old) return [];
-        return old.map(msg => msg._id === payload.messageId
-          ? { ...msg, deliveredTo: payload.deliveredTo, readBy: payload.readBy }
-          : msg
-        );
-      });
-    };
-
-    const handleBulkUpdate = (payload: any) => {
-      queryClient.setQueryData(['chatMessages', id], (old: ChatMessage[] | undefined) => {
-        if (!old) return [];
-        return old.map(msg => {
-          const updatedMsg = payload.updatedMessages?.find((u: any) => u._id === msg._id);
-          if (updatedMsg) {
-            return {
-              ...msg,
-              readBy: updatedMsg.readBy || msg.readBy,
-              deliveredTo: updatedMsg.deliveredTo || msg.deliveredTo
-            };
-          }
-          return msg;
-        });
-      });
-    };
-
-    const handleMessageEdited = (payload: any) => {
-      queryClient.setQueryData(['chatMessages', id], (old: ChatMessage[] | undefined) => {
-        if (!old) return [];
-        return old.map(msg => msg._id === payload._id
-          ? { ...msg, contenido: payload.content || payload.contenido, isEdited: true }
-          : msg
-        );
-      });
-    };
-
-    const handleMessageDeleted = (payload: any) => {
-      queryClient.setQueryData(['chatMessages', id], (old: ChatMessage[] | undefined) => {
-        if (!old) return [];
-        return old.map(msg => msg._id === payload.messageId
-          ? { ...msg, contenido: 'Mensaje eliminado', isDeleted: true }
-          : msg
-        );
-      });
-    };
-
-    SocketService.on('new_message', handleMessageReceived);
-    SocketService.on('message_received', handleMessageReceived);
-    SocketService.on('message_status_update', handleMessageStatusUpdate);
-    SocketService.on('chat_status_bulk_update', handleBulkUpdate);
-    SocketService.on('message_edited', handleMessageEdited);
-    SocketService.on('message_deleted', handleMessageDeleted);
-
-    return () => {
-      SocketService.off('new_message', handleMessageReceived);
-      SocketService.off('message_received', handleMessageReceived);
-      SocketService.off('message_status_update', handleMessageStatusUpdate);
-      SocketService.off('chat_status_bulk_update', handleBulkUpdate);
-      SocketService.off('message_edited', handleMessageEdited);
-      SocketService.off('message_deleted', handleMessageDeleted);
-    };
-  }, [id, queryClient, currentUserId]);
 
   useEffect(() => {
     if (messages.length > 0 && !unreadSeparatorId && currentUserId) {
@@ -270,19 +135,12 @@ export default function ChatRoomScreen() {
 
       if (foundUnreadId) {
         setUnreadSeparatorId(foundUnreadId);
-        
         setTimeout(() => {
           if (flatListRef.current && !hasScrolled) {
             try {
-              flatListRef.current.scrollToIndex({
-                index: foundIndex,
-                animated: true,
-                viewPosition: 0.1
-              });
+              flatListRef.current.scrollToIndex({ index: foundIndex, animated: true, viewPosition: 0.1 });
               setHasScrolled(true);
-            } catch (e) {
-              console.log('Fallo silencioso de scroll', e);
-            }
+            } catch (e) { console.log('Fallo silencioso de scroll', e); }
           }
         }, 300);
       } else {
@@ -316,14 +174,11 @@ export default function ChatRoomScreen() {
       if (result.canceled) return;
       
       const asset = result.assets[0];
-      
-      // Validación de tamaño (Límite 5MB)
       if (asset.size && asset.size > 5 * 1024 * 1024) {
         Alert.alert('Archivo muy pesado', 'Por favor, selecciona un archivo menor a 5MB.');
         return;
       }
 
-      // Limpieza de propiedades para evitar que el backend colapse (Error 500)
       const safeFileName = asset.name.replace(/[^a-zA-Z0-9.-]/g, '_');
       const safeMimeType = asset.mimeType || 'application/octet-stream';
 
@@ -335,7 +190,6 @@ export default function ChatRoomScreen() {
       });
       queryClient.invalidateQueries({ queryKey: ['userChats'] });
     } catch (error) { 
-      console.error('Error attaching file:', error); 
       Alert.alert('Error', 'No se pudo adjuntar el archivo al chat.');
     }
   };
@@ -358,40 +212,31 @@ export default function ChatRoomScreen() {
 
   const startRecording = async () => {
     try {
-      await Audio.requestPermissionsAsync();
-      await Audio.setAudioModeAsync({ allowsRecordingIOS: true, playsInSilentModeIOS: true });
-      const { recording } = await Audio.Recording.createAsync(Audio.RecordingOptionsPresets.HIGH_QUALITY);
-      setRecording(recording); setIsRecording(true);
+      await audioRecorder.record();
+      setIsRecording(true);
       startTimeRef.current = Date.now();
       try { require('expo-haptics').impactAsync(); } catch {}
     } catch (err) { console.error('Failed to start recording', err); }
   };
 
   const stopRecording = async () => {
-    if (!recording) return;
+    if (!isRecording) return;
     setIsRecording(false);
     const elapsed = Date.now() - startTimeRef.current;
-    if (elapsed < 500) {
-      try { await recording.stopAndUnloadAsync(); } catch {}
-      setRecording(null);
-      return;
-    }
+    
     try {
-      try { await recording.stopAndUnloadAsync(); } catch (e) {
-        setRecording(null);
-        return;
-      }
-      const uri = recording.getURI();
-      const duration = elapsed / 1000;
-      setRecording(null);
+      await audioRecorder.stop();
+      if (elapsed < 500) return; 
+      
+      const uri = audioRecorder.uri;
       if (uri && id) {
+        const duration = elapsed / 1000;
         const newMsg = await sendAudioMessage(id as string, uri, duration);
         queryClient.setQueryData(['chatMessages', id], (old: ChatMessage[] | undefined) => old ? (old.some(msg => msg._id === newMsg._id) ? old : [newMsg, ...old]) : [newMsg]);
       }
     } catch (error) { console.error('Error enviando audio', error); }
   };
 
-  // Lógica de Wrapper Dinámico
   const wallpaperUrl = user?.preferences?.phoneWallpaperUrl;
   const RootWrapper = wallpaperUrl ? ImageBackground : (View as any);
   const wrapperProps = wallpaperUrl
@@ -418,12 +263,8 @@ export default function ChatRoomScreen() {
                 </TouchableOpacity>
                 <UserAvatar uri={avatarSrc} size={38} />
                 <View>
-                  <Text className="text-white font-semibold text-base">
-                    {displayName}
-                  </Text>
-                  <Text className="text-gray-400 text-xs">
-                    {isOtherOnline ? 'En línea' : 'Desconectado'}
-                  </Text>
+                  <Text className="text-white font-semibold text-base">{displayName}</Text>
+                  <Text className="text-gray-400 text-xs">{isOtherOnline ? 'En línea' : 'Desconectado'}</Text>
                 </View>
               </View>
             );
@@ -464,9 +305,7 @@ export default function ChatRoomScreen() {
                 <View className="flex-row items-center justify-center my-4 opacity-90">
                   <View className="flex-1 h-[1px] bg-indigo-200 dark:bg-indigo-900/50" />
                   <View className="bg-indigo-50 dark:bg-indigo-900/40 px-4 py-1.5 rounded-full mx-3 border border-indigo-200/60 dark:border-indigo-800/60 shadow-sm">
-                    <Text className="text-[10px] text-indigo-600 dark:text-indigo-400 font-bold uppercase tracking-widest">
-                      Mensajes no leídos
-                    </Text>
+                    <Text className="text-[10px] text-indigo-600 dark:text-indigo-400 font-bold uppercase tracking-widest">Mensajes no leídos</Text>
                   </View>
                   <View className="flex-1 h-[1px] bg-indigo-200 dark:bg-indigo-900/50" />
                 </View>
@@ -536,8 +375,6 @@ export default function ChatRoomScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: 'transparent' },
-  emptyContainer: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  emptyText: { fontSize: 16, color: '#999', marginTop: 12 },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' },
   modalContent: { width: '80%', backgroundColor: '#fff', borderRadius: 12, padding: 16, elevation: 5 },
   modalTitle: { fontSize: 18, fontWeight: 'bold', marginBottom: 16, color: '#333', textAlign: 'center' },
