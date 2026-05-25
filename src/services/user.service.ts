@@ -51,17 +51,13 @@ export const updatePushToken = async (token: string): Promise<void> => {
 
 export const updateUserPreferences = async (theme?: string, phoneWallpaperUri?: string, avatarUri?: string) => {
   try {
-    // CASO A: Si NO hay imágenes, enviamos un JSON puro.
+    // CASO A: Si NO hay imágenes, enviamos un JSON puro usando tu instancia api
     if (!phoneWallpaperUri && !avatarUri) {
-      const token = await getToken(); // 1. Obtenemos el token
-      const response = await api.patch('/api/users/preferences', 
-        { theme }, 
-        { headers: { Authorization: `Bearer ${token}` } } // 2. Inyectamos el gafete a la fuerza
-      );
+      const response = await api.patch('/api/users/preferences', { theme });
       return response.data;
     }
 
-    // CASO B: Si hay imágenes, usamos FormData y el fetch nativo del celular.
+    // CASO B: Si hay imágenes, usamos FormData y Axios.
     const formData = new FormData();
     if (theme) formData.append('theme', theme);
 
@@ -83,24 +79,15 @@ export const updateUserPreferences = async (theme?: string, phoneWallpaperUri?: 
       } as any);
     }
 
-    const token = await getToken();
-    const baseURL = api.defaults.baseURL || 'http://localhost:3000';
-
-    const response = await fetch(`${baseURL}/api/users/preferences`, {
-      method: 'PATCH',
-      body: formData,
+    // 🚀 Usamos Axios (api). Él inyecta el token automáticamente por el interceptor 
+    // y maneja el Content-Type multipart de forma nativa sin romper la red.
+    const response = await api.patch('/api/users/preferences', formData, {
       headers: {
-        Authorization: `Bearer ${token}`,
-        // OMITIR Content-Type para que fetch genere el boundary correctamente
+        'Content-Type': 'multipart/form-data',
       },
     });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Error ${response.status}: ${errorText}`);
-    }
-
-    return await response.json();
+    return response.data;
   } catch (error) {
     console.error('Error actualizando preferencias:', error);
     throw error;

@@ -55,7 +55,7 @@ export default function ChatInput({
 }: ChatInputProps) {
   const hasContent = content.trim().length > 0;
   const { colorScheme } = useColorScheme();
-  const insets = useSafeAreaInsets(); // 🚀 Extraemos las medidas del dispositivo
+  const insets = useSafeAreaInsets();
   const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
 
   useEffect(() => {
@@ -69,7 +69,6 @@ export default function ChatInput({
   }, []);
 
   return (
-    // 🚀 paddingBottom dinámico: Se separa de la barra home de iOS/Android; se elimina cuando el teclado está abierto
     <View 
         style={{ paddingBottom: isKeyboardVisible ? 12 : Math.max(insets.bottom, 12), paddingTop: 8 }} 
         className="flex-row items-end px-3 bg-transparent w-full"

@@ -347,7 +347,7 @@ export default function WorkspaceScreen() {
       </View>
 
       <ImageBackground source={imageSource} resizeMode="cover" style={{ flex: 1 }}>
-        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top + 50 : 0}>
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top + 56 : 0}>
           
           {/* Barra de Miembros Online */}
           {members.length > 0 && (
