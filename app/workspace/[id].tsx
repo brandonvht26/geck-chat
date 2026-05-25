@@ -34,7 +34,7 @@ import { leaveWorkspace } from '@/src/services/workspace.service';
 import { UserAvatar } from '@/src/components/ui/UserAvatar';
 import MessageBubble from '@/src/components/chat/MessageBubble';
 import ChatInput from '@/src/components/chat/ChatInput';
-import AudioPlayer from '@/src/components/chat/AudioPlayer'; 
+import AudioPlayer from '@/src/components/chat/AudioPlayer';
 
 interface WorkspaceParams {
   id: string;
@@ -68,12 +68,12 @@ export default function WorkspaceScreen() {
   const [members, setMembers] = useState<any[]>([]);
   const [editingMessage, setEditingMessage] = useState<MessageMessageType | null>(null);
   const [selectedMsgOptions, setSelectedMsgOptions] = useState<MessageMessageType | null>(null);
-  
+
   // 🚀 Inyectamos configuración
   const audioRecorder = useAudioRecorder(audioOptions);
   const [isRecording, setIsRecording] = useState(false);
   const startTimeRef = useRef(0);
-  
+
   const hasMarkedRead = useRef(false);
   const [showMembersModal, setShowMembersModal] = useState(false);
   const [unreadSeparatorId, setUnreadSeparatorId] = useState<string | null>(null);
@@ -291,11 +291,11 @@ export default function WorkspaceScreen() {
     if (!isRecording || !currentChatId) return;
     setIsRecording(false);
     const elapsed = Date.now() - startTimeRef.current;
-    
+
     try {
       await audioRecorder.stop();
-      if (elapsed < 500) return; 
-      
+      if (elapsed < 500) return;
+
       const uri = audioRecorder.uri;
       if (uri) {
         const duration = elapsed / 1000;
@@ -312,7 +312,8 @@ export default function WorkspaceScreen() {
   const handleLeaveGroup = () => {
     Alert.alert('Abandonar grupo', '¿Estás seguro de que deseas salir de este grupo?', [
       { text: 'Cancelar', style: 'cancel' },
-      { text: 'Salir', style: 'destructive', onPress: async () => {
+      {
+        text: 'Salir', style: 'destructive', onPress: async () => {
           try {
             queryClient.cancelQueries({ queryKey: ['chatMessages', currentChatId] });
             router.replace('/home');
@@ -329,7 +330,8 @@ export default function WorkspaceScreen() {
   const handleDeleteGroup = () => {
     Alert.alert('Eliminar grupo', 'Esta acción es irreversible.', [
       { text: 'Cancelar', style: 'cancel' },
-      { text: 'Eliminar', style: 'destructive', onPress: async () => {
+      {
+        text: 'Eliminar', style: 'destructive', onPress: async () => {
           try {
             queryClient.cancelQueries({ queryKey: ['chatMessages', currentChatId] });
             router.replace('/home');
@@ -373,7 +375,7 @@ export default function WorkspaceScreen() {
           onLongPress={handleLongPress}
           onOpenFile={handleOpenFile}
           totalParticipants={members.length}
-          AudioPlayerComponent={AudioPlayer} 
+          AudioPlayerComponent={AudioPlayer}
           isGroupChat={true}
           chatParticipants={members}
         />
@@ -406,7 +408,19 @@ export default function WorkspaceScreen() {
             </View>
             <Text style={styles.headerTitle}>{name}</Text>
           </View>
-          <TouchableOpacity onPress={() => router.push({ pathname: '/workspace/invite', params: { workspaceId: id } })} style={styles.inviteButton}>
+          <TouchableOpacity
+            onPress={() =>
+              router.push({
+                pathname: '/workspace/invite',
+                params: {
+                  workspaceId: id,
+                  // 🚀 Le enviamos la lista de emails al modal para que los excluya
+                  existingMembersRaw: JSON.stringify(members.map(m => (m.userId || m).email))
+                },
+              })
+            }
+            style={styles.inviteButton}
+          >
             <Feather name="user-plus" size={20} color="#007AFF" />
           </TouchableOpacity>
         </View>

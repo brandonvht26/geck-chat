@@ -1,13 +1,13 @@
 import React, { useMemo } from 'react';
-import { View, Text, ScrollView, Image, TouchableOpacity, StyleSheet } from 'react-native';
-import { useLocalSearchParams, Stack, useRouter } from 'expo-router';
-import { Feather } from '@expo/vector-icons';
+import { View, Text, ScrollView, Image } from 'react-native';
+import { useLocalSearchParams, Stack } from 'expo-router';
+import { Feather, Ionicons } from '@expo/vector-icons';
+import { useColorScheme } from 'nativewind';
 
 export default function MessageInfoScreen() {
-  const router = useRouter();
   const params = useLocalSearchParams();
+  const { colorScheme } = useColorScheme();
 
-  // Memoización y Parseo Defensivo (Prevención de Fugas de Memoria)
   const { participants, readBy, deliveredTo, messageContent, senderId } = useMemo(() => {
     try {
       return {
@@ -18,24 +18,12 @@ export default function MessageInfoScreen() {
         senderId: params.senderId as string || ''
       };
     } catch (error) {
-      console.error('❌ Error parseando parámetros de navegación:', error);
-      // Fallback seguro para evitar crash
-      return {
-        participants: [],
-        readBy: [],
-        deliveredTo: [],
-        messageContent: '',
-        senderId: ''
-      };
+      return { participants: [], readBy: [], deliveredTo: [], messageContent: '', senderId: '' };
     }
   }, [params.chatParticipantsRaw, params.readByRaw, params.deliveredToRaw, params.messageContent, params.senderId]);
 
-  // Filtrado memoizado de estados de mensaje
   const { readUsers, deliveredOnlyUsers, remainingUsers } = useMemo(() => {
-    if (!Array.isArray(participants) || !Array.isArray(readBy) || !Array.isArray(deliveredTo)) {
-      return { readUsers: [], deliveredOnlyUsers: [], remainingUsers: [] };
-    }
-
+    if (!Array.isArray(participants)) return { readUsers: [], deliveredOnlyUsers: [], remainingUsers: [] };
     const recipients = participants.filter((p: any) => p?._id !== senderId);
     
     return {
@@ -45,39 +33,25 @@ export default function MessageInfoScreen() {
     };
   }, [participants, readBy, deliveredTo, senderId]);
 
-  // Componente de fila de usuario (memoizado para evitar re-renders innecesarios)
   const renderUserRow = (user: any) => {
     if (!user || !user._id) return null;
-
     const avatarUrl = user.avatarUrl || user.avatar || user.profilePicture;
     const displayName = user.name || user.username || 'Usuario';
-    const displayEmail = user.email || user.emailAddress || '';
+    const displayEmail = user.email || '';
 
     return (
-      <View key={user._id} className="flex-row items-center justify-between py-3 border-b border-gray-100 dark:border-gray-800/50 px-4">
+      <View key={user._id} className="flex-row items-center justify-between py-3 border-b border-gray-100 dark:border-zinc-800/50 px-6 bg-white dark:bg-authEnd-dark">
         <View className="flex-row items-center flex-1">
           {avatarUrl ? (
-            <Image 
-              source={{ uri: avatarUrl }} 
-              className="w-10 h-10 rounded-full bg-gray-200 dark:bg-gray-700"
-              defaultSource={{ uri: avatarUrl }}
-            />
+            <Image source={{ uri: avatarUrl }} className="w-12 h-12 rounded-full bg-gray-200 dark:bg-zinc-800" />
           ) : (
-            <View className="w-10 h-10 rounded-full bg-indigo-100 dark:bg-indigo-900/40 items-center justify-center">
-              <Text className="text-indigo-600 dark:text-indigo-400 font-bold text-sm">
-                {displayName.charAt(0).toUpperCase()}
-              </Text>
+            <View className="w-12 h-12 rounded-full bg-primary/10 dark:bg-primary-dark/20 items-center justify-center">
+              <Text className="text-primary dark:text-primary-dark font-snpro-bold text-lg">{displayName.charAt(0).toUpperCase()}</Text>
             </View>
           )}
-          <View className="ml-3 flex-1">
-            <Text className="text-sm font-semibold text-gray-800 dark:text-white">
-              {displayName}
-            </Text>
-            {displayEmail && (
-              <Text className="text-xs text-gray-500 dark:text-gray-400" numberOfLines={1}>
-                {displayEmail}
-              </Text>
-            )}
+          <View className="ml-4 flex-1">
+            <Text className="text-base font-nunito-bold text-textMain dark:text-textMain-dark">{displayName}</Text>
+            {displayEmail ? <Text className="text-xs font-nunito-regular text-gray-500 dark:text-gray-400">{displayEmail}</Text> : null}
           </View>
         </View>
       </View>
@@ -86,91 +60,65 @@ export default function MessageInfoScreen() {
 
   return (
     <View className="flex-1 bg-gray-50 dark:bg-zinc-900">
+      {/* 🚀 Magia de Expo Router: Convertir pantalla en Modal de iOS/Android */}
       <Stack.Screen
         options={{
+          presentation: 'modal',
           headerShown: true,
-          headerTitle: 'Información del Mensaje',
-          headerBackTitle: 'Atrás',
-          headerTintColor: '#007AFF',
-          headerStyle: {
-            backgroundColor: '#fff',
-          },
-          headerTitleStyle: {
-            fontWeight: '600',
-            fontSize: 16,
-          },
+          headerTitle: 'Detalles del Mensaje',
+          headerTitleStyle: { fontFamily: 'SNPro-Bold', fontSize: 18 },
+          headerStyle: { backgroundColor: colorScheme === 'dark' ? '#161121' : '#FFFBF5' },
+          headerTintColor: colorScheme === 'dark' ? '#EBF1FA' : '#141E30',
+          headerShadowVisible: false,
         }}
       />
 
-      <ScrollView 
-        className="flex-1"
-        showsVerticalScrollIndicator={true}
-        scrollEventThrottle={16}
-      >
-        {/* Sección: Contenido del Mensaje */}
-        <View className="p-4 bg-white dark:bg-zinc-800/50 border-b border-gray-200 dark:border-gray-800">
-          <Text className="text-xs uppercase font-bold tracking-wider text-gray-400 dark:text-gray-500 mb-2">
+      <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
+        
+        {/* Contenido del Mensaje */}
+        <View className="p-6 bg-white dark:bg-authEnd-dark border-b border-gray-100 dark:border-zinc-800/50 shadow-sm">
+          <Text className="text-xs font-snpro-bold uppercase tracking-widest text-gray-400 dark:text-gray-500 mb-3 ml-1">
             Mensaje
           </Text>
-          <View className="bg-indigo-50 dark:bg-indigo-950/40 p-3 rounded-xl border border-indigo-100/50 dark:border-indigo-900/30">
-            <Text className="text-base text-gray-800 dark:text-zinc-200 leading-5">
+          <View className="bg-primary/10 dark:bg-primary-dark/15 p-4 rounded-2xl border border-primary/20 dark:border-primary-dark/20">
+            <Text className="text-base font-nunito-regular text-textMain dark:text-textMain-dark leading-6">
               {messageContent || 'Sin contenido'}
             </Text>
           </View>
         </View>
 
-        {/* Sección: Leído por (Doble Check Azul) */}
-        <View className="mt-4 bg-white dark:bg-zinc-800/30">
-          <View className="flex-row items-center px-4 py-2.5 bg-gray-100/70 dark:bg-zinc-800/80">
-            <View className="flex-row items-center gap-1">
-              <Feather name="check" size={14} color="#3b82f6" strokeWidth={3} />
-              <Feather name="check" size={14} color="#3b82f6" strokeWidth={3} style={{ marginLeft: -8 }} />
-            </View>
-            <Text className="text-xs font-bold uppercase tracking-wider text-blue-500 dark:text-blue-400 ml-2">
+        {/* Leído por */}
+        <View className="mt-4">
+          <View className="flex-row items-center px-6 py-3 bg-blue-50 dark:bg-blue-900/20 border-y border-blue-100 dark:border-blue-900/30">
+            <Ionicons name="checkmark-done" size={18} color="#3b82f6" />
+            <Text className="text-xs font-snpro-bold uppercase tracking-widest text-blue-600 dark:text-blue-400 ml-2">
               Leído por ({readUsers.length})
             </Text>
           </View>
-          {readUsers.length > 0 ? (
-            readUsers.map(renderUserRow)
-          ) : (
-            <View className="py-4 px-4">
-              <Text className="text-sm text-gray-500 dark:text-gray-400 text-center">
-                Nadie ha leído este mensaje aún
-              </Text>
-            </View>
+          {readUsers.length > 0 ? readUsers.map(renderUserRow) : (
+            <View className="py-6 px-6 bg-white dark:bg-authEnd-dark"><Text className="text-sm font-nunito-regular text-gray-500 dark:text-gray-400 text-center">Nadie ha leído este mensaje aún</Text></View>
           )}
         </View>
 
-        {/* Sección: Entregado a (Check Gris) */}
-        <View className="mt-2 bg-white dark:bg-zinc-800/30">
-          <View className="flex-row items-center px-4 py-2.5 bg-gray-100/70 dark:bg-zinc-800/80">
-            <View className="flex-row items-center gap-1">
-              <Feather name="check" size={14} color="#9ca3af" strokeWidth={3} />
-              <Feather name="check" size={14} color="#9ca3af" strokeWidth={3} style={{ marginLeft: -8 }} />
-            </View>
-            <Text className="text-xs font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 ml-2">
+        {/* Entregado a */}
+        <View className="mt-4">
+          <View className="flex-row items-center px-6 py-3 bg-gray-100 dark:bg-zinc-800/80 border-y border-gray-200 dark:border-zinc-700/50">
+            <Ionicons name="checkmark-done" size={18} color={colorScheme === 'dark' ? '#9CA3AF' : '#6B7280'} />
+            <Text className="text-xs font-snpro-bold uppercase tracking-widest text-gray-600 dark:text-gray-400 ml-2">
               Entregado a ({deliveredOnlyUsers.length})
             </Text>
           </View>
-          {deliveredOnlyUsers.length > 0 ? (
-            deliveredOnlyUsers.map(renderUserRow)
-          ) : (
-            <View className="py-4 px-4">
-              <Text className="text-sm text-gray-500 dark:text-gray-400 text-center">
-                {readUsers.length > 0 && remainingUsers.length === 0 
-                  ? 'Todos han leído este mensaje' 
-                  : 'No hay usuarios en esta etapa'}
-              </Text>
-            </View>
+          {deliveredOnlyUsers.length > 0 ? deliveredOnlyUsers.map(renderUserRow) : (
+            <View className="py-6 px-6 bg-white dark:bg-authEnd-dark"><Text className="text-sm font-nunito-regular text-gray-500 dark:text-gray-400 text-center">{readUsers.length > 0 && remainingUsers.length === 0 ? 'Todos han leído este mensaje' : 'No hay usuarios en esta etapa'}</Text></View>
           )}
         </View>
 
-        {/* Sección: Pendiente (Reloj) */}
+        {/* Pendiente */}
         {remainingUsers.length > 0 && (
-          <View className="mt-2 bg-white dark:bg-zinc-800/30 mb-8">
-            <View className="flex-row items-center px-4 py-2.5 bg-gray-100/70 dark:bg-zinc-800/80">
-              <Feather name="clock" size={14} color="#f59e0b" strokeWidth={2.5} />
-              <Text className="text-xs font-bold uppercase tracking-wider text-amber-500 dark:text-amber-400 ml-2">
+          <View className="mt-4 mb-8">
+            <View className="flex-row items-center px-6 py-3 bg-amber-50 dark:bg-amber-900/20 border-y border-amber-100 dark:border-amber-900/30">
+              <Feather name="clock" size={16} color="#f59e0b" />
+              <Text className="text-xs font-snpro-bold uppercase tracking-widest text-amber-600 dark:text-amber-400 ml-2">
                 Pendiente ({remainingUsers.length})
               </Text>
             </View>

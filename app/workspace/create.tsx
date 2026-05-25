@@ -1,53 +1,56 @@
 import { useState } from 'react';
-import {
-  View,
-  TextInput,
-  StyleSheet,
-  Text,
-  Pressable,
-  TouchableOpacity,
-  ActivityIndicator,
-  KeyboardAvoidingView,
-  Platform,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { Feather } from '@expo/vector-icons';
+import { View, TextInput, Text, Pressable, ActivityIndicator, KeyboardAvoidingView, Platform } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Feather, Ionicons } from '@expo/vector-icons';
 import { toast } from 'sonner-native';
 import { useRouter } from 'expo-router';
-import { useQueryClient } from '@tanstack/react-query'; // 🚀 Importación para reactividad
+import { useColorScheme } from 'nativewind';
+import { useQueryClient } from '@tanstack/react-query';
+import Animated, { useSharedValue, useAnimatedStyle, withSpring } from 'react-native-reanimated';
 import { createWorkspace } from '@/src/services/workspace.service';
-import { ApiError } from '@/src/services/api';
+
+const AnimatedSquishButton = ({ onPress, text, isLoading }: { onPress: () => void, text: string, isLoading: boolean }) => {
+  const scale = useSharedValue(1);
+  const animatedStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
+  
+  return (
+    <Animated.View style={animatedStyle} className="mt-8">
+      <Pressable
+        onPressIn={() => { scale.value = withSpring(0.96, { damping: 15 }); }}
+        onPressOut={() => { scale.value = withSpring(1, { damping: 15 }); }}
+        onPress={onPress}
+        disabled={isLoading}
+        className={`bg-primary dark:bg-primary-dark py-4 rounded-2xl items-center shadow-sm shadow-primary/30 flex-row justify-center ${isLoading ? 'opacity-70' : ''}`}
+      >
+        {isLoading ? <ActivityIndicator color="#ffffff" /> : <Text className="text-white font-snpro-bold text-base">{text}</Text>}
+      </Pressable>
+    </Animated.View>
+  );
+};
 
 export default function CreateWorkspaceScreen() {
   const router = useRouter();
-  const queryClient = useQueryClient(); // 🚀 Instancia del gestor de caché
+  const insets = useSafeAreaInsets();
+  const { colorScheme } = useColorScheme();
+  const queryClient = useQueryClient();
+  
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
-  const goBackSafely = (): void => {
-    if (router.canGoBack()) {
-      router.back();
-    } else {
-      router.replace('/');
-    }
-  };
+  const goBackSafely = () => router.canGoBack() ? router.back() : router.replace('/');
 
-  const handleCreate = async (): Promise<void> => {
-    if (!name.trim()) {
-      toast.error('Campo requerido', { description: 'El nombre es obligatorio' });
-      return;
-    }
+  const handleCreate = async () => {
+    if (!name.trim()) return toast.error('Campo requerido', { description: 'El nombre es obligatorio' });
+    
     setIsLoading(true);
     try {
       await createWorkspace(name.trim(), description.trim());
-      
-      // 🚀 RECOLECCIÓN REACTIVA: Invalidamos las consultas para forzar el re-renderizado automático
       queryClient.invalidateQueries({ queryKey: ['userChats'] });
       queryClient.invalidateQueries({ queryKey: ['workspaces'] });
 
       toast.success('El espacio de trabajo ha sido generado');
-      setTimeout(() => { goBackSafely(); }, 2000);
+      setTimeout(() => { goBackSafely(); }, 1500);
     } catch (error: any) {
       toast.error(error?.response?.data?.message || 'Error al crear el espacio');
     } finally {
@@ -56,133 +59,58 @@ export default function CreateWorkspaceScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={styles.keyboardView}
-      >
-        <View style={styles.header}>
-          <Pressable onPress={goBackSafely} style={styles.cancelButton}>
-            <Text style={styles.cancelText}>Cancelar</Text>
+    <View className="flex-1 bg-white dark:bg-authEnd-dark">
+      <View style={{ paddingTop: insets.top }} className="bg-white dark:bg-authEnd-dark z-20">
+        <View className="flex-row justify-between items-center px-4 py-3 bg-white dark:bg-authEnd-dark border-b border-gray-100 dark:border-gray-800">
+          <Pressable onPress={goBackSafely} className="p-2 -ml-2 active:opacity-60">
+            <Feather name="x" size={24} color={colorScheme === 'dark' ? '#E5E7EB' : '#141E30'} />
           </Pressable>
-          <Text style={styles.title}>Nuevo Workspace</Text>
-          <View style={styles.placeholder} />
+          <Text className="text-2xl font-snpro-bold text-textMain dark:text-textMain-dark tracking-tight">
+            Nuevo Workspace
+          </Text>
+          <View className="p-2 -mr-2 opacity-0" pointerEvents="none"><Feather name="x" size={24} /></View>
         </View>
+      </View>
 
-        <View style={styles.form}>
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Nombre *</Text>
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} className="flex-1 px-6 pt-6">
+        <View className="mb-6">
+          <Text className="text-sm font-snpro-bold text-gray-500 dark:text-gray-400 mb-2 ml-1">
+            Nombre del Equipo *
+          </Text>
+          <View className="flex-row items-center bg-gray-50 dark:bg-zinc-800/50 border border-gray-200 dark:border-zinc-700 rounded-2xl px-4 h-14">
+            <Ionicons name="briefcase-outline" size={20} color={colorScheme === 'dark' ? '#9CA3AF' : '#6B7280'} />
             <TextInput
-              placeholder="Ingresa el nombre"
+              className="flex-1 ml-3 text-base font-nunito-bold text-textMain dark:text-textMain-dark"
+              placeholder="Ej. Proyecto Final"
+              placeholderTextColor={colorScheme === 'dark' ? '#6B7280' : '#9CA3AF'}
               value={name}
               onChangeText={setName}
-              style={styles.input}
               autoCapitalize="words"
               maxLength={50}
             />
           </View>
+        </View>
 
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Descripción</Text>
+        <View className="mb-6">
+          <Text className="text-sm font-snpro-bold text-gray-500 dark:text-gray-400 mb-2 ml-1">
+            Descripción
+          </Text>
+          <View className="bg-gray-50 dark:bg-zinc-800/50 border border-gray-200 dark:border-zinc-700 rounded-2xl px-4 py-3 min-h-[100px]">
             <TextInput
-              placeholder="Describe el propósito del workspace"
+              className="flex-1 text-base font-nunito-regular text-textMain dark:text-textMain-dark"
+              placeholder="Describe el propósito del workspace..."
+              placeholderTextColor={colorScheme === 'dark' ? '#6B7280' : '#9CA3AF'}
               value={description}
               onChangeText={setDescription}
-              style={[styles.input, styles.textArea]}
               multiline
-              numberOfLines={4}
               textAlignVertical="top"
               maxLength={250}
             />
           </View>
-
-          <Pressable
-            onPress={handleCreate}
-            disabled={isLoading}
-            style={[styles.button, isLoading && styles.buttonDisabled]}
-          >
-            {isLoading ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <Text style={styles.buttonText}>Crear Workspace</Text>
-            )}
-          </Pressable>
         </View>
+
+        <AnimatedSquishButton text="Crear Workspace" onPress={handleCreate} isLoading={isLoading} />
       </KeyboardAvoidingView>
-    </SafeAreaView>
+    </View>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#f5f5f5',
-  },
-  keyboardView: {
-    flex: 1,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
-    backgroundColor: '#fff',
-  },
-  cancelButton: {
-    padding: 4,
-  },
-  cancelText: {
-    color: '#007AFF',
-    fontSize: 16,
-  },
-  title: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#333',
-  },
-  placeholder: {
-    width: 60,
-  },
-  form: {
-    padding: 16,
-  },
-  inputGroup: {
-    marginBottom: 16,
-  },
-  label: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#333',
-    marginBottom: 8,
-  },
-  input: {
-    backgroundColor: '#fff',
-    borderWidth: 1,
-    borderColor: '#ccc',
-    borderRadius: 8,
-    padding: 12,
-    fontSize: 16,
-  },
-  textArea: {
-    minHeight: 100,
-    paddingTop: 12,
-  },
-  button: {
-    backgroundColor: '#007AFF',
-    borderRadius: 8,
-    padding: 14,
-    alignItems: 'center',
-    marginTop: 8,
-  },
-  buttonDisabled: {
-    backgroundColor: '#a0c4ff',
-  },
-  buttonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
-});

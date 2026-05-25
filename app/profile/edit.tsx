@@ -9,7 +9,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useColorScheme } from 'nativewind';
 import Animated, { useSharedValue, useAnimatedStyle, withSpring } from 'react-native-reanimated';
 
-// 🚀 Botón Premium Squish
 const AnimatedSquishButton = ({ onPress, text }: { onPress: () => void, text: string }) => {
   const scale = useSharedValue(1);
   const animatedStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
@@ -61,21 +60,22 @@ export default function EditProfileScreen() {
 
   return (
     <View className="flex-1 bg-white dark:bg-authEnd-dark">
-      
-      {/* 🚀 Header */}
-      <View style={{ paddingTop: insets.top }} className="px-4 pb-4 flex-row items-center justify-between border-b border-gray-100 dark:border-gray-800">
-        <Pressable onPress={() => router.back()} className="p-2 -ml-2">
-          <Feather name="arrow-left" size={24} color={colorScheme === 'dark' ? '#E5E7EB' : '#141E30'} />
-        </Pressable>
-        <Text className="text-xl font-snpro-bold text-textMain dark:text-textMain-dark">
-          Editar Perfil
-        </Text>
-        <View className="w-10" /> {/* Espaciador fantasma para centrar el título */}
+      {/* 🚀 Header Sincronizado sin comentarios internos de JSX peligrosos */}
+      <View style={{ paddingTop: insets.top }} className="bg-white dark:bg-authEnd-dark z-20">
+        <View className="flex-row justify-between items-center px-4 py-3 bg-white dark:bg-authEnd-dark border-b border-gray-100 dark:border-gray-800">
+          <Pressable onPress={() => router.back()} className="p-2 -ml-2">
+            <Feather name="arrow-left" size={24} color={colorScheme === 'dark' ? '#E5E7EB' : '#141E30'} />
+          </Pressable>
+          <Text className="text-2xl font-snpro-bold text-textMain dark:text-textMain-dark tracking-tight">
+            Editar Perfil
+          </Text>
+          <View className="p-2 -mr-2 opacity-0" pointerEvents="none">
+            <Feather name="arrow-left" size={24} />
+          </View>
+        </View>
       </View>
 
-      <View className="flex-1 px-6 pt-6">
-        
-        {/* 🚀 Inputs Modernos */}
+      <View className="flex-1 px-6 App-Content pt-6">
         <View className="mb-6">
           <Text className="text-sm font-snpro-bold text-gray-500 dark:text-gray-400 mb-2 ml-1">
             Nombre Público
@@ -111,7 +111,6 @@ export default function EditProfileScreen() {
         </View>
 
         <AnimatedSquishButton text="Guardar Cambios" onPress={handleSave} />
-
       </View>
     </View>
   );

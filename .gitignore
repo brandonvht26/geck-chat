@@ -42,3 +42,5 @@ app-example/
 # Generated native folders
 /ios
 /android
+
+# Eliminar src/components/workspace
