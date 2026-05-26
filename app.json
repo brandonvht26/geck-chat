@@ -1,10 +1,10 @@
 {
   "expo": {
-    "name": "geckos-mobile",
+    "name": "GeckChat",
     "slug": "geckos-mobile",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
+    "icon": "./assets/images/adaptive_icon.png",
     "scheme": "geckosmobile",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
@@ -13,16 +13,20 @@
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/images/android-icon-foreground.png",
-        "backgroundImage": "./assets/images/android-icon-background.png",
-        "monochromeImage": "./assets/images/android-icon-monochrome.png"
+        "backgroundColor": "#ffffff",
+        "foregroundImage": "./assets/images/adaptive_icon.png",
+        "backgroundImage": "./assets/images/background.png",
+        "monochromeImage": "./assets/images/adaptive_icon.png"
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
       "package": "com.brandonvht26.geckosmobile",
       "googleServicesFile": "./google-services.json",
-      "useNextNotificationsApi": true
+      "useNextNotificationsApi": true,
+      "permissions": [
+        "android.permission.RECORD_AUDIO",
+        "android.permission.MODIFY_AUDIO_SETTINGS"
+      ]
     },
     "web": {
       "output": "static",
@@ -33,7 +37,7 @@
       [
         "expo-splash-screen",
         {
-          "image": "./assets/images/splash-icon.png",
+          "image": "./assets/images/splash_screen.png",
           "imageWidth": 200,
           "resizeMode": "contain",
           "backgroundColor": "#ffffff",
@@ -50,11 +54,22 @@
           "cameraPermission": "GeckChat necesita acceder a tu cámara para que puedas tomarte una nueva foto de perfil."
         }
       ],
-      "expo-audio"
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "GeckChat necesita acceder al micrófono para que puedas grabar y enviar notas de voz."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "78230675-e6ad-4e8a-81cf-be7cb7e9813c"
+      }
     }
   }
 }

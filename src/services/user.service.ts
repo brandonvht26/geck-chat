@@ -51,49 +51,56 @@ export const updatePushToken = async (token: string): Promise<void> => {
 
 export const updateUserPreferences = async (theme?: string, phoneWallpaperUri?: string, avatarUri?: string) => {
   try {
-    // CASO A: Si NO hay imágenes, enviamos un JSON puro usando tu instancia api
-    if (!phoneWallpaperUri && !avatarUri) {
+    let responseData: any = {};
+
+    // CASO A: Actualizar el tema (patch simple)
+    if (theme) {
       const response = await api.patch('/api/users/preferences', { theme });
-      return response.data;
+      responseData = { ...responseData, ...response.data };
     }
 
-    // CASO B: Si hay imágenes, usamos FormData y Axios.
-    const formData = new FormData();
-    if (theme) formData.append('theme', theme);
-
+    // CASO B: Subir Wallpaper
     if (phoneWallpaperUri) {
       if (phoneWallpaperUri.startsWith('bundled:')) {
-        // Es un wallpaper por defecto, enviarlo como texto
-        formData.append('phoneWallpaperUrl', phoneWallpaperUri);
+        // Es un wallpaper por defecto, enviarlo como texto al endpoint de preferencias
+        const response = await api.patch('/api/users/preferences', { wallpaperUrl: phoneWallpaperUri });
+        responseData = { ...responseData, ...response.data };
       } else {
-        // Es una imagen de la galería, enviarla como archivo
+        // Es una imagen local, subirla al nuevo endpoint update-image
+        const formData = new FormData();
+        formData.append('type', 'wallpaper');
         const filename = phoneWallpaperUri.split('/').pop() || 'wallpaper.jpg';
-        formData.append('phoneWallpaper', {
+        formData.append('image', {
           uri: Platform.OS === 'ios' ? phoneWallpaperUri.replace('file://', '') : phoneWallpaperUri,
           name: filename,
           type: 'image/jpeg'
         } as any);
+
+        const response = await api.post('/api/users/update-image', formData, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+        });
+        responseData = { ...responseData, ...response.data };
       }
     }
 
+    // CASO C: Subir Avatar
     if (avatarUri) {
+      const formData = new FormData();
+      formData.append('type', 'avatar');
       const filename = avatarUri.split('/').pop() || 'avatar.jpg';
-      formData.append('avatar', {
+      formData.append('image', {
         uri: Platform.OS === 'ios' ? avatarUri.replace('file://', '') : avatarUri,
         name: filename,
         type: 'image/jpeg'
       } as any);
+
+      const response = await api.post('/api/users/update-image', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      responseData = { ...responseData, ...response.data };
     }
 
-    // 🚀 Usamos Axios (api). Él inyecta el token automáticamente por el interceptor 
-    // y maneja el Content-Type multipart de forma nativa sin romper la red.
-    const response = await api.patch('/api/users/preferences', formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
-    });
-
-    return response.data;
+    return responseData;
   } catch (error) {
     console.error('Error actualizando preferencias:', error);
     throw error;

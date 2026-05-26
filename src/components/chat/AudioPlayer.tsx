@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { View, Text, TouchableOpacity } from 'react-native';
 import { Feather } from '@expo/vector-icons';
-import { useAudioPlayer } from 'expo-audio';
+import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
 
 interface AudioPlayerProps {
     fileUrl: string;
@@ -11,29 +11,29 @@ interface AudioPlayerProps {
 
 export default function AudioPlayer({ fileUrl, isSent, duration = 0 }: AudioPlayerProps) {
     const player = useAudioPlayer(fileUrl);
+    const status = useAudioPlayerStatus(player);
 
-    const fallbackDuration = duration * 1000;
-    const timeToDisplay = player.playing ? player.currentTime : (player.duration || fallbackDuration);
+    const timeToDisplay = status.playing ? status.currentTime : (status.duration || duration);
 
-    const formatTime = (millis: number) => {
-        const totalSeconds = Math.floor(millis / 1000);
+    const formatTime = (timeInSeconds: number) => {
+        const totalSeconds = Math.floor(timeInSeconds);
         const minutes = Math.floor(totalSeconds / 60);
         const seconds = totalSeconds % 60;
         return `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
     };
 
     useEffect(() => {
-        if (player.duration && player.currentTime >= player.duration - 100) {
+        if (status.duration && status.currentTime >= status.duration - 0.1) {
             player.pause();
             player.seekTo(0);
         }
-    }, [player.currentTime, player.duration]);
+    }, [status.currentTime, status.duration]);
 
     const handlePress = () => {
-        if (player.playing) {
+        if (status.playing) {
             player.pause();
         } else {
-            if (player.duration && player.currentTime >= player.duration - 100) {
+            if (status.duration && status.currentTime >= status.duration - 0.1) {
                 player.seekTo(0);
             }
             player.play();
@@ -44,14 +44,14 @@ export default function AudioPlayer({ fileUrl, isSent, duration = 0 }: AudioPlay
         <TouchableOpacity
             activeOpacity={0.7}
             onPress={handlePress}
-            className={`flex-row items-center px-4 py-2.5 rounded-2xl min-w-[130px] shadow-sm ${
+            className={`flex-row items-center w-full px-4 py-2.5 rounded-2xl min-w-[130px] shadow-sm ${
                 isSent 
                 ? 'bg-white/20 border border-white/10' 
                 : 'bg-gray-100 dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700'
             }`}
         >
             <Feather
-                name={player.playing ? "pause" : "play"}
+                name={status.playing ? "pause" : "play"}
                 size={18}
                 color={isSent ? '#ffffff' : '#2A72D4'}
             />

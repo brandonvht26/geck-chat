@@ -164,8 +164,13 @@ export default function ChatRoomScreen() {
   }, [messages.length, currentUserId, unreadSeparatorId]);
 
   const handleSendMessage = async () => {
+    console.log("🔥 [DEBUG] handleSendMessage triggered!");
     const cleanedMessage = content.trim();
-    if (!cleanedMessage || !id) return;
+    console.log("🔥 [DEBUG] cleanedMessage:", cleanedMessage, "id:", id);
+    if (!cleanedMessage || !id) {
+        console.log("🔥 [DEBUG] Validation failed! cleanedMessage or id is falsy.");
+        return;
+    }
     try {
       if (editingMessage) {
         const updatedMsg = await editMessage(editingMessage._id, cleanedMessage);
@@ -174,11 +179,16 @@ export default function ChatRoomScreen() {
         setEditingMessage(null);
       } else {
         const newMsg = await sendMessage(id as string, cleanedMessage);
+        console.log("🔥 [DEBUG] newMsg from server:", newMsg);
         queryClient.setQueryData(['chatMessages', id], (old: ChatMessage[] | undefined) => old ? (old.some(msg => msg._id === newMsg._id) ? old : [newMsg, ...old]) : [newMsg]);
       }
       setContent('');
       queryClient.invalidateQueries({ queryKey: ['userChats'] });
-    } catch (error) { toast.error('Error enviando mensaje'); }
+      console.log("🔥 [DEBUG] Message sent successfully.");
+    } catch (error) { 
+      console.error('🔥 [DEBUG] Error sending message:', error);
+      toast.error('Error enviando mensaje'); 
+    }
   };
 
   const handleAttachFile = async () => {
@@ -220,6 +230,7 @@ export default function ChatRoomScreen() {
   // 🚀 Lógica Acorazada de Grabación
   const startRecording = async () => {
     try {
+      await audioRecorder.prepareToRecordAsync(audioOptions);
       await audioRecorder.record();
       setIsRecording(true);
       startTimeRef.current = Date.now();
@@ -244,15 +255,19 @@ export default function ChatRoomScreen() {
       await audioRecorder.stop();
       await new Promise(resolve => setTimeout(resolve, 300)); // Espera para que se guarde el archivo en disco
 
+      const finalUri = audioRecorder.uri || (typeof (audioRecorder as any).getURI === 'function' ? (audioRecorder as any).getURI() : null);
+      console.log("🔥 [DEBUG] Captured finalUri AFTER stop:", finalUri);
+
       if (elapsed < 800) {
+        console.log("🔥 [DEBUG] Audio muy corto");
         toast.info('Audio muy corto', { description: 'Mantén presionado o graba más tiempo.' });
         return; 
       }
       
-      const uri = audioRecorder.uri;
-      if (uri && id) {
+      if (finalUri && id) {
+        console.log("🔥 [DEBUG] Sending audio message...");
         const duration = elapsed / 1000;
-        const newMsg = await sendAudioMessage(id as string, uri, duration);
+        const newMsg = await sendAudioMessage(id as string, finalUri, duration);
         queryClient.setQueryData(['chatMessages', id], (old: ChatMessage[] | undefined) => old ? (old.some(msg => msg._id === newMsg._id) ? old : [newMsg, ...old]) : [newMsg]);
       }
     } catch (error: any) { 
@@ -385,7 +400,7 @@ export default function ChatRoomScreen() {
               Opciones del mensaje
             </Text>
 
-            {!selectedMsgOptions?.isDeleted && (
+            {!selectedMsgOptions?.isDeleted && selectedMsgOptions?.msgType !== 'audio' && selectedMsgOptions?.msgType !== 'file' && (
               <AnimatedMenuRow 
                 icon="create-outline" title="Editar mensaje" 
                 onPress={() => { setEditingMessage(selectedMsgOptions); setContent(selectedMsgOptions!.content || selectedMsgOptions!.contenido); setSelectedMsgOptions(null); }} 

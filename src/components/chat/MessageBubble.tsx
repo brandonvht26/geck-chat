@@ -64,7 +64,7 @@ export default function MessageBubble({
     } catch (error) { console.error('Error info msg:', error); }
   };
 
-  const bubbleBase = "max-w-[85%] px-4 py-2.5 rounded-3xl mb-1.5 flex-row items-center shadow-sm";
+  const bubbleBase = "max-w-[85%] px-3.5 pt-2.5 pb-1.5 rounded-3xl mb-1.5 shadow-sm";
   const myBubble = "bg-primary dark:bg-primary-dark self-end rounded-br-sm";
   const otherBubble = "bg-white dark:bg-zinc-800 self-start rounded-bl-sm border border-gray-100 dark:border-zinc-700/50";
   const expiredBubble = isMe ? "bg-gray-400 dark:bg-gray-600 self-end rounded-br-sm" : "bg-gray-200 dark:bg-zinc-800 self-start rounded-bl-sm";
@@ -96,49 +96,52 @@ export default function MessageBubble({
         </View>
       )}
 
-      <View className={`${bubbleBase} ${isMe ? myBubble : otherBubble} ${msgType === 'file' || msgType === 'audio' ? 'flex-row' : 'flex-col items-start'}`}>
+      <View className={`${bubbleBase} ${isMe ? myBubble : otherBubble} flex-col ${(msgType === 'audio' || msgType === 'file') && !item.isDeleted ? 'min-w-[200px]' : 'min-w-[80px]'}`}>
 
         {item.isDeleted ? (
-          <View className="flex-row items-center gap-2">
+          <View className="flex-row items-center">
             <Feather name="slash" size={14} color={isMe ? '#ffffff80' : '#9ca3af'} />
-            <Text className={`italic text-[15px] ${isMe ? 'text-white/80' : 'text-gray-400'}`}>Mensaje eliminado</Text>
+            <Text className={`italic text-[15px] ml-1.5 ${isMe ? 'text-white/80' : 'text-gray-400'}`}>Mensaje eliminado</Text>
           </View>
         ) : (
           <>
             {msgType === 'audio' && AudioPlayerComponent && (
-              <View className="flex-row items-center">
-                <AudioPlayerComponent fileUrl={item.fileUrl} isSent={isMe} duration={item.duration} />
-                {/* 🚀 Botón de descarga para Audios */}
-                <Pressable onPress={() => onOpenFile && onOpenFile(item)} className={`ml-3 p-2 rounded-full ${isMe ? 'bg-white/20' : 'bg-gray-100 dark:bg-zinc-700'}`}>
+              <View className="flex-row items-center w-full mt-1">
+                <View className="flex-1">
+                  <AudioPlayerComponent fileUrl={item.fileUrl} isSent={isMe} duration={item.duration} />
+                </View>
+                <Pressable onPress={() => onOpenFile && onOpenFile(item)} className={`ml-2 p-2 rounded-full ${isMe ? 'bg-white/20' : 'bg-gray-100 dark:bg-zinc-700'}`}>
                     <Feather name="download" size={14} color={isMe ? '#fff' : '#6B7280'} />
                 </Pressable>
               </View>
             )}
             
             {msgType === 'file' && (
-              <Pressable onPress={() => onOpenFile && onOpenFile(item)} className="flex-row items-center flex-1">
+              <Pressable onPress={() => onOpenFile && onOpenFile(item)} className="flex-row items-center w-full mt-1">
                 <View className={`w-10 h-10 rounded-xl items-center justify-center mr-3 ${isMe ? 'bg-white/20' : 'bg-primary/10 dark:bg-primary-dark/20'}`}>
                     <Ionicons name="document-text" size={20} color={isMe ? '#fff' : '#2A72D4'} />
                 </View>
                 <View className="flex-1 pr-2">
-                    <Text className={`${textBase} ${isMe ? myText : otherText} font-nunito-bold flex-shrink`} numberOfLines={1}>{content}</Text>
+                    <Text className={`${textBase} ${isMe ? myText : otherText} font-nunito-bold`} numberOfLines={1}>{content}</Text>
                     <Text className={`text-xs ${isMe ? 'text-white/70' : 'text-gray-500'} mt-0.5`}>Toca para descargar</Text>
                 </View>
               </Pressable>
             )}
 
             {msgType !== 'audio' && msgType !== 'file' && (
-              <Text className={`${textBase} ${isMe ? myText : otherText}`}>{content}</Text>
+              <Text className={`${textBase} ${isMe ? myText : otherText}`}>
+                {content}
+              </Text>
             )}
           </>
         )}
 
-        <View className={`flex-row justify-end items-center mt-1 gap-1 ${msgType !== 'text' && 'ml-2'}`}>
-          {item.isEdited && !item.isDeleted && <Text className={`text-[10px] italic ${isMe ? 'text-white/70' : 'text-gray-400 dark:text-gray-500'} mr-1`}>Editado</Text>}
+        <View className="flex-row items-center self-end mt-1 gap-0.5">
+          {item.isEdited && !item.isDeleted && <Text className={`text-[9px] italic ${isMe ? 'text-white/70' : 'text-gray-400 dark:text-gray-500'} mr-0.5`}>Editado</Text>}
           <Text className={`text-[10px] ${isMe ? 'text-white/70' : 'text-gray-400 dark:text-gray-500'}`}>{timeStr}</Text>
           
           {isMe && status && (
-            <TouchableOpacity onPress={isGroupChat ? handleMessageInfoPress : undefined} disabled={!isGroupChat} className="flex-row items-center justify-end">
+            <TouchableOpacity onPress={isGroupChat ? handleMessageInfoPress : undefined} disabled={!isGroupChat} className="ml-0.5 flex-row items-center justify-end">
               {status === 'sent' && <Ionicons name="checkmark" size={14} color="#ffffff80" />}
               {status === 'delivered' && <Ionicons name="checkmark-done" size={14} color="#ffffff80" />}
               {status === 'read' && <Ionicons name="checkmark-done" size={14} color="#34d399" />}

@@ -227,6 +227,7 @@ export default function WorkspaceScreen() {
 
   const startRecording = async () => {
     try {
+      await audioRecorder.prepareToRecordAsync(audioOptions);
       await audioRecorder.record();
       setIsRecording(true);
       startTimeRef.current = Date.now();
@@ -246,6 +247,7 @@ export default function WorkspaceScreen() {
     const elapsed = Date.now() - startTimeRef.current;
     
     try {
+      const currentUri = audioRecorder.uri;
       await audioRecorder.stop();
       await new Promise(resolve => setTimeout(resolve, 300));
 
@@ -254,10 +256,9 @@ export default function WorkspaceScreen() {
         return; 
       }
       
-      const uri = audioRecorder.uri;
-      if (uri && id) {
+      if (currentUri && id) {
         const duration = elapsed / 1000;
-        const newMsg = await sendAudioMessage(currentChatId, uri, duration);
+        const newMsg = await sendAudioMessage(currentChatId, currentUri, duration);
         queryClient.setQueryData(['chatMessages', currentChatId], (old: ChatMessageType[] | undefined) => old ? (old.some(msg => msg._id === newMsg._id) ? old : [newMsg, ...old]) : [newMsg]);
       }
     } catch (error: any) { toast.error('Error enviando nota de voz', { description: error.response?.data?.msg || 'Revisa la conexión.' }); }
@@ -447,7 +448,7 @@ export default function WorkspaceScreen() {
               }} 
             />
 
-            {!selectedMsgOptions?.isDeleted && (
+            {!selectedMsgOptions?.isDeleted && selectedMsgOptions?.msgType !== 'audio' && selectedMsgOptions?.msgType !== 'file' && (
               <AnimatedMenuRow 
                 icon="create-outline" title="Editar" 
                 onPress={() => { setEditingMessage(selectedMsgOptions); setNewMessage(selectedMsgOptions!.contenido || selectedMsgOptions!.content || ''); setSelectedMsgOptions(null); }}
