@@ -107,7 +107,7 @@ export default function MessageBubble({
           <>
             {msgType === 'audio' && AudioPlayerComponent && (
               <View className="flex-row items-center">
-                <AudioPlayerComponent fileUrl={item.fileUrl} isSent={isMe} />
+                <AudioPlayerComponent fileUrl={item.fileUrl} isSent={isMe} duration={item.duration} />
                 {/* 🚀 Botón de descarga para Audios */}
                 <Pressable onPress={() => onOpenFile && onOpenFile(item)} className={`ml-3 p-2 rounded-full ${isMe ? 'bg-white/20' : 'bg-gray-100 dark:bg-zinc-700'}`}>
                     <Feather name="download" size={14} color={isMe ? '#fff' : '#6B7280'} />

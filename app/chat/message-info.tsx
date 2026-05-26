@@ -67,8 +67,8 @@ export default function MessageInfoScreen() {
           headerShown: true,
           headerTitle: 'Detalles del Mensaje',
           headerTitleStyle: { fontFamily: 'SNPro-Bold', fontSize: 18 },
-          headerStyle: { backgroundColor: colorScheme === 'dark' ? '#161121' : '#FFFBF5' },
-          headerTintColor: colorScheme === 'dark' ? '#EBF1FA' : '#141E30',
+          headerStyle: { backgroundColor: colorScheme === 'dark' ? '#161121' : '#ffffff' },
+          headerTintColor: colorScheme === 'dark' ? '#ffffff' : '#141E30',
           headerShadowVisible: false,
         }}
       />

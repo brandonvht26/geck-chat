@@ -103,7 +103,11 @@ export default function ProfileScreen() {
             setProfileData(prev => prev ? { ...prev, avatarUrl: data.avatarUrl } : null);
             if (user) setUser({ ...user, avatarUrl: data.avatarUrl });
         });
-      toast.promise(promise, { loading: 'Actualizando foto...', success: '¡Foto actualizada!', error: 'Error al subir la foto' });
+      toast.promise(promise, { 
+        loading: 'Actualizando foto...', 
+        success: () => '¡Foto actualizada!', 
+        error: () => 'Error al subir la foto' 
+      });
     }
   };
 

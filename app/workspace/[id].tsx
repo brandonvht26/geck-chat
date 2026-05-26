@@ -33,11 +33,17 @@ const extractId = (obj: any): string => {
   return String(obj);
 };
 
-const audioOptions: RecordingOptions = {
+const audioOptions: any = {
   extension: '.m4a',
   sampleRate: 44100,
   numberOfChannels: 2,
   bitRate: 128000,
+};
+
+const bundledWallpapers: Record<string, any> = {
+  primary: require('../../assets/wallpapers/primary.webp'),
+  secondary: require('../../assets/wallpapers/secondary.webp'),
+  tertiary: require('../../assets/wallpapers/tertiary.webp'),
 };
 
 const AnimatedMenuRow = ({ icon, title, onPress, danger }: any) => {
@@ -241,14 +247,20 @@ export default function WorkspaceScreen() {
     
     try {
       await audioRecorder.stop();
-      if (elapsed < 800) { toast.info('Audio muy corto'); return; }
+      await new Promise(resolve => setTimeout(resolve, 300));
+
+      if (elapsed < 800) {
+        toast.info('Audio muy corto', { description: 'Mantén presionado o graba más tiempo.' });
+        return; 
+      }
+      
       const uri = audioRecorder.uri;
-      if (uri) {
+      if (uri && id) {
         const duration = elapsed / 1000;
         const newMsg = await sendAudioMessage(currentChatId, uri, duration);
         queryClient.setQueryData(['chatMessages', currentChatId], (old: ChatMessageType[] | undefined) => old ? (old.some(msg => msg._id === newMsg._id) ? old : [newMsg, ...old]) : [newMsg]);
       }
-    } catch (error) { toast.error('Error enviando nota de voz'); }
+    } catch (error: any) { toast.error('Error enviando nota de voz', { description: error.response?.data?.msg || 'Revisa la conexión.' }); }
   };
 
   const handleLeaveGroup = () => {
@@ -346,8 +358,13 @@ export default function WorkspaceScreen() {
         </View>
       </View>
 
-      <ImageBackground source={imageSource} resizeMode="cover" style={{ flex: 1 }}>
-        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top + 56 : 0}>
+      <KeyboardAvoidingView 
+        style={{ flex: 1 }} 
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined} 
+        keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top + 56 : 0}
+        enabled={Platform.OS === 'ios'}
+      >
+        <ImageBackground source={imageSource as any} resizeMode="cover" style={{ flex: 1 }}>
           
           {/* Barra de Miembros Online */}
           {members.length > 0 && (
@@ -409,8 +426,8 @@ export default function WorkspaceScreen() {
             isEditing={!!editingMessage}
             onCancelEdit={() => { setEditingMessage(null); setNewMessage(''); }}
           />
-        </KeyboardAvoidingView>
-      </ImageBackground>
+        </ImageBackground>
+      </KeyboardAvoidingView>
 
       {/* 🚀 Modal de Opciones del Mensaje */}
       <Modal visible={!!selectedMsgOptions} transparent animationType="fade">
@@ -434,7 +451,7 @@ export default function WorkspaceScreen() {
             {!selectedMsgOptions?.isDeleted && (
               <AnimatedMenuRow 
                 icon="create-outline" title="Editar" 
-                onPress={() => { setEditingMessage(selectedMsgOptions); setNewMessage(selectedMsgOptions!.contenido); setSelectedMsgOptions(null); }} 
+                onPress={() => { setEditingMessage(selectedMsgOptions); setNewMessage(selectedMsgOptions!.contenido || selectedMsgOptions!.content || ''); setSelectedMsgOptions(null); }}
               />
             )}
 

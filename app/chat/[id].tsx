@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react';
-import { View, FlatList, KeyboardAvoidingView, Platform, Alert, Modal, Pressable, Text, ActivityIndicator, ImageBackground } from 'react-native';
+import { View, FlatList, KeyboardAvoidingView, Platform, Alert, Modal, Pressable, Text, ActivityIndicator, ImageBackground, Image } from 'react-native';
 import { Feather, Ionicons } from '@expo/vector-icons';
 import { useAudioRecorder, RecordingOptions } from 'expo-audio';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -31,7 +31,7 @@ const extractId = (obj: any): string => {
   return String(obj);
 };
 
-const audioOptions: RecordingOptions = {
+const audioOptions: any = {
   extension: '.m4a',
   sampleRate: 44100,
   numberOfChannels: 2,
@@ -242,6 +242,8 @@ export default function ChatRoomScreen() {
     
     try {
       await audioRecorder.stop();
+      await new Promise(resolve => setTimeout(resolve, 300)); // Espera para que se guarde el archivo en disco
+
       if (elapsed < 800) {
         toast.info('Audio muy corto', { description: 'Mantén presionado o graba más tiempo.' });
         return; 
@@ -253,8 +255,8 @@ export default function ChatRoomScreen() {
         const newMsg = await sendAudioMessage(id as string, uri, duration);
         queryClient.setQueryData(['chatMessages', id], (old: ChatMessage[] | undefined) => old ? (old.some(msg => msg._id === newMsg._id) ? old : [newMsg, ...old]) : [newMsg]);
       }
-    } catch (error) { 
-      toast.error('Error enviando nota de voz', { description: 'Puede que el formato no sea soportado.' }); 
+    } catch (error: any) { 
+      toast.error('Error enviando nota de voz', { description: error.response?.data?.msg || 'Puede que el formato no sea soportado.' }); 
     }
   };
 
@@ -294,8 +296,13 @@ export default function ChatRoomScreen() {
         </View>
       </View>
 
-      <ImageBackground source={imageSource} resizeMode="cover" style={{ flex: 1 }}>
-        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top + 56 : 0}>
+      <KeyboardAvoidingView 
+        style={{ flex: 1 }} 
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined} 
+        keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top + 56 : 0}
+        enabled={Platform.OS === 'ios'}
+      >
+        <ImageBackground source={imageSource as any} resizeMode="cover" style={{ flex: 1 }}>
           <FlatList
             ref={flatListRef}
             data={messages}
@@ -363,8 +370,8 @@ export default function ChatRoomScreen() {
             isEditing={!!editingMessage}
             onCancelEdit={() => { setEditingMessage(null); setContent(''); }}
           />
-        </KeyboardAvoidingView>
-      </ImageBackground>
+        </ImageBackground>
+      </KeyboardAvoidingView>
 
       {/* 🚀 Modal Bottom Sheet de Opciones */}
       <Modal visible={!!selectedMsgOptions} transparent animationType="fade">

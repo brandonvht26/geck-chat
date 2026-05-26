@@ -72,9 +72,9 @@ export default function PersonalizationScreen() {
         });
 
       toast.promise(promise, {
-        loading: 'Guardando apariencia...',
-        success: 'Tema actualizado correctamente',
-        error: 'Error al guardar el tema',
+        loading: 'Guardando configuración...',
+        success: () => '¡Apariencia actualizada correctamente!',
+        error: () => 'Error al guardar. Inténtalo de nuevo.'
       });
     }, 150);
   };
@@ -117,9 +117,9 @@ export default function PersonalizationScreen() {
       });
 
     toast.promise(promise, {
-      loading: 'Aplicando fondo...',
-      success: 'Fondo de pantalla actualizado',
-      error: 'Error al establecer el fondo',
+      loading: 'Actualizando avatar...',
+      success: () => '¡Foto de perfil actualizada!',
+      error: () => 'No pudimos guardar tu foto. Inténtalo de nuevo.'
     });
   };
 

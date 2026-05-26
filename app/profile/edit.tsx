@@ -53,8 +53,8 @@ export default function EditProfileScreen() {
 
     toast.promise(updatePromise, {
       loading: 'Guardando cambios...',
-      success: '¡Perfil actualizado correctamente!',
-      error: 'No pudimos guardar los cambios. Inténtalo de nuevo.',
+      success: () => '¡Perfil actualizado correctamente!',
+      error: () => 'No pudimos guardar los cambios. Inténtalo de nuevo.',
     });
   };
 

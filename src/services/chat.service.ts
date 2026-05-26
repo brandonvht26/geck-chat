@@ -1,11 +1,21 @@
+import { Platform } from 'react-native';
 import { api, ApiError } from './api';
 
 export interface ChatMessage {
   _id: string;
-  senderId: string;
-  receiverId: string;
-  contenido: string;
+  senderId: any;
+  receiverId?: string;
+  chatId?: string;
+  content?: string;
+  contenido?: string;
   createdAt: string;
+  readBy?: string[];
+  deliveredTo?: string[];
+  isDeleted?: boolean;
+  isEdited?: boolean;
+  type?: string;
+  fileUrl?: string;
+  duration?: number;
 }
 
 interface PaginationInfo {
@@ -26,6 +36,7 @@ export interface Chat {
   _id: string;
   workspaceId?: any; 
   participants: any[]; 
+  admins?: any[];
   isGroup: boolean;
   lastMessage?: any; 
   updatedAt: string;
@@ -45,19 +56,6 @@ interface AccessChatResponse {
   chat: Chat;
 }
 
-export const getChatHistory = async (otherUserId: string): Promise<ChatMessage[]> => {
-  try {
-    // 🚀 BYPASS: Le exigimos al servidor 500 mensajes desde el frontend
-    const response = await api.get<ChatHistoryResponse>('/api/chat/history/' + otherUserId, {
-      params: { limit: 500 }
-    });
-    return response.data?.messages || [];
-  } catch (error) {
-    const apiError = error as ApiError;
-    console.error('Error fetching chat history:', apiError.message);
-    throw error;
-  }
-};
 
 export const getUserChats = async (): Promise<Chat[]> => {
   try {
@@ -166,12 +164,15 @@ export const sendAudioMessage = async (chatId: string, uri: string, duration: nu
   try {
     const formData = new FormData();
     formData.append('chatId', chatId);
-    formData.append('duration', duration.toString());
+    
+    // Eliminamos 'duration' del FormData porque puede estar causando un crash en el backend 
+    // al intentar parsear valores decimales. El backend lo tiene como opcional.
+    
     // El backend exige que el campo se llame 'audio'
     formData.append('audio', {
-      uri,
+      uri: Platform.OS === 'ios' ? uri.replace('file://', '') : uri,
       name: `audio_${Date.now()}.m4a`,
-      type: 'audio/m4a',
+      type: 'audio/mp4',
     } as any);
 
     const response = await api.post('/api/chat/audio', formData, {
@@ -179,8 +180,8 @@ export const sendAudioMessage = async (chatId: string, uri: string, duration: nu
     });
     
     return response.data.message;
-  } catch (error) {
-    console.error('Error en sendAudioMessage:', error);
+  } catch (error: any) {
+    console.error('Error en sendAudioMessage:', error.response?.data || error);
     throw error;
   }
 };

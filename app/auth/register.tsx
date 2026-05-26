@@ -67,6 +67,14 @@ export default function RegisterScreen() {
                 return;
             }
 
+            const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*[\d\W_]).{6,}$/;
+            if (!passwordRegex.test(cleanData.password)) {
+                toast.error('Contraseña débil', { 
+                    description: 'Mínimo 6 caracteres, combinando mayúsculas, minúsculas y un número o carácter especial.' 
+                });
+                return;
+            }
+
             try {
                 const parsedData = registerSchema.parse(cleanData);
                 await signUp(parsedData.name, parsedData.email, parsedData.password);

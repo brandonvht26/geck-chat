@@ -22,6 +22,14 @@ export default function ChangePasswordScreen() {
       return;
     }
 
+    const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*[\d\W_]).{6,}$/;
+    if (!passwordRegex.test(passwordNuevo.trim())) {
+      toast.error('Contraseña débil', { 
+        description: 'Mínimo 6 caracteres, combinando mayúsculas, minúsculas y un número o carácter especial.' 
+      });
+      return;
+    }
+
     setLoading(true);
     try {
       await updatePassword(passwordActual, passwordNuevo);

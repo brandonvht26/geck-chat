@@ -1,5 +1,5 @@
+import { Platform } from 'react-native';
 import { api, getToken } from './api';
-
 export interface UserProfile {
   _id: string;
   nombre: string;
@@ -36,7 +36,7 @@ export const updateProfileData = async (userId: string, data: { name?: string; e
 };
 
 export const updatePassword = async (passwordactual: string, passwordnuevo: string): Promise<void> => {
-  await api.put('api/users/update-password', { passwordactual, passwordnuevo });
+  await api.patch('api/users/update-password', { passwordactual, passwordnuevo });
 };
 
 
@@ -62,18 +62,24 @@ export const updateUserPreferences = async (theme?: string, phoneWallpaperUri?: 
     if (theme) formData.append('theme', theme);
 
     if (phoneWallpaperUri) {
-      const filename = phoneWallpaperUri.split('/').pop() || 'wallpaper.jpg';
-      formData.append('phoneWallpaper', {
-        uri: phoneWallpaperUri,
-        name: filename,
-        type: 'image/jpeg'
-      } as any);
+      if (phoneWallpaperUri.startsWith('bundled:')) {
+        // Es un wallpaper por defecto, enviarlo como texto
+        formData.append('phoneWallpaperUrl', phoneWallpaperUri);
+      } else {
+        // Es una imagen de la galería, enviarla como archivo
+        const filename = phoneWallpaperUri.split('/').pop() || 'wallpaper.jpg';
+        formData.append('phoneWallpaper', {
+          uri: Platform.OS === 'ios' ? phoneWallpaperUri.replace('file://', '') : phoneWallpaperUri,
+          name: filename,
+          type: 'image/jpeg'
+        } as any);
+      }
     }
 
     if (avatarUri) {
       const filename = avatarUri.split('/').pop() || 'avatar.jpg';
       formData.append('avatar', {
-        uri: avatarUri,
+        uri: Platform.OS === 'ios' ? avatarUri.replace('file://', '') : avatarUri,
         name: filename,
         type: 'image/jpeg'
       } as any);

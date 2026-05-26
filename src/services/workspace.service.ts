@@ -73,19 +73,6 @@ export const inviteMember = async (workspaceId: string, email: string): Promise<
   }
 };
 
-export const getWorkspaceMessages = async (workspaceId: string): Promise<WorkspaceMessage[]> => {
-  try {
-    const response = await api.get<{ messages: WorkspaceMessage[] }>('/api/workspaces/' + workspaceId + '/messages');
-    return response.data.messages;
-  } catch (error) {
-    if (error instanceof Error) {
-      console.error('Error:', error.message);
-    } else {
-      console.error('Error desconocido:', error);
-    }
-    throw error;
-  }
-};
 
 export const leaveWorkspace = async (workspaceId: string): Promise<void> => {
   try {

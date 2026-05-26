@@ -6,12 +6,14 @@ import { useAudioPlayer } from 'expo-audio';
 interface AudioPlayerProps {
     fileUrl: string;
     isSent: boolean;
+    duration?: number;
 }
 
-export default function AudioPlayer({ fileUrl, isSent }: AudioPlayerProps) {
+export default function AudioPlayer({ fileUrl, isSent, duration = 0 }: AudioPlayerProps) {
     const player = useAudioPlayer(fileUrl);
 
-    const timeToDisplay = player.playing ? player.currentTime : (player.duration || 0);
+    const fallbackDuration = duration * 1000;
+    const timeToDisplay = player.playing ? player.currentTime : (player.duration || fallbackDuration);
 
     const formatTime = (millis: number) => {
         const totalSeconds = Math.floor(millis / 1000);
