@@ -448,7 +448,7 @@ export default function WorkspaceScreen() {
               }} 
             />
 
-            {!selectedMsgOptions?.isDeleted && selectedMsgOptions?.msgType !== 'audio' && selectedMsgOptions?.msgType !== 'file' && (
+            {!selectedMsgOptions?.isDeleted && selectedMsgOptions?.type !== 'audio' && selectedMsgOptions?.type !== 'file' && (
               <AnimatedMenuRow 
                 icon="create-outline" title="Editar" 
                 onPress={() => { setEditingMessage(selectedMsgOptions); setNewMessage(selectedMsgOptions!.contenido || selectedMsgOptions!.content || ''); setSelectedMsgOptions(null); }}

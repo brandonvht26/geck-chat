@@ -165,9 +165,8 @@ export const sendAudioMessage = async (chatId: string, uri: string, duration: nu
     const formData = new FormData();
     formData.append('chatId', chatId);
     
-    // Eliminamos 'duration' del FormData porque puede estar causando un crash en el backend 
-    // al intentar parsear valores decimales. El backend lo tiene como opcional.
-    
+    // Agregamos la duración (redondeada para evitar errores de parseo en backend)
+    formData.append('duration', String(Math.floor(duration)));
     // El backend exige que el campo se llame 'audio'
     formData.append('audio', {
       uri: Platform.OS === 'ios' ? uri.replace('file://', '') : uri,

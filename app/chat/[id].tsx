@@ -400,7 +400,7 @@ export default function ChatRoomScreen() {
               Opciones del mensaje
             </Text>
 
-            {!selectedMsgOptions?.isDeleted && selectedMsgOptions?.msgType !== 'audio' && selectedMsgOptions?.msgType !== 'file' && (
+            {!selectedMsgOptions?.isDeleted && selectedMsgOptions?.type !== 'audio' && selectedMsgOptions?.type !== 'file' && (
               <AnimatedMenuRow 
                 icon="create-outline" title="Editar mensaje" 
                 onPress={() => { setEditingMessage(selectedMsgOptions); setContent(selectedMsgOptions!.content || selectedMsgOptions!.contenido); setSelectedMsgOptions(null); }} 
