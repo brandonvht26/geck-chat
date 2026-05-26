@@ -11,7 +11,8 @@ import { useDocuments } from '@/src/hooks/queries/useDocuments';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useColorScheme } from 'nativewind';
 import { useRouter } from 'expo-router';
-import { toast } from 'sonner-native'; // 🚀 Importación de Sonner
+import { toast } from 'sonner-native';
+import { getErrorMessage } from '@/src/services/api';
 import Animated, { useSharedValue, useAnimatedStyle, withSpring } from 'react-native-reanimated';
 
 const AnimatedFAB = ({ onPress }: { onPress: () => void }) => {
@@ -93,7 +94,7 @@ export default function DocumentsScreen() {
       await uploadDocument(asset.uri, asset.name, asset.mimeType || 'application/octet-stream', currentFolderId);
       refetch();
     } catch (error) {
-      Alert.alert('Error', 'No se pudo subir el documento');
+      Alert.alert('Error', 'No se pudo subir el documento. Intenta con un archivo más pequeño.');
     }
   };
 
@@ -138,7 +139,7 @@ export default function DocumentsScreen() {
             toast.success('Documento eliminado correctamente', { id: toastId });
             refetch(); // Refrescamos la lista DESPUÉS de mostrar el éxito
           } catch (error: any) {
-            toast.error(error.message || 'No se pudo eliminar el documento', { id: toastId });
+            toast.error(getErrorMessage(error) || 'No se pudo eliminar el documento', { id: toastId });
           }
         }
       },

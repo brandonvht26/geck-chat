@@ -14,7 +14,8 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useChatMessages } from '@/src/hooks/queries/useChatMessages';
 import { useUserChats } from '@/src/hooks/queries/useUserChats';
 import { useAuth } from '@/src/hooks/useAuth';
-import { api } from '@/src/services/api';
+import { api, getErrorMessage } from '@/src/services/api';
+import { AxiosError } from 'axios';
 import { SocketService } from '@/src/services/socket.service';
 import { useSocket } from '@/src/context/SocketContext';
 import { useChatSocket } from '@/src/hooks/useChatSocket';
@@ -118,7 +119,7 @@ export default function WorkspaceScreen() {
         const wsId = foundChat.workspaceId?._id || foundChat.workspaceId;
         SocketService.emit('join-workspace-room', wsId);
       }
-    } catch (error) { toast.error('Error cargando historial'); } finally { setIsLoading(false); }
+    } catch (error) { toast.error('Error cargando historial', { description: getErrorMessage(error as AxiosError) }); } finally { setIsLoading(false); }
   }, [id]);
 
   useEffect(() => { loadWorkspaceChat(); }, [loadWorkspaceChat]);
@@ -212,7 +213,7 @@ export default function WorkspaceScreen() {
         queryClient.setQueryData(['chatMessages', currentChatId], (old: ChatMessageType[] | undefined) => old ? old.map(msg => msg._id === editingMessage._id ? updated : msg) : []);
         setNewMessage('');
         setEditingMessage(null);
-      } catch { toast.error('Error al editar mensaje'); }
+      } catch (error) { toast.error('Error al editar mensaje', { description: getErrorMessage(error as AxiosError) }); }
       return;
     }
     const msgData = { chatId: currentChatId, content: cleanedMessage, clientTimestamp: new Date().toISOString() };
@@ -222,7 +223,7 @@ export default function WorkspaceScreen() {
       await api.post('/api/chat/message', msgData);
       setNewMessage('');
       queryClient.invalidateQueries({ queryKey: ['userChats'] });
-    } catch (error) { toast.error('Error enviando mensaje'); }
+    } catch (error) { toast.error('Error enviando mensaje', { description: getErrorMessage(error as AxiosError) }); }
   }, [newMessage, currentChatId, editingMessage, currentUserId, queryClient]);
 
   const startRecording = async () => {
@@ -232,7 +233,7 @@ export default function WorkspaceScreen() {
       setIsRecording(true);
       startTimeRef.current = Date.now();
       try { require('expo-haptics').impactAsync(); } catch { }
-    } catch (err) { toast.error('Error al iniciar el micrófono'); }
+    } catch (err) { toast.error('Error al iniciar el micrófono', { description: getErrorMessage(err as AxiosError) }); }
   };
 
   const cancelRecording = async () => {
@@ -261,7 +262,7 @@ export default function WorkspaceScreen() {
         const newMsg = await sendAudioMessage(currentChatId, currentUri, duration);
         queryClient.setQueryData(['chatMessages', currentChatId], (old: ChatMessageType[] | undefined) => old ? (old.some(msg => msg._id === newMsg._id) ? old : [newMsg, ...old]) : [newMsg]);
       }
-    } catch (error: any) { toast.error('Error enviando nota de voz', { description: error.response?.data?.msg || 'Revisa la conexión.' }); }
+    } catch (error: any) { toast.error('Error enviando nota de voz', { description: getErrorMessage(error as AxiosError) || 'Revisa la conexión.' }); }
   };
 
   const handleLeaveGroup = () => {
@@ -275,7 +276,7 @@ export default function WorkspaceScreen() {
             queryClient.removeQueries({ queryKey: ['chatMessages', currentChatId] });
             queryClient.invalidateQueries({ queryKey: ['userChats'] });
             toast.success('Has salido del grupo');
-          } catch (error: any) { toast.error(error.response?.data?.msg || 'Error al salir del grupo'); }
+          } catch (error: any) { toast.error(getErrorMessage(error as AxiosError) || 'Error al salir del grupo'); }
         }
       }
     ]);
@@ -292,7 +293,7 @@ export default function WorkspaceScreen() {
             queryClient.removeQueries({ queryKey: ['chatMessages', currentChatId] });
             queryClient.invalidateQueries({ queryKey: ['userChats'] });
             toast.success('Grupo eliminado correctamente');
-          } catch (error: any) { toast.error(error.response?.data?.msg || 'Error al eliminar el grupo'); }
+          } catch (error: any) { toast.error(getErrorMessage(error as AxiosError) || 'Error al eliminar el grupo'); }
         }
       }
     ]);

@@ -21,7 +21,7 @@ export interface SearchedUser {
 }
 
 export const getUserProfile = async (): Promise<UserProfile> => {
-  const response = await api.get<UserProfile>('api/users/profile');
+  const response = await api.get<UserProfile>('/api/users/profile');
   return response.data;
 };
 
@@ -41,7 +41,7 @@ export const updatePassword = async (passwordactual: string, passwordnuevo: stri
 
 
 export const deleteAccount = async (confirmationText: string): Promise<void> => {
-  await api.delete('api/users/delete-account', { data: { confirmationText } });
+  await api.delete('/api/users/delete-account', { data: { confirmationText } });
 };
 
 export const updatePushToken = async (token: string): Promise<void> => {
@@ -63,7 +63,7 @@ export const updateUserPreferences = async (theme?: string, phoneWallpaperUri?: 
     if (phoneWallpaperUri) {
       if (phoneWallpaperUri.startsWith('bundled:')) {
         // Es un wallpaper por defecto, enviarlo como texto al endpoint de preferencias
-        const response = await api.patch('/api/users/preferences', { wallpaperUrl: phoneWallpaperUri });
+        const response = await api.patch('/api/users/preferences', { phoneWallpaperUrl: phoneWallpaperUri });
         responseData = { ...responseData, ...response.data };
       } else {
         // Es una imagen local, subirla al nuevo endpoint update-image
@@ -76,7 +76,7 @@ export const updateUserPreferences = async (theme?: string, phoneWallpaperUri?: 
           type: 'image/jpeg'
         } as any);
 
-        const response = await api.post('/api/users/update-image', formData, {
+        const response = await api.patch('/api/users/preferences', formData, {
           headers: { 'Content-Type': 'multipart/form-data' },
         });
         responseData = { ...responseData, ...response.data };
@@ -94,7 +94,7 @@ export const updateUserPreferences = async (theme?: string, phoneWallpaperUri?: 
         type: 'image/jpeg'
       } as any);
 
-      const response = await api.post('/api/users/update-image', formData, {
+      const response = await api.patch('/api/users/preferences', formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
       responseData = { ...responseData, ...response.data };
@@ -113,6 +113,6 @@ interface SearchUsersResponse {
 }
 
 export const searchUsers = async (query: string): Promise<SearchedUser[]> => {
-  const response = await api.get<SearchUsersResponse>('api/users/search', { params: { q: query } });
+  const response = await api.get<SearchUsersResponse>('/api/users/search', { params: { q: query } });
   return response.data.users;
 };

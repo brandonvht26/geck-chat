@@ -5,6 +5,7 @@ import { Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { toast } from 'sonner-native';
 import { useAuth } from '@/src/hooks/useAuth';
+import { getErrorMessage } from '@/src/services/api';
 import { useColorScheme } from 'nativewind';
 import Animated, { 
     useSharedValue, 
@@ -114,7 +115,7 @@ export default function LoginScreen() {
             // 🚀 CORRECCIÓN DE NAVEGACIÓN: Redirección inmediata al Home tras el éxito
             router.replace('/home');
         } catch (error: any) {
-            toast.error('Error de acceso', { description: error.message || 'Credenciales incorrectas.' });
+            toast.error('Error de acceso', { description: getErrorMessage(error) });
         }
     };
 

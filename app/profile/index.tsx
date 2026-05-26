@@ -8,6 +8,8 @@ import * as ImagePicker from 'expo-image-picker';
 import { useColorScheme } from 'nativewind';
 import Animated, { useSharedValue, useAnimatedStyle, withSpring, withRepeat, withSequence, withTiming } from 'react-native-reanimated';
 import { getUserProfile, updateUserPreferences, deleteAccount, UserProfile } from '@/src/services/user.service';
+import { getErrorMessage } from '@/src/services/api';
+import { AxiosError } from 'axios';
 import { useAuth } from '@/src/hooks/useAuth';
 
 const AnimatedMenuRow = ({ icon, title, onPress, danger }: any) => {
@@ -89,12 +91,12 @@ export default function ProfileScreen() {
   const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
-    getUserProfile().then(setProfileData).catch(() => toast.error('Error al cargar el perfil')).finally(() => setIsLoading(false));
+    getUserProfile().then(setProfileData).catch((e) => toast.error('Error al cargar el perfil', { description: getErrorMessage(e as AxiosError) })).finally(() => setIsLoading(false));
   }, []);
 
   const handleUpdateAvatar = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== 'granted') return toast.error('Se requiere permiso a la galería');
+    if (status !== 'granted') return toast.error('Permiso requerido', { description: 'Necesitamos acceso a tu galería para cambiar tu foto.' });
 
     const result = await ImagePicker.launchImageLibraryAsync({ allowsEditing: true, aspect: [1, 1], quality: 0.7 });
     if (!result.canceled && result.assets[0]) {
@@ -123,7 +125,7 @@ export default function ProfileScreen() {
       signOut();
       toast.success('Cuenta eliminada correctamente');
     } catch (error) {
-      toast.error('Error al eliminar la cuenta');
+      toast.error('No pudimos eliminar tu cuenta', { description: getErrorMessage(error as AxiosError) });
       setIsDeleting(false);
     }
   };

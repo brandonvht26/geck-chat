@@ -21,7 +21,8 @@ import { UserAvatar } from '@/src/components/ui/UserAvatar';
 import MessageBubble from '@/src/components/chat/MessageBubble';
 import ChatInput from '@/src/components/chat/ChatInput';
 import { useUserChats } from '@/src/hooks/queries/useUserChats';
-import { api } from '@/src/services/api';
+import { api, getErrorMessage } from '@/src/services/api';
+import { AxiosError } from 'axios';
 import AudioPlayer from '@/src/components/chat/AudioPlayer';
 
 const extractId = (obj: any): string => {
@@ -187,7 +188,7 @@ export default function ChatRoomScreen() {
       console.log("🔥 [DEBUG] Message sent successfully.");
     } catch (error) { 
       console.error('🔥 [DEBUG] Error sending message:', error);
-      toast.error('Error enviando mensaje'); 
+      toast.error('Error enviando mensaje', { description: getErrorMessage(error as AxiosError) }); 
     }
   };
 
@@ -208,7 +209,7 @@ export default function ChatRoomScreen() {
         return old.some(msg => msg._id === newMsg._id) ? old : [newMsg, ...old];
       });
       queryClient.invalidateQueries({ queryKey: ['userChats'] });
-    } catch (error) { toast.error('No se pudo adjuntar el archivo'); }
+    } catch (error) { toast.error('No se pudo adjuntar el archivo', { description: getErrorMessage(error as AxiosError) }); }
   };
 
   const handleOpenFile = async (item: any) => {
@@ -235,7 +236,7 @@ export default function ChatRoomScreen() {
       setIsRecording(true);
       startTimeRef.current = Date.now();
       try { require('expo-haptics').impactAsync(); } catch {}
-    } catch (err) { toast.error('Error al iniciar el micrófono'); }
+    } catch (err) { toast.error('Error al iniciar el micrófono', { description: getErrorMessage(err as AxiosError) }); }
   };
 
   const cancelRecording = async () => {
@@ -271,7 +272,7 @@ export default function ChatRoomScreen() {
         queryClient.setQueryData(['chatMessages', id], (old: ChatMessage[] | undefined) => old ? (old.some(msg => msg._id === newMsg._id) ? old : [newMsg, ...old]) : [newMsg]);
       }
     } catch (error: any) { 
-      toast.error('Error enviando nota de voz', { description: error.response?.data?.msg || 'Puede que el formato no sea soportado.' }); 
+      toast.error('Error enviando nota de voz', { description: getErrorMessage(error as AxiosError) || 'Puede que el formato no sea soportado.' }); 
     }
   };
 

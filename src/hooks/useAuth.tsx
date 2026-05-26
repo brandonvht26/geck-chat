@@ -45,7 +45,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
       const loggedUser: User = {
         _id: response._id,
-        name: response.name,
+        name: response.nombre || response.name,
         email: response.email,
         rol: response.rol,
         avatarUrl: response.avatarUrl,
@@ -57,8 +57,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
       return true;
     } catch (error) {
-      const apiError = error as ApiError;
-      throw new Error(apiError.message);
+      throw error;
     } finally {
       setLoading(false);
     }
@@ -80,8 +79,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       SocketService.connect(response._id);
       return true;
     } catch (error) {
-      const apiError = error as ApiError;
-      throw new Error(apiError.message);
+      throw error;
     } finally {
       setLoading(false);
     }

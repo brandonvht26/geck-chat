@@ -16,6 +16,7 @@ export interface ForgotPasswordPayload {
 export interface AuthResponse {
   token: string;
   name: string;
+  nombre?: string;
   rol: string;
   _id: string;
   email: string;
