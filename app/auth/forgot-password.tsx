@@ -5,6 +5,7 @@ import { Feather } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { toast } from 'sonner-native';
 import { useColorScheme } from 'nativewind';
+import { recoverPassword } from '@/src/services/auth.service';
 import Animated, { 
     useSharedValue, 
     useAnimatedStyle, 
@@ -107,7 +108,9 @@ export default function ForgotPasswordScreen() {
         try {
             setLoading(true);
             
-            // 🚀 TRANSICIÓN PREMIUM: Alerta de confirmación de 2 segundos antes de redirigir al login
+            // Llama a la API real
+            await recoverPassword(cleanEmail);
+
             toast.success('Instrucciones enviadas.', { 
                 description: 'Por favor, revisa tu correo electrónico para restablecer tu contraseña.' 
             });
