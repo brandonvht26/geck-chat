@@ -298,9 +298,8 @@ export default function ChatRoomScreen() {
 
       <KeyboardAvoidingView 
         style={{ flex: 1 }} 
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined} 
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'} 
         keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top + 56 : 0}
-        enabled={Platform.OS === 'ios'}
       >
         <ImageBackground source={imageSource as any} resizeMode="cover" style={{ flex: 1 }}>
           <FlatList
