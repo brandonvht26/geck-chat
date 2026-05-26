@@ -102,8 +102,11 @@ export default function ProfileScreen() {
     if (!result.canceled && result.assets[0]) {
       const promise = updateUserPreferences(undefined, undefined, result.assets[0].uri)
         .then((data) => {
-            setProfileData(prev => prev ? { ...prev, avatarUrl: data.avatarUrl } : null);
-            if (user) setUser({ ...user, avatarUrl: data.avatarUrl });
+            if (data.avatarUrl) {
+              const newUrl = `${data.avatarUrl}?t=${new Date().getTime()}`;
+              setProfileData(prev => prev ? { ...prev, avatarUrl: newUrl } : null);
+              if (user) setUser({ ...user, avatarUrl: newUrl });
+            }
         });
       toast.promise(promise, { 
         loading: 'Actualizando foto...', 

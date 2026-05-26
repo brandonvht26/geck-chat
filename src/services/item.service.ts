@@ -65,9 +65,7 @@ export const uploadDocument = async (fileUri: string, fileName: string, mimeType
       parentId: parentId || 'null',
     });
 
-    const response = await api.post<{ ok: boolean; msg: string; item: DocumentItem }>('/api/items/upload', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    });
+    const response = await api.post<{ ok: boolean; msg: string; item: DocumentItem }>('/api/items/upload', formData);
 
     console.log('[uploadDocument] Respuesta exitosa:', response.data);
     // El backend devuelve { ok: true, msg: '...', item: newItem }

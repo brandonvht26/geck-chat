@@ -271,10 +271,10 @@ export default function WorkspaceScreen() {
       { text: 'Salir', style: 'destructive', onPress: async () => {
           try {
             queryClient.cancelQueries({ queryKey: ['chatMessages', currentChatId] });
-            router.replace('/');
             await leaveWorkspace(id);
             queryClient.removeQueries({ queryKey: ['chatMessages', currentChatId] });
             queryClient.invalidateQueries({ queryKey: ['userChats'] });
+            router.replace('/home');
             toast.success('Has salido del grupo');
           } catch (error: any) { toast.error(getErrorMessage(error as AxiosError) || 'Error al salir del grupo'); }
         }
@@ -288,10 +288,10 @@ export default function WorkspaceScreen() {
       { text: 'Eliminar', style: 'destructive', onPress: async () => {
           try {
             queryClient.cancelQueries({ queryKey: ['chatMessages', currentChatId] });
-            router.replace('/');
             await deleteGroupChat(currentChatId!);
             queryClient.removeQueries({ queryKey: ['chatMessages', currentChatId] });
             queryClient.invalidateQueries({ queryKey: ['userChats'] });
+            router.replace('/home');
             toast.success('Grupo eliminado correctamente');
           } catch (error: any) { toast.error(getErrorMessage(error as AxiosError) || 'Error al eliminar el grupo'); }
         }
@@ -352,7 +352,7 @@ export default function WorkspaceScreen() {
           </View>
 
           <Pressable
-            onPress={() => router.push({ pathname: '/workspace/invite', params: { workspaceId: id, existingMembersRaw: JSON.stringify(members.map(m => (m.userId || m).email)) } })}
+            onPress={() => router.push({ pathname: '/workspace/invite', params: { workspaceId: id, existingMembersRaw: JSON.stringify(members.map(m => extractId(m))) } })}
             className="p-2 -mr-2 bg-primary/10 dark:bg-primary-dark/20 rounded-full ml-2"
           >
             <Feather name="user-plus" size={18} color="#2A72D4" />

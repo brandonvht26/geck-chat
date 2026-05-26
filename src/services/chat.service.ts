@@ -140,9 +140,7 @@ export const sendFileMessage = async (chatId: string, uri: string, name: string,
 
     // Nota: Ajusta la ruta a '/api/chat/file' si corregiste el backend, 
     // o mantenla como '/api/chat/chat/file' si el router sigue igual.
-    const response = await api.post('/api/chat/file', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    });
+    const response = await api.post('/api/chat/file', formData);
     
     return response.data.message;
   } catch (error) {
@@ -174,9 +172,7 @@ export const sendAudioMessage = async (chatId: string, uri: string, duration: nu
       type: 'audio/mp4',
     } as any);
 
-    const response = await api.post('/api/chat/audio', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    });
+    const response = await api.post('/api/chat/audio', formData);
     
     return response.data.message;
   } catch (error: any) {

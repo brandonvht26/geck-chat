@@ -76,9 +76,7 @@ export const updateUserPreferences = async (theme?: string, phoneWallpaperUri?: 
           type: 'image/jpeg'
         } as any);
 
-        const response = await api.patch('/api/users/preferences', formData, {
-          headers: { 'Content-Type': 'multipart/form-data' },
-        });
+        const response = await api.patch('/api/users/preferences', formData);
         responseData = { ...responseData, ...response.data };
       }
     }
@@ -94,9 +92,7 @@ export const updateUserPreferences = async (theme?: string, phoneWallpaperUri?: 
         type: 'image/jpeg'
       } as any);
 
-      const response = await api.patch('/api/users/preferences', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      });
+      const response = await api.patch('/api/users/preferences', formData);
       responseData = { ...responseData, ...response.data };
     }
 

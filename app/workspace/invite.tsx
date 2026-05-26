@@ -13,8 +13,8 @@ export default function InviteMemberScreen() {
   
   const workspaceId = params.workspaceId;
   
-  // 🚀 Extraemos los emails de los miembros actuales (si los pasas por params)
-  const existingEmails = useMemo(() => {
+  // 🚀 Extraemos los IDs de los miembros actuales (incluyendo al usuario actual)
+  const existingUserIds = useMemo(() => {
     try {
       return params.existingMembersRaw ? JSON.parse(params.existingMembersRaw) : [];
     } catch {
@@ -47,12 +47,11 @@ export default function InviteMemberScreen() {
         }}
       />
 
-      {/* 🚀 OJO: Debes actualizar tu UserSearch interno para que lea excludeEmails */}
       <UserSearch
         onUserSelect={handleInviteUser}
         actionLabel="Invitar"
         actionIcon="user-plus"
-        excludeEmails={existingEmails} 
+        excludeUserIds={existingUserIds} 
       />
     </View>
   );
