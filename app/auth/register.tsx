@@ -4,8 +4,9 @@ import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { toast } from 'sonner-native';
 import { useForm } from '@tanstack/react-form';
-import { registerSchema } from '@/src/schemas/auth.schema';
-import { useAuth } from '@/src/hooks/useAuth';
+import { registerSchema } from '../../src/schemas/auth.schema';
+import { useAuth } from '../../src/hooks/useAuth';
+import { getErrorMessage } from '../../src/services/api';
 import { useColorScheme } from 'nativewind'; 
 import Animated, { 
     useSharedValue, 
@@ -89,13 +90,13 @@ export default function RegisterScreen() {
                 }, 2000);
 
             } catch (error: any) {
-                const errorMsg = error?.message?.toLowerCase() || error?.response?.data?.message?.toLowerCase() || '';
-                if (errorMsg.includes('network') || errorMsg.includes('failed to fetch')) {
+                const errorMsg = getErrorMessage(error);
+                if (errorMsg.toLowerCase().includes('network') || errorMsg.toLowerCase().includes('failed to fetch')) {
                     toast.error('Sin conexión a internet. Revisa tu red.');
-                } else if (errorMsg.includes('exists') || errorMsg.includes('already in use') || errorMsg.includes('duplicado')) {
+                } else if (errorMsg.toLowerCase().includes('exists') || errorMsg.toLowerCase().includes('already in use') || errorMsg.toLowerCase().includes('duplicado') || errorMsg.toLowerCase().includes('registrado')) {
                     toast.error('Este correo ya está registrado.', { description: 'Intenta iniciar sesión.' });
                 } else {
-                    toast.error('Error al registrarse', { description: error.message || 'Ocurrió un problema.' });
+                    toast.error('Error al registrarse', { description: errorMsg || 'Ocurrió un problema.' });
                 }
             }
         },

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { View, Text, Pressable, TextInput } from 'react-native';
 import { Feather, Ionicons } from '@expo/vector-icons';
 import { toast } from 'sonner-native';
@@ -27,6 +27,43 @@ const AnimatedSquishButton = ({ onPress, text }: { onPress: () => void, text: st
   );
 };
 
+const AnimatedInput = ({ label, iconName, placeholder, value, onChangeText, innerRef, returnKeyType, onSubmitEditing, keyboardType, autoCapitalize }: any) => {
+  const scale = useSharedValue(1);
+  const { colorScheme } = useColorScheme();
+  
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }]
+  }));
+
+  const isDark = colorScheme === 'dark';
+
+  return (
+    <Animated.View style={animatedStyle} className="mb-6">
+      <Text className="text-sm font-snpro-bold text-gray-500 dark:text-gray-400 mb-2 ml-1">
+        {label}
+      </Text>
+      <View className="flex-row items-center bg-gray-50 dark:bg-zinc-800/50 border border-gray-200 dark:border-zinc-700 rounded-2xl px-4 h-14">
+        <Ionicons name={iconName} size={20} color={isDark ? '#9CA3AF' : '#6B7280'} />
+        <TextInput
+          ref={innerRef}
+          className="flex-1 ml-3 text-base font-nunito-bold text-textMain dark:text-textMain-dark"
+          placeholder={placeholder}
+          placeholderTextColor={isDark ? '#6B7280' : '#9CA3AF'}
+          value={value}
+          onChangeText={onChangeText}
+          keyboardType={keyboardType}
+          autoCapitalize={autoCapitalize}
+          onFocus={() => { scale.value = withSpring(1.02, { damping: 12 }); }}
+          onBlur={() => { scale.value = withSpring(1); }}
+          returnKeyType={returnKeyType}
+          onSubmitEditing={onSubmitEditing}
+          blurOnSubmit={returnKeyType === 'done'}
+        />
+      </View>
+    </Animated.View>
+  );
+};
+
 export default function EditProfileScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -36,6 +73,8 @@ export default function EditProfileScreen() {
 
   const [nombre, setNombre] = useState(params.nombre || '');
   const [email, setEmail] = useState(params.email || '');
+
+  const emailRef = useRef<TextInput>(null);
 
   const handleSave = async () => {
     if (!nombre.trim() || !email.trim()) {
@@ -60,7 +99,6 @@ export default function EditProfileScreen() {
 
   return (
     <View className="flex-1 bg-white dark:bg-authEnd-dark">
-      {/* 🚀 Header Sincronizado sin comentarios internos de JSX peligrosos */}
       <View style={{ paddingTop: insets.top }} className="bg-white dark:bg-authEnd-dark z-20">
         <View className="flex-row justify-between items-center px-4 py-3 bg-white dark:bg-authEnd-dark border-b border-gray-100 dark:border-gray-800">
           <Pressable onPress={() => router.back()} className="p-2 -ml-2">
@@ -76,39 +114,28 @@ export default function EditProfileScreen() {
       </View>
 
       <View className="flex-1 px-6 App-Content pt-6">
-        <View className="mb-6">
-          <Text className="text-sm font-snpro-bold text-gray-500 dark:text-gray-400 mb-2 ml-1">
-            Nombre Público
-          </Text>
-          <View className="flex-row items-center bg-gray-50 dark:bg-zinc-800/50 border border-gray-200 dark:border-zinc-700 rounded-2xl px-4 h-14">
-            <Ionicons name="person-outline" size={20} color={colorScheme === 'dark' ? '#9CA3AF' : '#6B7280'} />
-            <TextInput
-              className="flex-1 ml-3 text-base font-nunito-bold text-textMain dark:text-textMain-dark"
-              placeholder="¿Cómo quieres que te llamen?"
-              placeholderTextColor={colorScheme === 'dark' ? '#6B7280' : '#9CA3AF'}
-              value={nombre}
-              onChangeText={setNombre}
-            />
-          </View>
-        </View>
+        <AnimatedInput
+          label="Nombre Público"
+          iconName="person-outline"
+          placeholder="¿Cómo quieres que te llamen?"
+          value={nombre}
+          onChangeText={setNombre}
+          returnKeyType="next"
+          onSubmitEditing={() => emailRef.current?.focus()}
+        />
 
-        <View className="mb-6">
-          <Text className="text-sm font-snpro-bold text-gray-500 dark:text-gray-400 mb-2 ml-1">
-            Correo Electrónico
-          </Text>
-          <View className="flex-row items-center bg-gray-50 dark:bg-zinc-800/50 border border-gray-200 dark:border-zinc-700 rounded-2xl px-4 h-14">
-            <Ionicons name="mail-outline" size={20} color={colorScheme === 'dark' ? '#9CA3AF' : '#6B7280'} />
-            <TextInput
-              className="flex-1 ml-3 text-base font-nunito-bold text-textMain dark:text-textMain-dark"
-              placeholder="tu@correo.com"
-              placeholderTextColor={colorScheme === 'dark' ? '#6B7280' : '#9CA3AF'}
-              value={email}
-              onChangeText={setEmail}
-              autoCapitalize="none"
-              keyboardType="email-address"
-            />
-          </View>
-        </View>
+        <AnimatedInput
+          label="Correo Electrónico"
+          iconName="mail-outline"
+          placeholder="tu@correo.com"
+          value={email}
+          onChangeText={setEmail}
+          innerRef={emailRef}
+          keyboardType="email-address"
+          autoCapitalize="none"
+          returnKeyType="done"
+          onSubmitEditing={handleSave}
+        />
 
         <AnimatedSquishButton text="Guardar Cambios" onPress={handleSave} />
       </View>

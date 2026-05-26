@@ -36,7 +36,7 @@ export const updateProfileData = async (userId: string, data: { name?: string; e
 };
 
 export const updatePassword = async (passwordactual: string, passwordnuevo: string): Promise<void> => {
-  await api.patch('api/users/update-password', { passwordactual, passwordnuevo });
+  await api.patch('/api/users/update-password', { passwordactual, passwordnuevo });
 };
 
 
