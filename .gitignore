@@ -28,15 +28,21 @@ yarn-error.*
 .DS_Store
 *.pem
 
-# Variables de entorno 
+# IDEs and Editors
+.vscode/
+.idea/
+
+# Variables de entorno y Credenciales
 .env
 .env.*
 .env*.local
+!.env.example
+google-services.json
 
 # Typescript
 *.tsbuildinfo
 
-# plantillas por defecto (opcional, ignora el ejemplo de expo)
+# Plantillas por defecto
 app-example/
 
 # Generated native folders
