@@ -4,15 +4,21 @@ import { LoginPayload, RegisterPayload, ForgotPasswordPayload, AuthResponse } fr
 export const loginUser = async (payload: LoginPayload): Promise<AuthResponse> => {
   // 🚀 Inyectamos la plataforma móvil dinámicamente para exigir el token de 1 año
   const dataToSend = { ...payload, platform: 'mobile' };
-  const response = await api.post<AuthResponse>('/api/auth/login', dataToSend);
-  return response.data;
+  const response = await api.post<any>('/api/auth/login', dataToSend);
+  if (response.data?.user?.nombre && !response.data?.user?.name) {
+    response.data.user.name = response.data.user.nombre;
+  }
+  return response.data as AuthResponse;
 };
 
 export const registerUser = async (payload: RegisterPayload): Promise<AuthResponse> => {
   // 🚀 Inyectamos la plataforma aquí también, garantizando que el auto-login del registro dure 1 año
   const dataToSend = { ...payload, platform: 'mobile' };
-  const response = await api.post<AuthResponse>('/api/auth/register', dataToSend);
-  return response.data;
+  const response = await api.post<any>('/api/auth/register', dataToSend);
+  if (response.data?.user?.nombre && !response.data?.user?.name) {
+    response.data.user.name = response.data.user.nombre;
+  }
+  return response.data as AuthResponse;
 };
 
 export const recoverPassword = async (email: string): Promise<void> => {

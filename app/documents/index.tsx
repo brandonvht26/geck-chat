@@ -14,6 +14,7 @@ import { useRouter } from 'expo-router';
 import { toast } from 'sonner-native';
 import { getErrorMessage } from '@/src/services/api';
 import Animated, { useSharedValue, useAnimatedStyle, withSpring } from 'react-native-reanimated';
+import { StatusBar } from 'expo-status-bar';
 
 const AnimatedFAB = ({ onPress }: { onPress: () => void }) => {
   const scale = useSharedValue(1);
@@ -25,7 +26,7 @@ const AnimatedFAB = ({ onPress }: { onPress: () => void }) => {
         onPressIn={() => { scale.value = withSpring(0.94, { damping: 15 }); }}
         onPressOut={() => { scale.value = withSpring(1, { damping: 15 }); }}
         onPress={onPress}
-        className="w-14 h-14 rounded-full bg-primary dark:bg-primary-dark justify-center items-center shadow-lg shadow-primary/40 dark:shadow-black/50"
+        className="w-14 h-14 rounded-full bg-secondary dark:bg-secondary-dark justify-center items-center shadow-lg shadow-secondary/40 dark:shadow-black/50"
       >
         <Feather name="plus" size={28} color="#ffffff" />
       </Pressable>
@@ -160,12 +161,13 @@ export default function DocumentsScreen() {
   return (
     <View className="flex-1 bg-white dark:bg-authEnd-dark">
 
-      <View style={{ paddingTop: insets.top }} className="bg-white dark:bg-authEnd-dark z-20">
-        <View className="flex-row justify-between items-center px-4 py-3 border-b border-gray-100 dark:border-gray-800">
+      <StatusBar style="light" />
+      <View style={{ paddingTop: insets.top }} className="bg-secondary dark:bg-secondary-dark z-20">
+        <View className="flex-row justify-between items-center px-4 py-3">
           <Pressable onPress={handleGoBack} className="p-2 -ml-2 active:opacity-60">
-            <Feather name="arrow-left" size={24} color={iconColor} />
+            <Feather name="arrow-left" size={24} color="#FFFFFF" />
           </Pressable>
-          <Text className="text-2xl font-snpro-bold text-textMain dark:text-textMain-dark tracking-tight">
+          <Text className="text-2xl font-snpro-bold text-white tracking-tight">
             {currentFolderId ? 'Carpeta' : 'Mis Documentos'}
           </Text>
           <View className="p-2 -mr-2 opacity-0" pointerEvents="none"><Feather name="arrow-left" size={24} /></View>
@@ -183,7 +185,7 @@ export default function DocumentsScreen() {
             <Pressable
               key={filter.id}
               onPress={() => setSortBy(filter.id)}
-              className={`px-4 py-2 rounded-full border ${sortBy === filter.id ? 'bg-primary dark:bg-primary-dark border-primary' : 'bg-gray-50 dark:bg-zinc-800 border-gray-200 dark:border-zinc-700'}`}
+              className={`px-4 py-2 rounded-full border ${sortBy === filter.id ? 'bg-secondary dark:bg-secondary-dark border-secondary' : 'bg-gray-50 dark:bg-zinc-800 border-gray-200 dark:border-zinc-700'}`}
             >
               <Text className={`text-xs font-nunito-bold ${sortBy === filter.id ? 'text-white' : 'text-gray-600 dark:text-gray-400'}`}>
                 {filter.label}
@@ -195,7 +197,7 @@ export default function DocumentsScreen() {
 
       {isLoading ? (
         <View className="flex-1 justify-center items-center">
-          <ActivityIndicator size="large" className="text-primary dark:text-primary-dark" />
+          <ActivityIndicator size="large" className="text-secondary dark:text-secondary-dark" />
         </View>
       ) : (
         <FlatList
@@ -204,8 +206,8 @@ export default function DocumentsScreen() {
           contentContainerStyle={{ padding: 16, paddingBottom: 100 }}
           ListEmptyComponent={
             <View className="flex-1 justify-center items-center mt-20 px-8">
-              <View className="w-20 h-20 rounded-full bg-primary/10 dark:bg-primary-dark/20 justify-center items-center mb-6">
-                <Ionicons name="document-text-outline" size={40} className="text-primary dark:text-primary-dark" />
+              <View className="w-20 h-20 rounded-full bg-secondary/10 dark:bg-secondary-dark/20 justify-center items-center mb-6">
+                <Ionicons name="document-text-outline" size={40} className="text-secondary dark:text-secondary-dark" />
               </View>
               <Text className="text-lg font-nunito-bold text-textMain dark:text-textMain-dark mb-2 text-center">Carpeta vacía</Text>
               <Text className="text-base text-gray-500 dark:text-gray-400 text-center font-nunito-regular">Usa el botón inferior para subir archivos.</Text>

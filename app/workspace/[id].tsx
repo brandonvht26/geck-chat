@@ -331,8 +331,10 @@ export default function WorkspaceScreen() {
     : { uri: wallpaperStr };
 
   return (
-    <View className="flex-1 bg-white dark:bg-authEnd-dark">
-      
+    <View className="flex-1">
+      {/* Fondo Absoluto para evitar bordes blancos al animar el teclado */}
+      <Image source={imageSource as any} style={{ position: 'absolute', width: '100%', height: '100%', zIndex: 0 }} resizeMode="cover" />
+
       {/* 🚀 Cabecera Personalizada Premium */}
       <View style={{ paddingTop: insets.top }} className="bg-white dark:bg-authEnd-dark z-20 border-b border-gray-100 dark:border-zinc-800 shadow-sm">
         <View className="flex-row items-center justify-between px-4 py-3">
@@ -361,12 +363,10 @@ export default function WorkspaceScreen() {
       </View>
 
       <KeyboardAvoidingView 
-        style={{ flex: 1 }} 
+        style={{ flex: 1, zIndex: 10 }} 
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'} 
-        keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top + 56 : 0}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top + 56 + 12 - Math.max(insets.bottom, 12) : 0}
       >
-        <ImageBackground source={imageSource as any} resizeMode="cover" style={{ flex: 1 }}>
-          
           {/* Barra de Miembros Online */}
           {members.length > 0 && (
             <Pressable className="flex-row items-center justify-between px-4 py-2 bg-white/90 dark:bg-zinc-900/90 border-b border-gray-100 dark:border-zinc-800 backdrop-blur-md z-10" onPress={() => setShowMembersModal(true)}>
@@ -427,7 +427,6 @@ export default function WorkspaceScreen() {
             isEditing={!!editingMessage}
             onCancelEdit={() => { setEditingMessage(null); setNewMessage(''); }}
           />
-        </ImageBackground>
       </KeyboardAvoidingView>
 
       {/* 🚀 Modal de Opciones del Mensaje */}

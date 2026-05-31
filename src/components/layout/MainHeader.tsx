@@ -14,16 +14,16 @@ export default function MainHeader({ onToggleMenu }: MainHeaderProps) {
   const iconColor = colorScheme === 'dark' ? '#E5E7EB' : '#333333';
 
   return (
-    <View className="flex-row justify-between items-center px-4 py-3 bg-white dark:bg-authEnd-dark">
+    <View className="flex-row justify-between items-center px-4 py-3 bg-primary dark:bg-primary-dark">
       
       <TouchableOpacity 
         onPress={onToggleMenu} 
         className="p-2 -ml-2 active:opacity-60"
       >
-        <Feather name="menu" size={24} color={iconColor} />
+        <Feather name="menu" size={24} color="#FFFFFF" />
       </TouchableOpacity>
 
-      <Text className="text-2xl font-snpro-bold text-textMain dark:text-textMain-dark tracking-tight">
+      <Text className="text-2xl font-snpro-bold text-white tracking-tight">
         GeckChat
       </Text>
 
@@ -32,7 +32,7 @@ export default function MainHeader({ onToggleMenu }: MainHeaderProps) {
         onPress={() => router.push('/search')} 
         className="p-2 -mr-2 active:opacity-60"
       >
-        <Feather name="user-plus" size={24} color={iconColor} />
+        <Feather name="user-plus" size={24} color="#FFFFFF" />
       </TouchableOpacity>
 
     </View>

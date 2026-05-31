@@ -56,21 +56,12 @@ export default function ChatInput({
   const hasContent = content.trim().length > 0;
   const { colorScheme } = useColorScheme();
   const insets = useSafeAreaInsets();
-  const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
 
-  useEffect(() => {
-    const showSub = Platform.OS === 'ios'
-      ? Keyboard.addListener('keyboardWillShow', () => setIsKeyboardVisible(true))
-      : Keyboard.addListener('keyboardDidShow', () => setIsKeyboardVisible(true));
-    const hideSub = Platform.OS === 'ios'
-      ? Keyboard.addListener('keyboardWillHide', () => setIsKeyboardVisible(false))
-      : Keyboard.addListener('keyboardDidHide', () => setIsKeyboardVisible(false));
-    return () => { showSub.remove(); hideSub.remove(); };
-  }, []);
+
 
   return (
     <View 
-        style={{ paddingBottom: isKeyboardVisible ? 12 : Math.max(insets.bottom, 12), paddingTop: 8 }} 
+        style={{ paddingBottom: Math.max(insets.bottom, 12), paddingTop: 8 }} 
         className="flex-row items-end px-3 bg-transparent w-full"
     >
       {isRecording ? (

@@ -5,6 +5,7 @@ import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { useColorScheme } from 'nativewind';
 import UserSearch from '@/src/components/shared/UserSearch';
 import { inviteMember } from '@/src/services/workspace.service';
+import { StatusBar } from 'expo-status-bar';
 
 export default function InviteMemberScreen() {
   const params = useLocalSearchParams<any>();
@@ -34,6 +35,7 @@ export default function InviteMemberScreen() {
 
   return (
     <View className="flex-1 bg-white dark:bg-authEnd-dark">
+      <StatusBar style="light" />
       {/* 🚀 Transformamos la pantalla en un Modal */}
       <Stack.Screen
         options={{
@@ -41,8 +43,8 @@ export default function InviteMemberScreen() {
           headerShown: true,
           headerTitle: 'Añadir Miembros',
           headerTitleStyle: { fontFamily: 'SNPro-Bold', fontSize: 18 },
-          headerStyle: { backgroundColor: colorScheme === 'dark' ? '#161121' : '#ffffff' },
-          headerTintColor: colorScheme === 'dark' ? '#EBF1FA' : '#141E30',
+          headerStyle: { backgroundColor: colorScheme === 'dark' ? '#8261D4' : '#2A72D4' },
+          headerTintColor: '#FFFFFF',
           headerShadowVisible: false,
         }}
       />

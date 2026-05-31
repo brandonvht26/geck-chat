@@ -7,6 +7,9 @@ import { useColorScheme } from 'nativewind';
 import Animated, { useSharedValue, useAnimatedStyle, withSpring } from 'react-native-reanimated';
 import { UserAvatar } from '@/src/components/ui/UserAvatar';
 import { searchUsers, SearchedUser } from '@/src/services/user.service';
+import { StatusBar } from 'expo-status-bar';
+import { useUserChats } from '@/src/hooks/queries/useUserChats';
+import { useAuth } from '@/src/hooks/useAuth';
 
 // 🚀 Fila de usuario elástica (Squish)
 const AnimatedSquishUser = ({ onPress, children }: { onPress: () => void, children: React.ReactNode }) => {
@@ -31,11 +34,36 @@ export default function SearchScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { colorScheme } = useColorScheme();
-  const iconColor = colorScheme === 'dark' ? '#E5E7EB' : '#333333';
   
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<SearchedUser[]>([]);
   const [isSearching, setIsSearching] = useState(false);
+
+  const { data: chats = [] } = useUserChats();
+  const { user } = useAuth();
+
+  const searchScale = useSharedValue(1);
+  const searchAnimatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: searchScale.value }]
+  }));
+
+  const recentUsers = chats.map(chat => {
+      if ((chat as any).isGroup) return null;
+      const participants = (chat as any).participants || [];
+      const otherUser = participants.find((p: any) => (p?._id || p) !== user?._id);
+      if (otherUser && typeof otherUser !== 'string') {
+          return {
+              _id: otherUser._id,
+              name: otherUser.name,
+              email: otherUser.email,
+              avatarUrl: otherUser.avatarUrl || otherUser.profilePicture,
+              profilePicture: otherUser.profilePicture
+          } as SearchedUser;
+      }
+      return null;
+  }).filter(Boolean) as SearchedUser[];
+
+  const uniqueRecentUsers = recentUsers.filter((v, i, a) => a.findIndex(t => (t._id === v._id)) === i);
 
   useEffect(() => {
     if (query.trim().length < 2) {
@@ -78,18 +106,18 @@ export default function SearchScreen() {
 
   return (
     <View className="flex-1 bg-white dark:bg-authEnd-dark">
-      
+      <StatusBar style="light" />
       {/* 🚀 Header estandarizado: Misma altura y paddings que MainHeader */}
-      <View style={{ paddingTop: insets.top }} className="bg-white dark:bg-authEnd-dark z-20">
-        <View className="flex-row items-center px-4 py-3 border-b border-gray-100 dark:border-gray-800">
+      <View style={{ paddingTop: insets.top }} className="bg-primary dark:bg-primary-dark z-20">
+        <View className="flex-row items-center px-4 py-3">
           
           {/* Botón de regreso universal */}
           <Pressable onPress={() => router.back()} className="p-2 -ml-2 mr-2 active:opacity-60">
-            <Feather name="arrow-left" size={24} color={iconColor} />
+            <Feather name="arrow-left" size={24} color="#FFFFFF" />
           </Pressable>
 
           {/* Barra de búsqueda premium (Misma altura que el input de Workspace) */}
-          <View className="flex-1 flex-row items-center bg-gray-50 dark:bg-zinc-800/50 border border-gray-200 dark:border-zinc-700 rounded-xl px-3 h-12">
+          <Animated.View style={[searchAnimatedStyle, { flex: 1, flexDirection: 'row', alignItems: 'center' }]} className="bg-gray-50 dark:bg-zinc-800/50 border border-gray-200 dark:border-zinc-700 rounded-xl px-3 h-12">
             <Ionicons name="search" size={20} color={colorScheme === 'dark' ? '#9CA3AF' : '#6B7280'} />
             <TextInput
               className="flex-1 ml-2 text-base font-nunito-regular text-textMain dark:text-textMain-dark"
@@ -100,13 +128,15 @@ export default function SearchScreen() {
               autoCapitalize="none"
               autoCorrect={false}
               autoFocus
+              onFocus={() => { searchScale.value = withSpring(1.02, { damping: 12 }); }}
+              onBlur={() => { searchScale.value = withSpring(1); }}
             />
             {query.length > 0 && (
               <Pressable onPress={() => setQuery('')} className="p-1">
                 <Ionicons name="close-circle" size={20} color={colorScheme === 'dark' ? '#9CA3AF' : '#9CA3AF'} />
               </Pressable>
             )}
-          </View>
+          </Animated.View>
 
         </View>
       </View>
@@ -136,7 +166,22 @@ export default function SearchScreen() {
             Asegúrate de que el nombre o correo electrónico esté escrito correctamente.
           </Text>
         </View>
-      ) : null}
+      ) : (
+        <View className="flex-1">
+          {uniqueRecentUsers.length > 0 && (
+            <Text className="px-5 py-4 text-sm font-snpro-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+              Chats recientes
+            </Text>
+          )}
+          <FlatList
+            data={uniqueRecentUsers}
+            keyExtractor={(item) => item._id}
+            renderItem={renderUser}
+            keyboardShouldPersistTaps="handled"
+            contentContainerStyle={{ paddingBottom: insets.bottom }}
+          />
+        </View>
+      )}
     </View>
   );
 }

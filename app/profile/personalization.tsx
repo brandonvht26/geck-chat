@@ -10,6 +10,7 @@ import { useAuth } from '@/src/hooks/useAuth';
 import { updateUserPreferences } from '@/src/services/user.service';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, { useSharedValue, useAnimatedStyle, withSpring } from 'react-native-reanimated';
+import { StatusBar } from 'expo-status-bar';
 
 const bundledWallpapers = {
   primary: require('../../assets/wallpapers/primary.webp'),
@@ -41,6 +42,8 @@ export default function PersonalizationScreen() {
   const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
   const { user, setUser } = useAuth();
+  
+  const tertiaryColor = colorScheme === 'dark' ? '#BBE068' : '#93BE38';
 
   const [selectedMode, setSelectedMode] = useState<'light' | 'dark' | 'system'>(
     (user as any)?.preferences?.theme || 'system'
@@ -147,14 +150,15 @@ export default function PersonalizationScreen() {
   return (
     <View className="flex-1 bg-white dark:bg-authEnd-dark">
       
+      <StatusBar style="light" />
       {/* 🚀 Header Pixel-Perfect (Réplica 1:1 de MainHeader) */}
-      <View style={{ paddingTop: insets.top }} className="bg-white dark:bg-authEnd-dark z-20">
-        <View className="flex-row justify-between items-center px-4 py-3 bg-white dark:bg-authEnd-dark border-b border-gray-100 dark:border-gray-800">
+      <View style={{ paddingTop: insets.top }} className="bg-tertiary dark:bg-tertiary-dark z-20">
+        <View className="flex-row justify-between items-center px-4 py-3">
           <Pressable onPress={() => router.back()} className="p-2 -ml-2 active:opacity-60">
-            <Feather name="arrow-left" size={24} color={colorScheme === 'dark' ? '#E5E7EB' : '#333333'} />
+            <Feather name="arrow-left" size={24} color="#FFFFFF" />
           </Pressable>
 
-          <Text className="text-2xl font-snpro-bold text-textMain dark:text-textMain-dark tracking-tight">
+          <Text className="text-2xl font-snpro-bold text-white tracking-tight">
             Personalización
           </Text>
 
@@ -177,22 +181,22 @@ export default function PersonalizationScreen() {
         <View className="bg-gray-50 dark:bg-zinc-800/50 rounded-3xl p-2 mb-8 border border-gray-100 dark:border-zinc-800">
           <View className="flex-row justify-between items-center p-3 border-b border-gray-200/50 dark:border-zinc-700/50">
             <View className="flex-row items-center">
-              <View className="bg-indigo-100 dark:bg-indigo-900/40 p-2.5 rounded-xl mr-4">
-                <Feather name="moon" size={20} color="#4f46e5" />
+              <View className="bg-tertiary/10 dark:bg-tertiary-dark/15 p-2.5 rounded-xl mr-4">
+                <Feather name="moon" size={20} color={tertiaryColor} />
               </View>
               <Text className="text-base font-nunito-bold text-textMain dark:text-textMain-dark">Modo Oscuro</Text>
             </View>
             <Switch
               value={selectedMode === 'dark' || (selectedMode === 'system' && colorScheme === 'dark')}
               onValueChange={handleDarkSwitch}
-              trackColor={{ false: '#d1d5db', true: '#4f46e5' }}
+              trackColor={{ false: '#d1d5db', true: tertiaryColor }}
             />
           </View>
 
           <View className="flex-row justify-between items-center p-3">
             <View className="flex-row items-center">
-              <View className="bg-blue-100 dark:bg-blue-900/40 p-2.5 rounded-xl mr-4">
-                <Feather name="smartphone" size={20} color="#007AFF" />
+              <View className="bg-tertiary/10 dark:bg-tertiary-dark/15 p-2.5 rounded-xl mr-4">
+                <Feather name="smartphone" size={20} color={tertiaryColor} />
               </View>
               <View>
                 <Text className="text-base font-nunito-bold text-textMain dark:text-textMain-dark">Conf. del sistema</Text>
@@ -202,7 +206,7 @@ export default function PersonalizationScreen() {
             <Switch
               value={selectedMode === 'system'}
               onValueChange={handleSystemSwitch}
-              trackColor={{ false: '#d1d5db', true: '#007AFF' }}
+              trackColor={{ false: '#d1d5db', true: tertiaryColor }}
             />
           </View>
         </View>

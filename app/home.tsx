@@ -8,6 +8,7 @@ import Animated, { useSharedValue, useAnimatedStyle, withSpring, withTiming } fr
 import MainHeader from '@/src/components/layout/MainHeader';
 import SideMenu from '@/src/components/layout/SideMenu';
 import ChatList from '@/src/components/chat/ChatList';
+import { StatusBar } from 'expo-status-bar';
 
 const { width } = Dimensions.get('window');
 const TAB_CONTAINER_WIDTH = width - 32; 
@@ -57,10 +58,15 @@ export default function HomeScreen() {
     };
   }, [activeTab]);
 
+  const searchScale = useSharedValue(1);
+  const searchAnimatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: searchScale.value }]
+  }));
+
   return (
     <View className="flex-1 bg-white dark:bg-authEnd-dark">
-      
-      <View style={{ paddingTop: insets.top }} className="bg-white dark:bg-authEnd-dark z-20">
+      <StatusBar style="light" />
+      <View style={{ paddingTop: insets.top }} className="bg-primary dark:bg-primary-dark z-20">
         <MainHeader onToggleMenu={() => setIsMenuOpen(!isMenuOpen)} />
         
         <View className="px-4 pb-4 pt-1 bg-white dark:bg-authEnd-dark z-10 border-b border-gray-100 dark:border-gray-800">
@@ -82,7 +88,7 @@ export default function HomeScreen() {
             </View>
 
             <View className="flex-row items-center">
-              <View className="flex-1 flex-row items-center bg-gray-50 dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-xl px-3 h-11 overflow-hidden">
+              <Animated.View style={[searchAnimatedStyle, { flex: 1, flexDirection: 'row', alignItems: 'center' }]} className="bg-gray-50 dark:bg-zinc-900 border border-gray-200 dark:border-zinc-800 rounded-xl px-3 h-11 overflow-hidden">
                 <Feather name="search" size={18} color={colorScheme === 'dark' ? '#9CA3AF' : '#9CA3AF'} />
                 <TextInput 
                   className="flex-1 ml-2 text-base font-nunito-regular text-textMain dark:text-textMain-dark"
@@ -91,13 +97,15 @@ export default function HomeScreen() {
                   value={searchTerm}
                   onChangeText={setSearchTerm}
                   autoCapitalize="none"
+                  onFocus={() => { searchScale.value = withSpring(1.02, { damping: 12 }); }}
+                  onBlur={() => { searchScale.value = withSpring(1); }}
                 />
                 {searchTerm.length > 0 && (
                   <Pressable onPress={() => setSearchTerm('')} className="p-1">
                     <Feather name="x-circle" size={18} color={colorScheme === 'dark' ? '#9CA3AF' : '#9CA3AF'} />
                   </Pressable>
                 )}
-              </View>
+              </Animated.View>
 
               <Animated.View style={createBtnContainerStyle} className="overflow-hidden">
                 <AnimatedSquishCreate onPress={() => router.push('/workspace/create')} />

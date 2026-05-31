@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { View, Text, Pressable, ActivityIndicator, Image, Modal, TextInput } from 'react-native';
+import { useEffect, useState, useRef } from 'react';
+import { View, Text, Pressable, ActivityIndicator, Image, Modal, TextInput, TouchableOpacity } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Feather, Ionicons } from '@expo/vector-icons';
 import { toast } from 'sonner-native';
@@ -7,10 +7,11 @@ import { useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import { useColorScheme } from 'nativewind';
 import Animated, { useSharedValue, useAnimatedStyle, withSpring, withRepeat, withSequence, withTiming } from 'react-native-reanimated';
-import { getUserProfile, updateUserPreferences, deleteAccount, UserProfile } from '@/src/services/user.service';
+import { getUserProfile, updateUserPreferences, deleteAccount, updateProfileData, updatePassword, UserProfile } from '@/src/services/user.service';
 import { getErrorMessage } from '@/src/services/api';
 import { AxiosError } from 'axios';
 import { useAuth } from '@/src/hooks/useAuth';
+import { useQueryClient } from '@tanstack/react-query';
 
 const AnimatedMenuRow = ({ icon, title, onPress, danger }: any) => {
   const scale = useSharedValue(1);
@@ -37,24 +38,88 @@ const AnimatedMenuRow = ({ icon, title, onPress, danger }: any) => {
   );
 };
 
+const AnimatedInput = ({ iconName, placeholder, value, onChangeText, innerRef, returnKeyType, onSubmitEditing, isPassword }: any) => {
+  const scale = useSharedValue(1);
+  const { colorScheme } = useColorScheme();
+  const [showPassword, setShowPassword] = useState(false);
+  
+  const animatedStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
+  const isDark = colorScheme === 'dark';
+
+  return (
+    <Animated.View style={animatedStyle} className="mb-4">
+      <View className="flex-row items-center bg-gray-50 dark:bg-zinc-800/50 border border-gray-200 dark:border-zinc-700 rounded-2xl px-4 h-14">
+        <Ionicons name={iconName} size={20} color={isDark ? '#9CA3AF' : '#6B7280'} />
+        <TextInput
+          ref={innerRef}
+          className="flex-1 ml-3 text-base font-nunito-bold text-textMain dark:text-textMain-dark"
+          placeholder={placeholder}
+          placeholderTextColor={isDark ? '#6B7280' : '#9CA3AF'}
+          value={value}
+          onChangeText={onChangeText}
+          secureTextEntry={isPassword && !showPassword}
+          onFocus={() => { scale.value = withSpring(1.02, { damping: 12 }); }}
+          onBlur={() => { scale.value = withSpring(1); }}
+          returnKeyType={returnKeyType}
+          onSubmitEditing={onSubmitEditing}
+          blurOnSubmit={returnKeyType === 'done'}
+          autoCapitalize={isPassword ? 'none' : 'words'}
+        />
+        {isPassword && (
+          <TouchableOpacity onPress={() => setShowPassword(!showPassword)} className="pl-3 py-2">
+            <Feather name={showPassword ? 'eye-off' : 'eye'} size={20} color={isDark ? '#9CA3AF' : '#6B7280'} />
+          </TouchableOpacity>
+        )}
+      </View>
+    </Animated.View>
+  );
+};
+
+const AnimatedModalButton = ({ onPress, text, isPrimary, isDanger, loading, disabled }: any) => {
+    const scale = useSharedValue(1);
+    const animatedStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
+    
+    let bgClass = "bg-gray-100 dark:bg-zinc-800/80 border border-gray-200 dark:border-zinc-700";
+    let textClass = "text-gray-700 dark:text-gray-300";
+    let indicatorColor = "#6B7280";
+    
+    if (isPrimary) {
+        bgClass = "bg-primary/10 dark:bg-primary-dark/15 border border-primary/20 dark:border-primary-dark/30";
+        textClass = "text-primary dark:text-primary-dark";
+        indicatorColor = "#2A72D4"; // Primary color
+    } else if (isDanger) {
+        bgClass = "bg-warning/10 dark:bg-warning-dark/15 border border-warning/20 dark:border-warning-dark/30";
+        textClass = "text-warning dark:text-warning-dark";
+        indicatorColor = "#E14B4B"; // Warning color
+    }
+  
+    return (
+      <Animated.View style={[animatedStyle, { flex: 1 }]}>
+        <Pressable
+          onPressIn={() => { if (!disabled) scale.value = withSpring(0.94, { damping: 15 }); }}
+          onPressOut={() => { scale.value = withSpring(1, { damping: 15 }); }}
+          onPress={onPress}
+          disabled={disabled || loading}
+          className={`${bgClass} py-4 rounded-xl items-center ${(disabled || loading) ? 'opacity-50' : ''}`}
+        >
+          {loading ? <ActivityIndicator color={indicatorColor} /> : <Text className={`font-snpro-bold text-base ${textClass}`}>{text}</Text>}
+        </Pressable>
+      </Animated.View>
+    );
+};
+
 // 🚀 Avatar con animación de "Respiración" (Breathing Effect)
 const BreathingAvatar = ({ uri, initial, onPress }: { uri?: string, initial: string, onPress: () => void }) => {
     const breathe = useSharedValue(1);
     
     useEffect(() => {
         breathe.value = withRepeat(
-            withSequence(
-                withTiming(1.05, { duration: 1500 }),
-                withTiming(1, { duration: 1500 })
-            ),
-            -1, // Infinito
-            true // Reversa
+            withSequence(withTiming(1.05, { duration: 1500 }), withTiming(1, { duration: 1500 })),
+            -1, true
         );
     }, []);
 
-    const animatedStyle = useAnimatedStyle(() => ({
-        transform: [{ scale: breathe.value }]
-    }));
+    const animatedStyle = useAnimatedStyle(() => ({ transform: [{ scale: breathe.value }] }));
 
     return (
         <View className="relative mb-6 mt-4">
@@ -68,27 +133,37 @@ const BreathingAvatar = ({ uri, initial, onPress }: { uri?: string, initial: str
                     <Text className="text-5xl font-snpro-bold text-primary dark:text-primary-dark">{initial}</Text>
                 )}
             </Animated.View>
-            <Pressable 
-                onPress={onPress} 
-                className="absolute bottom-2 right-2 bg-primary dark:bg-primary-dark p-3.5 rounded-full border-4 border-white dark:border-authEnd-dark shadow-sm"
-            >
+            <Pressable onPress={onPress} className="absolute bottom-2 right-2 bg-primary dark:bg-primary-dark p-3.5 rounded-full border-4 border-white dark:border-authEnd-dark shadow-sm">
                 <Feather name="camera" size={18} color="#fff" />
             </Pressable>
         </View>
     );
 };
 
+import { StatusBar } from 'expo-status-bar';
+
 export default function ProfileScreen() {
   const router = useRouter();
   const { user, signOut, setUser } = useAuth();
   const insets = useSafeAreaInsets();
   const { colorScheme } = useColorScheme();
+  const queryClient = useQueryClient();
   
   const [profileData, setProfileData] = useState<UserProfile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  
+  // Modals state
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showNameModal, setShowNameModal] = useState(false);
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  
+  // Forms state
   const [confirmationText, setConfirmationText] = useState('');
-  const [isDeleting, setIsDeleting] = useState(false);
+  const [newName, setNewName] = useState('');
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  
+  const [isUpdating, setIsUpdating] = useState(false);
 
   useEffect(() => {
     getUserProfile().then(setProfileData).catch((e) => toast.error('Error al cargar el perfil', { description: getErrorMessage(e as AxiosError) })).finally(() => setIsLoading(false));
@@ -108,12 +183,69 @@ export default function ProfileScreen() {
               if (user) setUser({ ...user, avatarUrl: newUrl });
             }
         });
-      toast.promise(promise, { 
-        loading: 'Actualizando foto...', 
-        success: () => '¡Foto actualizada!', 
-        error: () => 'Error al subir la foto' 
-      });
+      toast.promise(promise, { loading: 'Actualizando foto...', success: () => '¡Foto actualizada!', error: () => 'Error al subir la foto' });
     }
+  };
+
+  const handleSaveName = async () => {
+    if (!newName.trim()) {
+      toast.error('El nombre no puede estar vacío');
+      return;
+    }
+    setIsUpdating(true);
+    const updatePromise = updateProfileData(profileData!._id, { name: newName })
+      .then(() => {
+        setProfileData(prev => prev ? { ...prev, name: newName } : null);
+        if (user) setUser({ ...user, name: newName });
+        queryClient.invalidateQueries({ queryKey: ['profile'] });
+        queryClient.invalidateQueries({ queryKey: ['userChats'] });
+        queryClient.invalidateQueries({ queryKey: ['currentUser'] });
+        setShowNameModal(false);
+      })
+      .finally(() => setIsUpdating(false));
+
+    toast.promise(updatePromise, {
+      loading: 'Guardando...',
+      success: () => '¡Nombre actualizado!',
+      error: () => 'No pudimos guardar los cambios.',
+    });
+  };
+
+  const handleSavePassword = async () => {
+    if (!currentPassword.trim() || !newPassword.trim()) {
+      toast.error('Atención', { description: 'Todos los campos son requeridos' });
+      return;
+    }
+    if (currentPassword === newPassword) {
+      toast.error('Contraseña idéntica', { description: 'La nueva contraseña no puede ser igual a la actual.' });
+      return;
+    }
+    const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*[\d\W_]).{6,}$/;
+    if (!passwordRegex.test(newPassword.trim())) {
+      toast.error('Contraseña débil', { description: 'Mínimo 6 caracteres, mayúsculas, minúsculas y un número o carácter especial.' });
+      return;
+    }
+
+    setIsUpdating(true);
+    const updatePromise = updatePassword(currentPassword, newPassword)
+      .then(() => {
+        setCurrentPassword('');
+        setNewPassword('');
+        setShowPasswordModal(false);
+      })
+      .finally(() => setIsUpdating(false));
+
+    toast.promise(updatePromise, {
+      loading: 'Actualizando...',
+      success: () => '¡Contraseña actualizada!',
+      error: (e) => {
+        const msg = getErrorMessage(e as AxiosError);
+        if (msg.includes('actual no es correcto') || msg.includes('igual a la actual')) {
+            return msg;
+        }
+        return 'Error al actualizar contraseña. Verifica tu contraseña actual.';
+      },
+    });
   };
 
   const handleDeleteAccount = async () => {
@@ -121,7 +253,7 @@ export default function ProfileScreen() {
     const expectedText = `delete_${profileData.name.replace(/\s+/g, '')}`;
     if (confirmationText !== expectedText) return toast.error(`Debes escribir: ${expectedText}`);
 
-    setIsDeleting(true);
+    setIsUpdating(true);
     try {
       await deleteAccount(confirmationText);
       setShowDeleteModal(false);
@@ -129,28 +261,29 @@ export default function ProfileScreen() {
       toast.success('Cuenta eliminada correctamente');
     } catch (error) {
       toast.error('No pudimos eliminar tu cuenta', { description: getErrorMessage(error as AxiosError) });
-      setIsDeleting(false);
+      setIsUpdating(false);
     }
   };
+
+  const passRef = useRef<TextInput>(null);
 
   if (isLoading) return <View className="flex-1 bg-white dark:bg-authEnd-dark justify-center items-center"><ActivityIndicator size="large" color="#2A72D4" /></View>;
 
   return (
     <View className="flex-1 bg-white dark:bg-authEnd-dark">
-      
-      <View style={{ paddingTop: insets.top }} className="bg-white dark:bg-authEnd-dark z-20">
-        <View className="flex-row justify-between items-center px-4 py-3 border-b border-gray-100 dark:border-gray-800">
+      <StatusBar style="light" />
+      <View style={{ paddingTop: insets.top }} className="bg-primary dark:bg-primary-dark z-20">
+        <View className="flex-row justify-between items-center px-4 py-3">
           <Pressable onPress={() => router.back()} className="p-2 -ml-2 active:opacity-60">
-            <Feather name="arrow-left" size={24} color={colorScheme === 'dark' ? '#E5E7EB' : '#333333'} />
+            <Feather name="arrow-left" size={24} color="#FFFFFF" />
           </Pressable>
-          <Text className="text-2xl font-snpro-bold text-textMain dark:text-textMain-dark tracking-tight">Mi Perfil</Text>
+          <Text className="text-2xl font-snpro-bold text-white tracking-tight">Mi Perfil</Text>
           <View className="p-2 -mr-2 opacity-0" pointerEvents="none"><Feather name="arrow-left" size={24} /></View>
         </View>
       </View>
 
       <View className="flex-1 items-center pt-2">
         
-        {/* 🚀 Avatar Animado (160px forzados) */}
         <BreathingAvatar 
             uri={profileData?.avatarUrl} 
             initial={profileData?.name?.charAt(0) || '?'} 
@@ -162,23 +295,80 @@ export default function ProfileScreen() {
 
         <View className="w-full px-4">
             <AnimatedMenuRow 
-                icon="person-outline" title="Editar Información" 
-                onPress={() => router.push({ pathname: '/profile/edit', params: { id: profileData?._id, name: profileData?.name, email: profileData?.email } })} 
+                icon="person-outline" title="Cambiar Nombre" 
+                onPress={() => { setNewName(profileData?.name || ''); setShowNameModal(true); }} 
             />
-            <AnimatedMenuRow icon="lock-closed-outline" title="Cambiar Contraseña" onPress={() => router.push('/profile/change-password')} />
+            <AnimatedMenuRow icon="lock-closed-outline" title="Cambiar Contraseña" onPress={() => { setCurrentPassword(''); setNewPassword(''); setShowPasswordModal(true); }} />
             
-            {/* 🚀 ZONA DE PELIGRO */}
             <View className="mt-8">
                 <Text className="text-xs font-snpro-bold text-warning/70 dark:text-warning-dark/70 uppercase tracking-widest mb-2 ml-4">
                     Zona de Peligro
                 </Text>
                 <View className="bg-red-50/50 dark:bg-red-950/10 rounded-3xl border border-red-100 dark:border-red-900/30 overflow-hidden">
-                    <AnimatedMenuRow icon="trash-outline" title="Eliminar Cuenta" danger={true} onPress={() => setShowDeleteModal(true)} />
+                    <AnimatedMenuRow icon="trash-outline" title="Eliminar Cuenta" danger={true} onPress={() => { setConfirmationText(''); setShowDeleteModal(true); }} />
                 </View>
             </View>
         </View>
 
       </View>
+
+      {/* Modal Cambiar Nombre */}
+      <Modal visible={showNameModal} transparent animationType="fade">
+        <Pressable className="flex-1 bg-black/60 justify-center px-4" onPress={() => setShowNameModal(false)}>
+          <Pressable className="bg-white dark:bg-authEnd-dark rounded-3xl p-6" onPress={(e) => e.stopPropagation()}>
+            <Text className="text-xl font-snpro-bold text-textMain dark:text-textMain-dark mb-6">Cambiar Nombre</Text>
+            
+            <AnimatedInput
+                iconName="person-outline"
+                placeholder="¿Cómo quieres que te llamen?"
+                value={newName}
+                onChangeText={setNewName}
+                returnKeyType="done"
+                onSubmitEditing={handleSaveName}
+            />
+
+            <View className="flex-row gap-3 mt-4">
+              <AnimatedModalButton onPress={() => setShowNameModal(false)} text="Cancelar" />
+              <AnimatedModalButton onPress={handleSaveName} text="Guardar" isPrimary loading={isUpdating} />
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {/* Modal Cambiar Contraseña */}
+      <Modal visible={showPasswordModal} transparent animationType="fade">
+        <Pressable className="flex-1 bg-black/60 justify-center px-4" onPress={() => setShowPasswordModal(false)}>
+          <Pressable className="bg-white dark:bg-authEnd-dark rounded-3xl p-6" onPress={(e) => e.stopPropagation()}>
+            <Text className="text-xl font-snpro-bold text-textMain dark:text-textMain-dark mb-6">Cambiar Contraseña</Text>
+            
+            <AnimatedInput
+                iconName="lock-closed-outline"
+                placeholder="Contraseña Actual"
+                value={currentPassword}
+                onChangeText={setCurrentPassword}
+                isPassword={true}
+                returnKeyType="next"
+                onSubmitEditing={() => passRef.current?.focus()}
+            />
+
+            <AnimatedInput
+                iconName="key-outline"
+                placeholder="Nueva Contraseña"
+                value={newPassword}
+                onChangeText={setNewPassword}
+                isPassword={true}
+                innerRef={passRef}
+                returnKeyType="done"
+                onSubmitEditing={handleSavePassword}
+            />
+
+            <View className="flex-row gap-3 mt-4">
+              <AnimatedModalButton onPress={() => setShowPasswordModal(false)} text="Cancelar" />
+              <AnimatedModalButton onPress={handleSavePassword} text="Actualizar" isPrimary loading={isUpdating} />
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
 
       {/* Modal de Borrado */}
       <Modal visible={showDeleteModal} transparent animationType="fade">
@@ -198,22 +388,18 @@ export default function ProfileScreen() {
                 </Text>
             </View>
 
-            <TextInput
-              className="bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-700 rounded-xl p-4 text-base mb-6 text-textMain dark:text-textMain-dark"
-              placeholder="Escribe el código aquí..."
-              placeholderTextColor={colorScheme === 'dark' ? '#6B7280' : '#9CA3AF'}
-              value={confirmationText}
-              onChangeText={setConfirmationText}
-              autoCapitalize="none"
+            <AnimatedInput
+                iconName="trash-outline"
+                placeholder="Escribe el código aquí..."
+                value={confirmationText}
+                onChangeText={setConfirmationText}
+                returnKeyType="done"
+                onSubmitEditing={handleDeleteAccount}
             />
 
-            <View className="flex-row gap-3">
-              <Pressable onPress={() => setShowDeleteModal(false)} className="flex-1 bg-gray-100 dark:bg-zinc-800 py-4 rounded-xl items-center">
-                <Text className="font-snpro-bold text-gray-700 dark:text-gray-300 text-base">Cancelar</Text>
-              </Pressable>
-              <Pressable onPress={handleDeleteAccount} disabled={isDeleting} className={`flex-1 bg-warning dark:bg-warning-dark py-4 rounded-xl items-center ${isDeleting ? 'opacity-50' : ''}`}>
-                {isDeleting ? <ActivityIndicator color="#fff" /> : <Text className="font-snpro-bold text-white text-base">Eliminar</Text>}
-              </Pressable>
+            <View className="flex-row gap-3 mt-4">
+              <AnimatedModalButton onPress={() => setShowDeleteModal(false)} text="Cancelar" />
+              <AnimatedModalButton onPress={handleDeleteAccount} text="Eliminar" isDanger loading={isUpdating} />
             </View>
           </Pressable>
         </Pressable>

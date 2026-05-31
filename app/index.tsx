@@ -13,6 +13,7 @@ import Animated, {
     Easing 
 } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
+import { StatusBar } from 'expo-status-bar';
 
 export default function SplashScreen() {
   const router = useRouter();
@@ -50,7 +51,7 @@ export default function SplashScreen() {
 
   return (
     <View className="flex-1 justify-center items-center overflow-hidden bg-white dark:bg-authEnd-dark">
-      
+      <StatusBar translucent={true} backgroundColor="transparent" style={colorScheme === 'dark' ? 'light' : 'dark'} />
       {/* 🚀 Olas circulares con alternancia adaptativa explícita */}
       <Animated.View 
         style={animatedCircle1} 

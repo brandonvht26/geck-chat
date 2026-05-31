@@ -276,9 +276,11 @@ export default function ChatRoomScreen() {
     : { uri: wallpaperStr };
 
   return (
-    <View className="flex-1 bg-white dark:bg-authEnd-dark">
-      
-      {/* 🚀 Cabecera Personalizada Pixel-Perfect */}
+    <View className="flex-1">
+      {/* Fondo Absoluto para evitar bordes blancos al animar el teclado */}
+      <Image source={imageSource as any} style={{ position: 'absolute', width: '100%', height: '100%', zIndex: 0 }} resizeMode="cover" />
+
+      {/* 🚀 Cabecera Personalizada Premium */}
       <View style={{ paddingTop: insets.top }} className="bg-white dark:bg-authEnd-dark z-20 border-b border-gray-100 dark:border-zinc-800 shadow-sm">
         <View className="flex-row items-center justify-between px-4 py-3">
           <View className="flex-row items-center flex-1">
@@ -286,30 +288,27 @@ export default function ChatRoomScreen() {
               <Feather name="arrow-left" size={24} color={colorScheme === 'dark' ? '#E5E7EB' : '#141E30'} />
             </Pressable>
             
-            <Pressable 
-              className="flex-row items-center flex-1"
-              onPress={() => router.push({ pathname: '/user/[id]', params: { id: otherUser?._id, name: otherUser?.name, email: otherUser?.email, avatarUrl: otherUser?.avatarUrl || otherUser?.profilePicture } })}
-            >
-              <UserAvatar uri={otherUser?.avatarUrl || otherUser?.profilePicture} size={40} />
-              <View className="ml-3 flex-1">
-                <Text className="text-lg font-snpro-bold text-textMain dark:text-textMain-dark" numberOfLines={1}>
-                  {otherUser?.name || otherUser?.username || 'Usuario'}
-                </Text>
-                <Text className="text-xs font-nunito-regular text-gray-500 dark:text-gray-400">
-                  {isOtherOnline ? 'En línea' : 'Desconectado'}
-                </Text>
-              </View>
-            </Pressable>
+            <View className="relative mr-3">
+              <UserAvatar uri={otherUser?.avatarUrl} size={40} />
+              {isOtherOnline && <View className="w-3.5 h-3.5 rounded-full bg-green-500 border-2 border-white dark:border-authEnd-dark absolute -bottom-0.5 -right-0.5 shadow-sm" />}
+            </View>
+            <View className="flex-1 justify-center">
+              <Text className="text-lg font-snpro-bold text-textMain dark:text-textMain-dark" numberOfLines={1}>{otherUser?.name || 'Usuario'}</Text>
+              <Text className="text-xs font-nunito-bold text-gray-500 dark:text-gray-400 mt-0.5">{isOtherOnline ? 'En línea' : 'Desconectado'}</Text>
+            </View>
           </View>
+          
+          <Pressable onPress={() => router.push({ pathname: '/user/[id]', params: { id: otherUser?._id, name: otherUser?.name || otherUser?.username, email: otherUser?.email || '', avatarUrl: otherUser?.avatarUrl || '' } })} className="p-2 -mr-2 bg-gray-50 dark:bg-zinc-800 rounded-full ml-2">
+            <Feather name="info" size={18} color={colorScheme === 'dark' ? '#9CA3AF' : '#4B5563'} />
+          </Pressable>
         </View>
       </View>
 
       <KeyboardAvoidingView 
-        style={{ flex: 1 }} 
+        style={{ flex: 1, zIndex: 10 }} 
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'} 
-        keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top + 56 : 0}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top + 56 + 12 - Math.max(insets.bottom, 12) : 0}
       >
-        <ImageBackground source={imageSource as any} resizeMode="cover" style={{ flex: 1 }}>
           <FlatList
             ref={flatListRef}
             data={messages}
@@ -377,7 +376,6 @@ export default function ChatRoomScreen() {
             isEditing={!!editingMessage}
             onCancelEdit={() => { setEditingMessage(null); setContent(''); }}
           />
-        </ImageBackground>
       </KeyboardAvoidingView>
 
       {/* 🚀 Modal Bottom Sheet de Opciones */}

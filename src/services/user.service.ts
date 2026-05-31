@@ -21,8 +21,11 @@ export interface SearchedUser {
 }
 
 export const getUserProfile = async (): Promise<UserProfile> => {
-  const response = await api.get<UserProfile>('/api/users/profile');
-  return response.data;
+  const response = await api.get<any>('/api/users/profile');
+  if (response.data && response.data.nombre && !response.data.name) {
+    response.data.name = response.data.nombre;
+  }
+  return response.data as UserProfile;
 };
 
 export const updateProfileData = async (userId: string, data: { name?: string; email?: string }): Promise<any> => {
