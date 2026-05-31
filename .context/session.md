@@ -1,44 +1,15 @@
-# 📋 SESSION.MD — Resumen de Jornada
+# Resumen de Sesión - Hoy
 
-> ✅ **Este archivo es volátil. Se reescribe completamente en cada sesión de trabajo, con autorización del owner.**
-> ❌ **No puede eliminarse.**
-> Sirve como memoria de corto plazo: qué se hizo, qué quedó pendiente, y qué decisiones se tomaron hoy.
+## 1. Estandarización de Avatares
+- Se unificó el uso del componente `UserAvatar` en toda la aplicación para garantizar que los emojis de workspaces y fotos de usuarios se rendericen uniformemente con el mismo diseño y tamaño en todas las vistas.
 
----
+## 2. Refactorización de Subida de Imágenes (Avatar / Wallpaper)
+- Se identificó que `Axios` en React Native corrompe los headers `multipart/form-data`.
+- Se migró la lógica de subida en `user.service.ts` y `item.service.ts` a `fetch` nativo.
+- Se ajustaron los endpoints para apuntar a `POST /api/users/preferences` en preparación para el despliegue del backend.
+- Se añadió un helper `safeJson` para evitar crasheos de la app (SyntaxError) cuando el servidor devuelve páginas de error HTML.
+- Se diagnosticó que el servidor arroja un Error 500 desde `Multer` antes de llegar al controlador, dejando listo un prompt definitivo para que el backend lo solucione.
 
-## Jornada: 2026-05-30
-
-### ✅ Lo que se hizo hoy
-
-- **Análisis exhaustivo del proyecto GeckChat** (Expo SDK 54, React Native 0.81.5)
-  - Revisión completa de la estructura de directorios y archivos
-  - Análisis del stack tecnológico (NativeWind, Reanimated, TanStack Query, Socket.IO, Zustand, Zod, etc.)
-  - Lectura de todos los servicios, hooks, componentes y pantallas principales
-  - Revisión de la configuración de EAS Build y `app.json`
-  - Análisis de la paleta de colores, fuentes y sistema de animaciones
-
-- **Creación del directorio `.context/`** con los siguientes archivos:
-  - `rules.md` → Reglas de oro del proyecto (stack, convenciones, idioma, builds, sistema .context)
-  - `architecture.md` → Arquitectura completa y detallada del proyecto (flujos, capas, eventos socket, navegación, API endpoints)
-  - `roadmap.md` → Creado vacío, listo para ser llenado con autorización
-  - `session.md` → Este archivo (resumen de la jornada)
-  - `skills/ui/SKILL.md` → SKILL completa de UI/UX (paleta, fuentes, animaciones, inputs, toasts, patrones)
-
-### 🟡 Decisiones tomadas
-
-- Se decidió dejar `roadmap.md` vacío hasta que el owner autorice la planificación
-- Se documentó el patrón de **doble canal de Socket.IO** (SocketService singleton + SocketContext) tal como existe en el código, sin proponer cambios
-- Se registró el estado actual de **Zustand** (instalado pero sin stores activos implementados aún)
-- Se identificó que los tipos `User` en `useAuth.tsx` y `UserProfile` en `user.service.ts` tienen campos con nombres diferentes (`nombre` vs `name`) — pendiente de unificar si el owner lo aprueba
-
-### 🔴 Pendientes / Observaciones
-
-### 📦 Archivos Creados
-
-```
-.context/rules.md
-.context/architecture.md
-.context/roadmap.md
-.context/session.md
-.context/skills/ui/SKILL.md
-```
+## 3. Corrección de Bugs Críticos
+- **Race Condition al Eliminar Grupos:** Se solucionó el error `404 Error fetching chat messages` al eliminar un grupo. Se implementó la limpieza del estado `currentChatId` previo a la navegación y se configuró React Query para ignorar silenciosamente los 404 esperados.
+- **Falsos Positivos de Red:** Se evaluó el log de "Error validando sesión" en `useAuth`, confirmando que es un comportamiento normal en Expo Go al recargar, que no afectará la experiencia del usuario en producción (el caché funciona correctamente).
