@@ -10,6 +10,12 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useColorScheme } from 'nativewind';
 import * as SplashScreen from 'expo-splash-screen';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { configureReanimatedLogger, ReanimatedLogLevel } from 'react-native-reanimated';
+
+configureReanimatedLogger({
+  level: ReanimatedLogLevel.warn,
+  strict: false, // 🚀 Desactiva la alerta falsa de .value durante render/hot-reload
+});
 
 SplashScreen.preventAutoHideAsync();
 

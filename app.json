@@ -59,7 +59,8 @@
         {
           "microphonePermission": "GeckChat necesita acceder al micrófono para que puedas grabar y enviar notas de voz."
         }
-      ]
+      ],
+      "expo-font"
     ],
     "experiments": {
       "typedRoutes": true,

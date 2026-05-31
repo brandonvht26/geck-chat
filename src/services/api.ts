@@ -3,6 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from 'expo-router';
 
 const TOKEN_KEY = '@geckchat_token';
+const USER_KEY = '@geckchat_user';
 
 export interface ApiError {
   message: string;
@@ -87,4 +88,17 @@ export const getToken = (): Promise<string | null> => {
 
 export const removeToken = (): Promise<void> => {
   return AsyncStorage.removeItem(TOKEN_KEY);
+};
+
+export const setCachedUser = (user: any): Promise<void> => {
+  return AsyncStorage.setItem(USER_KEY, JSON.stringify(user));
+};
+
+export const getCachedUser = async (): Promise<any | null> => {
+  const userStr = await AsyncStorage.getItem(USER_KEY);
+  return userStr ? JSON.parse(userStr) : null;
+};
+
+export const removeCachedUser = (): Promise<void> => {
+  return AsyncStorage.removeItem(USER_KEY);
 };
