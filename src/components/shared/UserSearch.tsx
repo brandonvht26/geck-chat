@@ -7,6 +7,7 @@ import Animated, { useSharedValue, useAnimatedStyle, withSpring } from 'react-na
 import { api } from '@/src/services/api';
 import { useUserChats } from '@/src/hooks/queries/useUserChats';
 import { useAuth } from '@/src/hooks/useAuth';
+import { UserAvatar } from '@/src/components/ui/UserAvatar';
 
 interface UserSearchProps {
   onUserSelect: (user: any) => void;
@@ -127,15 +128,9 @@ export default function UserSearch({ onUserSelect, actionLabel = 'Seleccionar', 
           renderItem={({ item }) => (
             <AnimatedSquishRow onPress={() => onUserSelect(item)}>
               <View className="flex-row items-center flex-1">
-                {item.avatarUrl || item.profilePicture ? (
-                  <Image source={{ uri: item.avatarUrl || item.profilePicture }} className="w-12 h-12 rounded-full mr-4 border border-gray-100 dark:border-zinc-800" />
-                ) : (
-                  <View className="w-12 h-12 rounded-full bg-primary/10 dark:bg-primary-dark/20 items-center justify-center mr-4">
-                    <Text className="text-primary dark:text-primary-dark font-snpro-bold text-lg">
-                      {item.name?.charAt(0).toUpperCase() || 'U'}
-                    </Text>
-                  </View>
-                )}
+                <View className="mr-4">
+                  <UserAvatar uri={item.avatarUrl || item.profilePicture} size={48} />
+                </View>
                 <View className="flex-1 pr-4">
                   <Text className="text-base font-nunito-bold text-textMain dark:text-textMain-dark mb-0.5" numberOfLines={1}>{item.name}</Text>
                   <Text className="text-sm font-nunito-regular text-gray-500 dark:text-gray-400" numberOfLines={1}>{item.email}</Text>
@@ -173,15 +168,9 @@ export default function UserSearch({ onUserSelect, actionLabel = 'Seleccionar', 
             renderItem={({ item }) => (
               <AnimatedSquishRow onPress={() => onUserSelect(item)}>
                 <View className="flex-row items-center flex-1">
-                  {item.avatarUrl || item.profilePicture ? (
-                    <Image source={{ uri: item.avatarUrl || item.profilePicture }} className="w-12 h-12 rounded-full mr-4 border border-gray-100 dark:border-zinc-800" />
-                  ) : (
-                    <View className="w-12 h-12 rounded-full bg-primary/10 dark:bg-primary-dark/20 items-center justify-center mr-4">
-                      <Text className="text-primary dark:text-primary-dark font-snpro-bold text-lg">
-                        {item.name?.charAt(0).toUpperCase() || 'U'}
-                      </Text>
-                    </View>
-                  )}
+                  <View className="mr-4">
+                    <UserAvatar uri={item.avatarUrl || item.profilePicture} size={48} />
+                  </View>
                   <View className="flex-1 pr-4">
                     <Text className="text-base font-nunito-bold text-textMain dark:text-textMain-dark mb-0.5" numberOfLines={1}>{item.name}</Text>
                     <Text className="text-sm font-nunito-regular text-gray-500 dark:text-gray-400" numberOfLines={1}>{item.email}</Text>

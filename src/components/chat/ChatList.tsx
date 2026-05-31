@@ -5,6 +5,7 @@ import { Feather, Ionicons } from '@expo/vector-icons';
 import { useAuth } from '@/src/hooks/useAuth';
 import { useUserChats } from '@/src/hooks/queries/useUserChats';
 import { SocketService } from '@/src/services/socket.service';
+import { UserAvatar } from '@/src/components/ui/UserAvatar';
 import { useQueryClient } from '@tanstack/react-query';
 import { useColorScheme } from 'nativewind';
 import Animated, { useSharedValue, useAnimatedStyle, withTiming } from 'react-native-reanimated';
@@ -166,13 +167,9 @@ export default function ChatList({ activeTab, searchTerm }: ChatListProps) {
                 }
               }}
             >
-              {imageUrl ? (
-                <Image source={{ uri: imageUrl }} className="w-14 h-14 rounded-full mr-4 border border-gray-100 dark:border-zinc-800" resizeMode="cover" />
-              ) : (
-                <View className={`w-14 h-14 rounded-full justify-center items-center mr-4 border border-transparent ${item.isGroup ? 'bg-primary/10 dark:bg-primary-dark/20' : 'bg-gray-100 dark:bg-zinc-800'}`}>
-                  <Ionicons name={item.isGroup ? "people" : "person"} size={24} color={item.isGroup ? "#2A72D4" : "#9CA3AF"} />
-                </View>
-              )}
+              <View className="mr-4">
+                <UserAvatar uri={imageUrl} size={56} isGroup={item.isGroup} />
+              </View>
 
               <View className="flex-1">
                 <Text className="text-base font-nunito-bold text-textMain dark:text-textMain-dark" numberOfLines={1}>{displayTitle}</Text>

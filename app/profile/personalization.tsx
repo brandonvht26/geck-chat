@@ -120,9 +120,9 @@ export default function PersonalizationScreen() {
       });
 
     toast.promise(promise, {
-      loading: 'Actualizando avatar...',
-      success: () => '¡Foto de perfil actualizada!',
-      error: () => 'No pudimos guardar tu foto. Inténtalo de nuevo.'
+      loading: 'Actualizando fondo...',
+      success: () => '¡Fondo de chat actualizado!',
+      error: () => 'No pudimos guardar tu fondo. Inténtalo de nuevo.'
     });
   };
 

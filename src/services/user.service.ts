@@ -1,4 +1,3 @@
-import { Platform } from 'react-native';
 import { api, getToken } from './api';
 export interface UserProfile {
   _id: string;
@@ -53,10 +52,14 @@ export const updatePushToken = async (token: string): Promise<void> => {
 };
 
 export const updateUserPreferences = async (theme?: string, phoneWallpaperUri?: string, avatarUri?: string) => {
+  const BASE_URL = process.env.EXPO_PUBLIC_API_URI || 'http://localhost:3000';
+  const token = await getToken();
+  const authHeaders = { Authorization: `Bearer ${token}` };
+
   try {
     let responseData: any = {};
 
-    // CASO A: Actualizar el tema (patch simple)
+    // CASO A: Actualizar el tema (patch simple con JSON)
     if (theme) {
       const response = await api.patch('/api/users/preferences', { theme });
       responseData = { ...responseData, ...response.data };
@@ -65,42 +68,46 @@ export const updateUserPreferences = async (theme?: string, phoneWallpaperUri?: 
     // CASO B: Subir Wallpaper
     if (phoneWallpaperUri) {
       if (phoneWallpaperUri.startsWith('bundled:')) {
+        // Bundled wallpaper → solo enviamos la URL como texto plano (PATCH JSON)
         const response = await api.patch('/api/users/preferences', { phoneWallpaperUrl: phoneWallpaperUri });
         responseData = { ...responseData, ...response.data };
       } else {
+        // Wallpaper desde galería → usamos fetch nativo (maneja FormData correctamente en RN)
         const formData = new FormData();
         formData.append('type', 'wallpaper');
         const filename = phoneWallpaperUri.split('/').pop() || 'wallpaper.jpg';
-        formData.append('image', {
-          uri: Platform.OS === 'ios' ? phoneWallpaperUri.replace('file://', '') : phoneWallpaperUri,
-          name: filename,
-          type: 'image/jpeg'
-        } as any);
+        formData.append('image', { uri: phoneWallpaperUri, name: filename, type: 'image/jpeg' } as any);
 
-        // NOTA: Usamos POST en lugar de PATCH debido al bloqueo de multipart en PATCH en el servidor
-        const response = await api.post('/api/users/preferences', formData, {
-          headers: { 'Content-Type': 'multipart/form-data' }
+        const res = await fetch(`${BASE_URL}/api/users/preferences`, {
+          method: 'PATCH',
+          headers: authHeaders,
+          body: formData,
         });
-        responseData = { ...responseData, ...response.data };
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.msg || 'Error al subir wallpaper');
+        responseData = { ...responseData, ...data };
       }
     }
 
-    // CASO C: Subir Avatar
+    // CASO C: Subir Avatar → fetch nativo por la misma razón
     if (avatarUri) {
       const formData = new FormData();
       formData.append('type', 'avatar');
       const filename = avatarUri.split('/').pop() || 'avatar.jpg';
-      formData.append('image', {
-        uri: Platform.OS === 'ios' ? avatarUri.replace('file://', '') : avatarUri,
-        name: filename,
-        type: 'image/jpeg'
-      } as any);
+      formData.append('image', { uri: avatarUri, name: filename, type: 'image/jpeg' } as any);
 
-      // NOTA: Usamos POST en lugar de PATCH debido al bloqueo de multipart en PATCH en el servidor
-      const response = await api.post('/api/users/preferences', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
+      const uploadUrl = `${BASE_URL}/api/users/preferences`;
+      console.log('[updateUserPreferences] Subiendo avatar a:', uploadUrl);
+
+      const res = await fetch(uploadUrl, {
+        method: 'PATCH',
+        headers: authHeaders,
+        body: formData,
       });
-      responseData = { ...responseData, ...response.data };
+      const data = await res.json();
+      console.log('[updateUserPreferences] Respuesta avatar:', res.status, data);
+      if (!res.ok) throw new Error(data.msg || 'Error al subir avatar');
+      responseData = { ...responseData, ...data };
     }
 
     return responseData;

@@ -1,18 +1,18 @@
 import React from 'react';
 import { View, Image } from 'react-native';
-import { Feather } from '@expo/vector-icons';
+import { Ionicons } from '@expo/vector-icons';
 
 interface UserAvatarProps {
   uri?: string | null;
   size?: number;
-  fallbackIcon?: keyof typeof Feather.glyphMap;
+  isGroup?: boolean;
 }
 
-export const UserAvatar = ({ uri, size = 40, fallbackIcon = 'user' }: UserAvatarProps) => {
+export const UserAvatar = ({ uri, size = 40, isGroup = false }: UserAvatarProps) => {
   return (
     <View 
-      style={{ width: size, height: size, borderRadius: size / 2 }} 
-      className="bg-black/30 border border-white/20 items-center justify-center overflow-hidden"
+      style={{ width: size, height: size, borderRadius: isGroup ? size / 3 : size / 2 }} 
+      className={`items-center justify-center overflow-hidden border border-transparent ${!uri ? (isGroup ? 'bg-primary/10 dark:bg-primary-dark/20' : 'bg-gray-100 dark:bg-zinc-800') : 'bg-transparent'}`}
     >
       {uri ? (
         <Image 
@@ -21,7 +21,7 @@ export const UserAvatar = ({ uri, size = 40, fallbackIcon = 'user' }: UserAvatar
           resizeMode="cover" 
         />
       ) : (
-        <Feather name={fallbackIcon} size={size * 0.5} color="#9ca3af" />
+        <Ionicons name={isGroup ? "people" : "person"} size={size * 0.55} color={isGroup ? "#2A72D4" : "#9CA3AF"} />
       )}
     </View>
   );

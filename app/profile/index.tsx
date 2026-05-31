@@ -130,7 +130,7 @@ const BreathingAvatar = ({ uri, initial, onPress }: { uri?: string, initial: str
                 {uri ? (
                     <Image source={{ uri }} className="w-full h-full" resizeMode="cover" />
                 ) : (
-                    <Text className="text-5xl font-snpro-bold text-primary dark:text-primary-dark">{initial}</Text>
+                    <Ionicons name="person" size={72} color="#2A72D4" />
                 )}
             </Animated.View>
             <Pressable onPress={onPress} className="absolute bottom-2 right-2 bg-primary dark:bg-primary-dark p-3.5 rounded-full border-4 border-white dark:border-authEnd-dark shadow-sm">

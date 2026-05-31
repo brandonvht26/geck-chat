@@ -291,6 +291,7 @@ export default function WorkspaceScreen() {
             await deleteGroupChat(currentChatId!);
             queryClient.removeQueries({ queryKey: ['chatMessages', currentChatId] });
             queryClient.invalidateQueries({ queryKey: ['userChats'] });
+            setCurrentChatId(null); // 🚀 Deshabilitamos la query ANTES de navegar
             router.replace('/home');
             toast.success('Grupo eliminado correctamente');
           } catch (error: any) { toast.error(getErrorMessage(error as AxiosError) || 'Error al eliminar el grupo'); }
@@ -343,12 +344,8 @@ export default function WorkspaceScreen() {
               <Feather name="arrow-left" size={24} color={colorScheme === 'dark' ? '#E5E7EB' : '#141E30'} />
             </Pressable>
             
-            <View className="w-10 h-10 rounded-xl bg-primary/10 dark:bg-primary-dark/20 justify-center items-center overflow-hidden border border-gray-200 dark:border-zinc-700">
-                {workspaceData?.imageUrl ? (
-                    <Image source={{ uri: workspaceData.imageUrl }} className="w-full h-full" resizeMode="cover" />
-                ) : (
-                    <Feather name="users" size={20} color="#2A72D4" />
-                )}
+            <View className="mr-3">
+              <UserAvatar uri={workspaceData?.imageUrl} size={40} isGroup={true} />
             </View>
             <Text className="text-lg font-snpro-bold text-textMain dark:text-textMain-dark ml-3 flex-1" numberOfLines={1}>{name}</Text>
           </View>

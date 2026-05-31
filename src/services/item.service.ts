@@ -1,5 +1,6 @@
 import axios from 'axios';
-import { api, ApiError } from './api';
+import { api, ApiError, getToken } from './api';
+
 
 export interface DocumentItem {
   _id: string;
@@ -40,7 +41,9 @@ export const getDesktopItems = async (): Promise<DocumentItem[]> => {
 };
 
 export const uploadDocument = async (fileUri: string, fileName: string, mimeType: string, parentId: string | null = null): Promise<DocumentItem> => {
+  const BASE_URL = process.env.EXPO_PUBLIC_API_URI || 'http://localhost:3000';
   try {
+    const token = await getToken();
     const formData = new FormData();
     formData.append('archivo', {
       uri: fileUri,
@@ -48,16 +51,22 @@ export const uploadDocument = async (fileUri: string, fileName: string, mimeType
       type: mimeType || 'application/octet-stream',
     } as any);
 
-    // Campos opcionales que espera el backend
     formData.append('parentId', parentId || 'null');
     formData.append('x', '100');
     formData.append('y', '100');
     formData.append('workspaceId', 'null');
 
-    const response = await api.post<{ ok: boolean; msg: string; item: DocumentItem }>('/api/items/upload', formData);
+    // Usamos fetch nativo: Axios+XHR tiene bugs con FormData en React Native
+    const res = await fetch(`${BASE_URL}/api/items/upload`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+      body: formData,
+    });
 
-    // El backend devuelve { ok: true, msg: '...', item: newItem }
-    return response.data.item;
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.msg || 'Error al subir archivo');
+
+    return data.item;
   } catch (error) {
     if (axios.isAxiosError(error)) {
       console.error('[uploadDocument] Error Axios:', {

@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { View, Text, Pressable, ActivityIndicator, Image } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { accessUserChat } from '@/src/services/chat.service';
-import { Feather } from '@expo/vector-icons';
+import { Feather, Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useColorScheme } from 'nativewind';
 import Animated, { useSharedValue, useAnimatedStyle, withSpring } from 'react-native-reanimated';
@@ -81,7 +81,7 @@ export default function UserProfileScreen() {
             {avatarUrl ? (
                 <Image source={{ uri: avatarUrl }} className="w-full h-full" resizeMode="cover" />
             ) : (
-                <Text className="text-6xl font-snpro-bold text-primary dark:text-primary-dark">{getInitial(name)}</Text>
+                <Ionicons name="person" size={84} color="#2A72D4" />
             )}
         </View>
 

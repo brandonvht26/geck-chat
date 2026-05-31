@@ -21,9 +21,6 @@ const DEFAULT_ERROR_MESSAGE = 'Error de conexión con el servidor';
 export const api: AxiosInstance = axios.create({
   baseURL: process.env.EXPO_PUBLIC_API_URI || 'http://localhost:3000',
   timeout: 10000,
-  headers: {
-    'Content-Type': 'application/json',
-  },
 });
 
 // 1. EL GUARDIA QUE PONE LAS PULSERAS (¡El que faltaba!)
