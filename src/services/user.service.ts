@@ -56,6 +56,15 @@ export const updateUserPreferences = async (theme?: string, phoneWallpaperUri?: 
   const token = await getToken();
   const authHeaders = { Authorization: `Bearer ${token}` };
 
+  // Helper para parsear la respuesta sin crashear con HTML de error
+  const safeJson = async (res: Response) => {
+    const ct = res.headers.get('content-type') || '';
+    if (!ct.includes('application/json')) {
+      throw new Error(`Error del servidor (${res.status}): respuesta inesperada`);
+    }
+    return res.json();
+  };
+
   try {
     let responseData: any = {};
 
@@ -72,24 +81,24 @@ export const updateUserPreferences = async (theme?: string, phoneWallpaperUri?: 
         const response = await api.patch('/api/users/preferences', { phoneWallpaperUrl: phoneWallpaperUri });
         responseData = { ...responseData, ...response.data };
       } else {
-        // Wallpaper desde galería → usamos fetch nativo (maneja FormData correctamente en RN)
+        // Wallpaper desde galería → fetch nativo con PATCH + multer
         const formData = new FormData();
         formData.append('type', 'wallpaper');
         const filename = phoneWallpaperUri.split('/').pop() || 'wallpaper.jpg';
         formData.append('image', { uri: phoneWallpaperUri, name: filename, type: 'image/jpeg' } as any);
 
         const res = await fetch(`${BASE_URL}/api/users/preferences`, {
-          method: 'PATCH',
+          method: 'POST',
           headers: authHeaders,
           body: formData,
         });
-        const data = await res.json();
+        const data = await safeJson(res);
         if (!res.ok) throw new Error(data.msg || 'Error al subir wallpaper');
         responseData = { ...responseData, ...data };
       }
     }
 
-    // CASO C: Subir Avatar → fetch nativo por la misma razón
+    // CASO C: Subir Avatar → fetch nativo con PATCH + multer
     if (avatarUri) {
       const formData = new FormData();
       formData.append('type', 'avatar');
@@ -100,11 +109,11 @@ export const updateUserPreferences = async (theme?: string, phoneWallpaperUri?: 
       console.log('[updateUserPreferences] Subiendo avatar a:', uploadUrl);
 
       const res = await fetch(uploadUrl, {
-        method: 'PATCH',
+        method: 'POST',
         headers: authHeaders,
         body: formData,
       });
-      const data = await res.json();
+      const data = await safeJson(res);
       console.log('[updateUserPreferences] Respuesta avatar:', res.status, data);
       if (!res.ok) throw new Error(data.msg || 'Error al subir avatar');
       responseData = { ...responseData, ...data };

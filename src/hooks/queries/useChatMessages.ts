@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { getChatMessages } from '@/src/services/chat.service';
 import { useSocket } from '@/src/context/SocketContext';
+import axios from 'axios';
 
 export const useChatMessages = (chatId: string | null | undefined) => {
   const queryClient = useQueryClient();
@@ -58,10 +59,18 @@ export const useChatMessages = (chatId: string | null | undefined) => {
     queryKey: ['chatMessages', chatId],
     queryFn: async () => {
       if (!chatId) return [];
-      const history = await getChatMessages(chatId);
-      return history.sort((a: any, b: any) =>
-        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-      );
+      try {
+        const history = await getChatMessages(chatId);
+        return history.sort((a: any, b: any) =>
+          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+        );
+      } catch (error) {
+        // Si el chat fue eliminado (404), retornamos vacío silenciosamente
+        if (axios.isAxiosError(error) && error.response?.status === 404) {
+          return [];
+        }
+        throw error;
+      }
     },
     enabled: !!chatId,
   });

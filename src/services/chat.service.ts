@@ -98,7 +98,10 @@ export const getChatMessages = async (chatId: string): Promise<ChatMessage[]> =>
     return response.data.messages || [];
   } catch (error) {
     const apiError = error as ApiError;
-    console.error('Error fetching chat messages:', apiError.message);
+    // Si el chat fue eliminado (404), no logueamos el error para no asustar en la consola
+    if (apiError.status !== 404 && (error as any).response?.status !== 404) {
+      console.error('Error fetching chat messages:', apiError.message);
+    }
     throw error;
   }
 };
