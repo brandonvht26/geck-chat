@@ -165,11 +165,8 @@ export default function ChatRoomScreen() {
   }, [messages.length, currentUserId, unreadSeparatorId]);
 
   const handleSendMessage = async () => {
-    console.log("🔥 [DEBUG] handleSendMessage triggered!");
     const cleanedMessage = content.trim();
-    console.log("🔥 [DEBUG] cleanedMessage:", cleanedMessage, "id:", id);
     if (!cleanedMessage || !id) {
-        console.log("🔥 [DEBUG] Validation failed! cleanedMessage or id is falsy.");
         return;
     }
     try {
@@ -180,14 +177,12 @@ export default function ChatRoomScreen() {
         setEditingMessage(null);
       } else {
         const newMsg = await sendMessage(id as string, cleanedMessage);
-        console.log("🔥 [DEBUG] newMsg from server:", newMsg);
         queryClient.setQueryData(['chatMessages', id], (old: ChatMessage[] | undefined) => old ? (old.some(msg => msg._id === newMsg._id) ? old : [newMsg, ...old]) : [newMsg]);
       }
       setContent('');
       queryClient.invalidateQueries({ queryKey: ['userChats'] });
-      console.log("🔥 [DEBUG] Message sent successfully.");
     } catch (error) { 
-      console.error('🔥 [DEBUG] Error sending message:', error);
+      console.error('Error enviando mensaje:', error);
       toast.error('Error enviando mensaje', { description: getErrorMessage(error as AxiosError) }); 
     }
   };
@@ -257,16 +252,13 @@ export default function ChatRoomScreen() {
       await new Promise(resolve => setTimeout(resolve, 300)); // Espera para que se guarde el archivo en disco
 
       const finalUri = audioRecorder.uri || (typeof (audioRecorder as any).getURI === 'function' ? (audioRecorder as any).getURI() : null);
-      console.log("🔥 [DEBUG] Captured finalUri AFTER stop:", finalUri);
 
       if (elapsed < 800) {
-        console.log("🔥 [DEBUG] Audio muy corto");
         toast.info('Audio muy corto', { description: 'Mantén presionado o graba más tiempo.' });
         return; 
       }
       
       if (finalUri && id) {
-        console.log("🔥 [DEBUG] Sending audio message...");
         const duration = elapsed / 1000;
         const newMsg = await sendAudioMessage(id as string, finalUri, duration);
         queryClient.setQueryData(['chatMessages', id], (old: ChatMessage[] | undefined) => old ? (old.some(msg => msg._id === newMsg._id) ? old : [newMsg, ...old]) : [newMsg]);

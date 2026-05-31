@@ -48,7 +48,7 @@ export default function DocumentsScreen() {
   const iconColor = colorScheme === 'dark' ? '#E5E7EB' : '#333333';
 
   const getFileMetadata = (item: any) => {
-    const name = (item.nombre || item.name || '').toLowerCase();
+    const name = (item.name || '').toLowerCase();
     const type = (item.tipo || item.type || '').toLowerCase();
 
     if (type === 'folder') return { label: 'Carpeta', icon: 'folder', color: '#D9821E', bgColor: 'bg-secondary/10 dark:bg-secondary-dark/15' };
@@ -101,7 +101,7 @@ export default function DocumentsScreen() {
   const handleDownload = async (item: any) => {
     try {
       const itemType = item.type || item.tipo || '';
-      const itemName = item.name || item.nombre || 'documento';
+      const itemName = item.name || 'documento';
       const itemContent = item.contenido || item.content || '';
       const safeFileName = itemName.replace(/[^a-zA-Z0-9.-]/g, '_');
 
@@ -128,7 +128,7 @@ export default function DocumentsScreen() {
   };
 
   const confirmDelete = (item: DocumentItem) => {
-    Alert.alert('Eliminar documento', `¿Seguro que quieres eliminar "${item.name || item.nombre}"?`, [
+    Alert.alert('Eliminar documento', `¿Seguro que quieres eliminar "${item.name}"?`, [
       { text: 'Cancelar', style: 'cancel' },
       {
         text: 'Eliminar', style: 'destructive', onPress: async () => {
@@ -149,8 +149,8 @@ export default function DocumentsScreen() {
   const sortedDocuments = useMemo(() => {
     const sorted = [...items];
     switch (sortBy) {
-      case 'name_asc': return sorted.sort((a, b) => (a.nombre || a.name || '').localeCompare(b.nombre || b.name || ''));
-      case 'name_desc': return sorted.sort((a, b) => (b.nombre || b.name || '').localeCompare(a.nombre || a.name || ''));
+      case 'name_asc': return sorted.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+      case 'name_desc': return sorted.sort((a, b) => (b.name || '').localeCompare(a.name || ''));
       case 'date_newest': return sorted.sort((a, b) => b._id.localeCompare(a._id));
       case 'type': return sorted.sort((a, b) => (a.fileFormat || a.type || '').localeCompare(b.fileFormat || b.type || ''));
       default: return sorted;
@@ -225,7 +225,7 @@ export default function DocumentsScreen() {
                   </View>
                   <View className="flex-1 pr-4">
                     <Text className="text-base font-nunito-bold text-textMain dark:text-textMain-dark" numberOfLines={1}>
-                      {item.nombre || item.name}
+                      {item.name}
                     </Text>
                     <Text className="text-xs font-nunito-regular text-gray-500 dark:text-gray-400 mt-0.5">
                       {meta.label}

@@ -9,14 +9,11 @@ export const useUserChats = () => {
 
     useEffect(() => {
         if (!socket) {
-            console.log('🛑 [RADAR LISTA] Hook de Lista sin socket activo.');
             return;
         }
 
-        console.log('📡 [RADAR LISTA] Escuchando mensajes globales...');
 
         const handleGlobalMessage = (newMessage: any) => {
-            console.log('🚨 [RADAR LISTA - ÉXITO] Actualizando lista por nuevo mensaje:', newMessage._id || 'sin ID');
 
             queryClient.invalidateQueries({ queryKey: ['userChats'] });
         };

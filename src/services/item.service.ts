@@ -3,9 +3,7 @@ import { api, ApiError } from './api';
 
 export interface DocumentItem {
   _id: string;
-  nombre?: string;
   name?: string;
-  tipo?: string;
   type?: string;
   url: string;
   fileFormat?: string;
@@ -20,8 +18,6 @@ export const getDesktopItems = async (): Promise<DocumentItem[]> => {
         workspaceId: 'null',
       },
     });
-
-    console.log('[getDesktopItems] Respuesta cruda del backend:', response.data);
 
     // El backend devuelve { ok: true, items: [...] }
     if (response.data && response.data.items) {
@@ -58,16 +54,8 @@ export const uploadDocument = async (fileUri: string, fileName: string, mimeType
     formData.append('y', '100');
     formData.append('workspaceId', 'null');
 
-    console.log('[uploadDocument] FormData construido:', {
-      uri: fileUri,
-      name: fileName,
-      type: mimeType || 'application/octet-stream',
-      parentId: parentId || 'null',
-    });
-
     const response = await api.post<{ ok: boolean; msg: string; item: DocumentItem }>('/api/items/upload', formData);
 
-    console.log('[uploadDocument] Respuesta exitosa:', response.data);
     // El backend devuelve { ok: true, msg: '...', item: newItem }
     return response.data.item;
   } catch (error) {
@@ -93,8 +81,7 @@ export const searchItems = async (query: string): Promise<DocumentItem[]> => {
 
     const lowerQuery = query.toLowerCase();
     return allItems.filter(item =>
-      (item.nombre?.toLowerCase().includes(lowerQuery)) ||
-      (item.name?.toLowerCase().includes(lowerQuery))
+      item.name?.toLowerCase().includes(lowerQuery)
     );
   } catch (error) {
     console.error('[searchItems] Error al buscar:', error);

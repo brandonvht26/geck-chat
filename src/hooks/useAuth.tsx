@@ -40,12 +40,11 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     try {
       await removeToken();
       const response = await loginUser({ email, password });
-      console.log("🔑 TOKEN RECIBIDO:", response.token);
       await setToken(response.token);
 
       const loggedUser: User = {
         _id: response._id,
-        name: response.nombre || response.name,
+        name: response.name,
         email: response.email,
         rol: response.rol,
         avatarUrl: response.avatarUrl,
@@ -105,14 +104,13 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
       setUser({
         _id: response.data._id,
-        name: response.data.nombre || response.data.name,
+        name: response.data.name,
         email: response.data.email,
         rol: response.data.rol,
         avatarUrl: response.data.avatarUrl,
         preferences: response.data.preferences,
       });
     } catch (error) {
-      console.log('🚨 ERROR EN AUTH CONTEXT: Token inválido o red caída');
       await removeToken();
       setUser(null);
       router.replace('/auth/login');

@@ -118,7 +118,7 @@ export default function ProfileScreen() {
 
   const handleDeleteAccount = async () => {
     if (!profileData) return;
-    const expectedText = `delete_${profileData.nombre.replace(/\s+/g, '')}`;
+    const expectedText = `delete_${profileData.name.replace(/\s+/g, '')}`;
     if (confirmationText !== expectedText) return toast.error(`Debes escribir: ${expectedText}`);
 
     setIsDeleting(true);
@@ -153,17 +153,17 @@ export default function ProfileScreen() {
         {/* 🚀 Avatar Animado (160px forzados) */}
         <BreathingAvatar 
             uri={profileData?.avatarUrl} 
-            initial={profileData?.nombre?.charAt(0) || '?'} 
+            initial={profileData?.name?.charAt(0) || '?'} 
             onPress={handleUpdateAvatar} 
         />
 
-        <Text className="text-2xl font-snpro-bold text-textMain dark:text-textMain-dark mb-1">{profileData?.nombre}</Text>
+        <Text className="text-2xl font-snpro-bold text-textMain dark:text-textMain-dark mb-1">{profileData?.name}</Text>
         <Text className="text-base font-nunito-regular text-gray-500 dark:text-gray-400 mb-8">{profileData?.email}</Text>
 
         <View className="w-full px-4">
             <AnimatedMenuRow 
                 icon="person-outline" title="Editar Información" 
-                onPress={() => router.push({ pathname: '/profile/edit', params: { id: profileData?._id, nombre: profileData?.nombre, email: profileData?.email } })} 
+                onPress={() => router.push({ pathname: '/profile/edit', params: { id: profileData?._id, name: profileData?.name, email: profileData?.email } })} 
             />
             <AnimatedMenuRow icon="lock-closed-outline" title="Cambiar Contraseña" onPress={() => router.push('/profile/change-password')} />
             
@@ -194,7 +194,7 @@ export default function ProfileScreen() {
             
             <View className="bg-gray-100 dark:bg-zinc-800 p-3 rounded-xl mb-4 items-center">
                 <Text className="font-monospace text-base tracking-widest text-textMain dark:text-textMain-dark">
-                    delete_{profileData?.nombre?.replace(/\s+/g, '')}
+                    delete_{profileData?.name?.replace(/\s+/g, '')}
                 </Text>
             </View>
 

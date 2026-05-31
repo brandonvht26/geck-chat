@@ -46,14 +46,12 @@ api.interceptors.response.use(
     const isUnauthorized = error.response?.status === 401;
 
     if (isUnauthorized) {
-      console.log('🚨 Sesión expirada (401). Evaluando cierre...');
       
       const currentToken = await AsyncStorage.getItem(TOKEN_KEY);
       const failedToken = error.config?.headers?.Authorization?.split(' ')[1];
       
       // Si el token fallido es el mismo que tenemos guardado, cerramos sesión.
       if (!failedToken || (currentToken && currentToken === failedToken)) {
-        console.log('🚨 Borrando token obsoleto...');
         await removeToken();
         if (router.replace) {
           router.replace('/auth/login');

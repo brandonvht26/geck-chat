@@ -2,7 +2,7 @@ import { Platform } from 'react-native';
 import { api, getToken } from './api';
 export interface UserProfile {
   _id: string;
-  nombre: string;
+  name: string;
   email: string;
   rol?: string;
   avatarUrl?: string;
@@ -62,11 +62,9 @@ export const updateUserPreferences = async (theme?: string, phoneWallpaperUri?: 
     // CASO B: Subir Wallpaper
     if (phoneWallpaperUri) {
       if (phoneWallpaperUri.startsWith('bundled:')) {
-        // Es un wallpaper por defecto, enviarlo como texto al endpoint de preferencias
         const response = await api.patch('/api/users/preferences', { phoneWallpaperUrl: phoneWallpaperUri });
         responseData = { ...responseData, ...response.data };
       } else {
-        // Es una imagen local, subirla al nuevo endpoint update-image
         const formData = new FormData();
         formData.append('type', 'wallpaper');
         const filename = phoneWallpaperUri.split('/').pop() || 'wallpaper.jpg';
@@ -76,7 +74,10 @@ export const updateUserPreferences = async (theme?: string, phoneWallpaperUri?: 
           type: 'image/jpeg'
         } as any);
 
-        const response = await api.patch('/api/users/preferences', formData);
+        // NOTA: Usamos POST en lugar de PATCH debido al bloqueo de multipart en PATCH en el servidor
+        const response = await api.post('/api/users/preferences', formData, {
+          headers: { 'Content-Type': 'multipart/form-data' }
+        });
         responseData = { ...responseData, ...response.data };
       }
     }
@@ -92,7 +93,10 @@ export const updateUserPreferences = async (theme?: string, phoneWallpaperUri?: 
         type: 'image/jpeg'
       } as any);
 
-      const response = await api.patch('/api/users/preferences', formData);
+      // NOTA: Usamos POST en lugar de PATCH debido al bloqueo de multipart en PATCH en el servidor
+      const response = await api.post('/api/users/preferences', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
       responseData = { ...responseData, ...response.data };
     }
 

@@ -68,22 +68,22 @@ export default function EditProfileScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { colorScheme } = useColorScheme();
-  const params = useLocalSearchParams<{ id: string; nombre: string; email: string }>();
+  const params = useLocalSearchParams<{ id: string; name: string; email: string }>();
   const queryClient = useQueryClient();
 
-  const [nombre, setNombre] = useState(params.nombre || '');
+  const [name, setName] = useState(params.name || '');
   const [email, setEmail] = useState(params.email || '');
 
   const emailRef = useRef<TextInput>(null);
 
   const handleSave = async () => {
-    if (!nombre.trim() || !email.trim()) {
+    if (!name.trim() || !email.trim()) {
       toast.error('Todos los campos son requeridos');
       return;
     }
 
-    const updatePromise = updateProfileData(params.id, { name: nombre, email })
-      .then(() => {
+    const updatePromise = updateProfileData(params.id, { name: name, email })
+      .then(async (data) => {
         queryClient.invalidateQueries({ queryKey: ['profile'] });
         queryClient.invalidateQueries({ queryKey: ['userChats'] });
         queryClient.invalidateQueries({ queryKey: ['currentUser'] });
@@ -118,8 +118,8 @@ export default function EditProfileScreen() {
           label="Nombre Público"
           iconName="person-outline"
           placeholder="¿Cómo quieres que te llamen?"
-          value={nombre}
-          onChangeText={setNombre}
+          value={name}
+          onChangeText={setName}
           returnKeyType="next"
           onSubmitEditing={() => emailRef.current?.focus()}
         />

@@ -9,16 +9,12 @@ export const useChatMessages = (chatId: string | null | undefined) => {
 
   useEffect(() => {
     if (!chatId || !socket) {
-      console.log('🛑 [RADAR 1] Hook sin chatId o sin socket activo.', { chatId, hasSocket: !!socket });
       return;
     }
-
-    console.log(`🔌 [RADAR 2] Socket activo. Escuchando sala: ${chatId}`);
 
     socket.emit('join_chat', chatId);
 
     const handleNewMessage = (newMessage: any) => {
-      console.log('🚨 [RADAR 3 - ÉXITO] MENSAJE RECIBIDO VÍA SOCKET:', newMessage);
 
       queryClient.invalidateQueries({ queryKey: ['chatMessages', chatId] });
 
@@ -46,8 +42,6 @@ export const useChatMessages = (chatId: string | null | undefined) => {
     socket.on('message_deleted_for_all', handleDelete);
 
     return () => {
-      console.log(`🔌 [RADAR 4] Desmontando listeners de la sala: ${chatId}`);
-      
       // Desconectar todos los listeners para evitar fugas de memoria
       socket.off('receive_message', handleNewMessage);
       socket.off('new_message', handleNewMessage);
@@ -57,7 +51,6 @@ export const useChatMessages = (chatId: string | null | undefined) => {
       
       // Emitir evento para salir de la sala (mejora de optimización)
       socket.emit('leave_chat', chatId);
-      console.log(`🚪 [RADAR 5] Salido de la sala: ${chatId}`);
     };
   }, [chatId, queryClient, socket]);
 

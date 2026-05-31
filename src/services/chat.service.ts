@@ -89,7 +89,6 @@ export const getPrivateChats = async (): Promise<Chat[]> => {
 export const getChatMessages = async (chatId: string): Promise<ChatMessage[]> => {
   try {
     const urlDestino = '/api/chat/' + chatId + '/chat';
-    console.log("🕵️‍♂️ RADAR 4 - URL EXACTA DISPARADA POR AXIOS:", urlDestino);
     
     // 🚀 BYPASS: Le exigimos al servidor 500 mensajes desde el frontend
     const response = await api.get<GetMessagesResponse>(urlDestino, {
