@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { api, ApiError, getToken } from './api';
+import * as FileSystem from 'expo-file-system/legacy';
 
 
 export interface DocumentItem {
@@ -44,27 +45,27 @@ export const uploadDocument = async (fileUri: string, fileName: string, mimeType
   const BASE_URL = process.env.EXPO_PUBLIC_API_URI || 'http://localhost:3000';
   try {
     const token = await getToken();
-    const formData = new FormData();
-    formData.append('archivo', {
-      uri: fileUri,
-      name: fileName,
-      type: mimeType || 'application/octet-stream',
-    } as any);
-
-    formData.append('parentId', parentId || 'null');
-    formData.append('x', '100');
-    formData.append('y', '100');
-    formData.append('workspaceId', 'null');
-
-    // Usamos fetch nativo: Axios+XHR tiene bugs con FormData en React Native
-    const res = await fetch(`${BASE_URL}/api/items/upload`, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${token}` },
-      body: formData,
+    // Usamos FileSystem.uploadAsync en lugar de fetch nativo por bugs en formData
+    const res = await FileSystem.uploadAsync(`${BASE_URL}/api/items/upload`, fileUri, {
+      httpMethod: 'POST',
+      uploadType: FileSystem.FileSystemUploadType.MULTIPART,
+      fieldName: 'archivo',
+      mimeType: mimeType || 'application/octet-stream',
+      parameters: {
+        parentId: parentId || 'null',
+        x: '100',
+        y: '100',
+        workspaceId: 'null'
+      },
+      headers: { Authorization: `Bearer ${token}` }
     });
 
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.msg || 'Error al subir archivo');
+    let data;
+    try { data = JSON.parse(res.body); } catch(e) { data = { msg: 'Error de parseo' }; }
+    
+    if (res.status !== 200 && res.status !== 201) {
+      throw new Error(data.msg || 'Error al subir el documento');
+    }
 
     return data.item;
   } catch (error) {

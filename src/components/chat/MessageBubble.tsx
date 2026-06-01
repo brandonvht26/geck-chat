@@ -10,6 +10,7 @@ interface MessageBubbleProps {
   isOnline?: boolean;
   onLongPress?: (item: any) => void;
   onOpenFile?: (item: any) => void; // Se usará también para descargar
+  onShowInfo?: (item: any) => void;
   totalParticipants?: number;
   AudioPlayerComponent?: any;
   isGroupChat?: boolean;
@@ -17,7 +18,7 @@ interface MessageBubbleProps {
 }
 
 export default function MessageBubble({
-  item, isMe, senderName, isOnline, onLongPress, onOpenFile, totalParticipants = 0, AudioPlayerComponent, isGroupChat = false, chatParticipants = []
+  item, isMe, senderName, isOnline, onLongPress, onOpenFile, onShowInfo, totalParticipants = 0, AudioPlayerComponent, isGroupChat = false, chatParticipants = []
 }: MessageBubbleProps) {
   const router = useRouter();
   const { user } = useAuth();
@@ -27,21 +28,17 @@ export default function MessageBubble({
   const content = item.content || item.contenido;
   const timeStr = new Date(item.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
   const readBy = item.readBy || [];
-  const deliveredTo = item.deliveredTo || [];
 
   const getMessageStatus = () => {
     if (!isMe) return null;
     const otherParticipantsCount = totalParticipants > 1 ? totalParticipants - 1 : 1;
     const readers = (readBy || []).filter((id: string) => id !== currentUserId);
-    const receivers = (deliveredTo || []).filter((id: string) => id !== currentUserId);
 
     if (isGroupChat) {
       if (readers.length >= otherParticipantsCount && otherParticipantsCount > 0) return 'read';
-      if (receivers.length >= otherParticipantsCount && otherParticipantsCount > 0) return 'delivered';
       return 'sent';
     } else {
       if (readers.length > 0) return 'read';
-      if (receivers.length > 0) return 'delivered';
       return 'sent';
     }
   };
@@ -51,17 +48,9 @@ export default function MessageBubble({
 
   const handleMessageInfoPress = () => {
     if (!isGroupChat || !isMe || !chatParticipants || chatParticipants.length === 0) return;
-    try {
-      const senderId = typeof item.senderId === 'object' ? item.senderId?._id : item.senderId;
-      router.push({
-        pathname: '/chat/message-info',
-        params: {
-          messageId: item._id, messageContent: content, senderId: senderId,
-          chatParticipantsRaw: JSON.stringify(chatParticipants || []),
-          readByRaw: JSON.stringify(readBy || []), deliveredToRaw: JSON.stringify(deliveredTo || []),
-        }
-      });
-    } catch (error) { console.error('Error info msg:', error); }
+    if (onShowInfo) {
+      onShowInfo(item);
+    }
   };
 
   const bubbleBase = "max-w-[85%] px-3.5 pt-2.5 pb-1.5 rounded-3xl mb-1.5 shadow-sm";
@@ -143,7 +132,6 @@ export default function MessageBubble({
           {isMe && status && (
             <TouchableOpacity onPress={isGroupChat ? handleMessageInfoPress : undefined} disabled={!isGroupChat} className="ml-0.5 flex-row items-center justify-end">
               {status === 'sent' && <Ionicons name="checkmark" size={14} color="#ffffff80" />}
-              {status === 'delivered' && <Ionicons name="checkmark-done" size={14} color="#ffffff80" />}
               {status === 'read' && <Ionicons name="checkmark-done" size={14} color="#34d399" />}
             </TouchableOpacity>
           )}

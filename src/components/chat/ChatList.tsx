@@ -51,17 +51,7 @@ export default function ChatList({ activeTab, searchTerm }: ChatListProps) {
       }
     };
 
-    const handleMessageReceived = (payload: any) => {
-      handleGlobalUpdate(payload);
-      if (payload && payload.chatId && currentUserId) {
-        const senderIdStr = typeof payload.senderId === 'object' ? payload.senderId._id : payload.senderId;
-        if (String(senderIdStr) !== String(currentUserId)) {
-          SocketService.emit('mark_delivered', { messageId: payload._id, chatId: payload.chatId, userId: currentUserId });
-        }
-      }
-    };
-
-    SocketService.on('message_received', handleMessageReceived);
+    SocketService.on('message_received', handleGlobalUpdate);
     SocketService.on('chat_read', handleGlobalUpdate);
     SocketService.on('chat_deleted', handleGlobalUpdate);
     SocketService.on('new_chat_created', handleGlobalUpdate);
@@ -71,7 +61,7 @@ export default function ChatList({ activeTab, searchTerm }: ChatListProps) {
     SocketService.on('workspace_joined', handleGlobalUpdate);
 
     return () => {
-      SocketService.off('message_received', handleMessageReceived);
+      SocketService.off('message_received', handleGlobalUpdate);
       SocketService.off('chat_read', handleGlobalUpdate);
       SocketService.off('chat_deleted', handleGlobalUpdate);
       SocketService.off('new_chat_created', handleGlobalUpdate);

@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef } from 'react';
+import { StatusBar } from 'expo-status-bar';
 import { View, FlatList, KeyboardAvoidingView, Platform, Alert, Modal, Pressable, Text, ActivityIndicator, ImageBackground, Image } from 'react-native';
 import { Feather, Ionicons } from '@expo/vector-icons';
 import { useAudioRecorder, RecordingOptions } from 'expo-audio';
@@ -24,6 +25,7 @@ import { useUserChats } from '@/src/hooks/queries/useUserChats';
 import { api, getErrorMessage } from '@/src/services/api';
 import { AxiosError } from 'axios';
 import AudioPlayer from '@/src/components/chat/AudioPlayer';
+import MessageInfoModal from '@/src/components/chat/MessageInfoModal';
 
 const extractId = (obj: any): string => {
   if (!obj) return '';
@@ -94,6 +96,10 @@ export default function ChatRoomScreen() {
   const [selectedMsgOptions, setSelectedMsgOptions] = useState<any | null>(null);
   
   const audioRecorder = useAudioRecorder(audioOptions);
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
+
+  const [infoModalVisible, setInfoModalVisible] = useState(false);
+  const [selectedMessageForInfo, setSelectedMessageForInfo] = useState<ChatMessage | null>(null);
   const [isRecording, setIsRecording] = useState(false);
   const startTimeRef = useRef(0);
   
@@ -125,21 +131,17 @@ export default function ChatRoomScreen() {
     SocketService.emit('mark_read', { chatId: id, userId: currentUserId });
     api.patch(`/api/chat/${id}/read`).catch(() => {});
 
-    const timer = setTimeout(() => {
-      queryClient.setQueryData(['chatMessages', id], (oldMessages: any[]) => {
-        if (!oldMessages) return oldMessages;
-        return oldMessages.map(msg => {
-          const senderStr = extractId(msg.senderId);
-          const readArr = Array.isArray((msg as any).readBy) ? (msg as any).readBy.map(extractId) : [];
-          if (senderStr !== String(currentUserId) && !readArr.includes(String(currentUserId))) {
-            return { ...msg, readBy: [...(msg.readBy || []), currentUserId], deliveredTo: [...(msg.deliveredTo || []), currentUserId] };
-          }
-          return msg;
-        });
+    queryClient.setQueryData(['chatMessages', id], (oldMessages: any[]) => {
+      if (!oldMessages) return oldMessages;
+      return oldMessages.map(msg => {
+        const senderStr = extractId(msg.senderId);
+        const readArr = Array.isArray((msg as any).readBy) ? (msg as any).readBy.map(extractId) : [];
+        if (senderStr !== String(currentUserId) && !readArr.includes(String(currentUserId))) {
+          return { ...msg, readBy: [...(msg.readBy || []), currentUserId], deliveredTo: [] };
+        }
+        return msg;
       });
-    }, 800);
-
-    return () => clearTimeout(timer);
+    });
   }, [id, currentUserId, queryClient, messages.length]);
 
   useEffect(() => {
@@ -192,7 +194,7 @@ export default function ChatRoomScreen() {
       const result = await DocumentPicker.getDocumentAsync({ type: '*/*', copyToCacheDirectory: true });
       if (result.canceled) return;
       const asset = result.assets[0];
-      if (asset.size && asset.size > 5 * 1024 * 1024) return Alert.alert('Archivo muy pesado', 'Por favor, selecciona un archivo menor a 5MB.');
+      if (asset.size && asset.size > 5 * 1024 * 1024) return toast.warning('Archivo muy pesado', { description: 'Por favor, selecciona un archivo menor a 5MB.' });
 
       const safeFileName = asset.name.replace(/[^a-zA-Z0-9.-]/g, '_');
       const safeMimeType = asset.mimeType || 'application/octet-stream';
@@ -277,6 +279,7 @@ export default function ChatRoomScreen() {
 
   return (
     <View className="flex-1">
+      <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} backgroundColor={colorScheme === 'dark' ? '#0F172A' : '#ffffff'} />
       {/* Fondo Absoluto para evitar bordes blancos al animar el teclado */}
       <Image source={imageSource as any} style={{ position: 'absolute', width: '100%', height: '100%', zIndex: 0 }} resizeMode="cover" />
 
@@ -355,6 +358,10 @@ export default function ChatRoomScreen() {
                     isOnline={onlineUsers.includes(senderId)}
                     onLongPress={handleLongPress}
                     onOpenFile={handleOpenFile}
+                    onShowInfo={(msg) => {
+                      setSelectedMessageForInfo(msg);
+                      setInfoModalVisible(true);
+                    }}
                     totalParticipants={currentChat?.isGroup ? (currentChat?.participants?.length || 0) : 2}
                     AudioPlayerComponent={AudioPlayer}
                     isGroupChat={currentChat?.isGroup || false}
@@ -420,6 +427,14 @@ export default function ChatRoomScreen() {
           </Pressable>
         </Pressable>
       </Modal>
+
+      <MessageInfoModal
+        visible={infoModalVisible}
+        onClose={() => setInfoModalVisible(false)}
+        message={selectedMessageForInfo as any}
+        participants={otherUser ? [otherUser, user] : []}
+        currentUserId={currentUserId}
+      />
 
     </View>
   );

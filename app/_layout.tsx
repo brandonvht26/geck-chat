@@ -66,10 +66,10 @@ function RootLayoutContent() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       {user ? (
         <SocketProvider userId={user._id}>
-          <Stack screenOptions={{ headerShown: false }} />
+          <Stack screenOptions={{ headerShown: false, animation: 'slide_from_right' }} />
         </SocketProvider>
       ) : (
-        <Stack screenOptions={{ headerShown: false }} />
+        <Stack screenOptions={{ headerShown: false, animation: 'slide_from_right' }} />
       )}
       <Toaster
         theme={colorScheme === 'dark' ? 'dark' : 'light'}

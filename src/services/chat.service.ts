@@ -1,5 +1,6 @@
 import { Platform } from 'react-native';
-import { api, ApiError } from './api';
+import { api, ApiError, getToken } from './api';
+import * as FileSystem from 'expo-file-system/legacy';
 
 export interface ChatMessage {
   _id: string;
@@ -133,15 +134,14 @@ export const sendFileMessage = async (chatId: string, uri: string, name: string,
   try {
     const formData = new FormData();
     formData.append('chatId', chatId);
-    // El backend exige que el campo se llame 'file' o 'document'
+    
+    const cleanUri = Platform.OS === 'ios' ? uri.replace('file://', '') : uri;
     formData.append('file', {
-      uri,
+      uri: cleanUri,
       name,
       type: mimeType,
     } as any);
 
-    // Nota: Ajusta la ruta a '/api/chat/file' si corregiste el backend, 
-    // o mantenla como '/api/chat/chat/file' si el router sigue igual.
     const response = await api.post('/api/chat/file', formData);
     
     return response.data.message;
@@ -164,12 +164,11 @@ export const sendAudioMessage = async (chatId: string, uri: string, duration: nu
   try {
     const formData = new FormData();
     formData.append('chatId', chatId);
-    
-    // Agregamos la duración (redondeada para evitar errores de parseo en backend)
     formData.append('duration', String(Math.floor(duration)));
-    // El backend exige que el campo se llame 'audio'
+    
+    const cleanUri = Platform.OS === 'ios' ? uri.replace('file://', '') : uri;
     formData.append('audio', {
-      uri: Platform.OS === 'ios' ? uri.replace('file://', '') : uri,
+      uri: cleanUri,
       name: `audio_${Date.now()}.m4a`,
       type: 'audio/mp4',
     } as any);
@@ -178,7 +177,7 @@ export const sendAudioMessage = async (chatId: string, uri: string, duration: nu
     
     return response.data.message;
   } catch (error: any) {
-    console.error('Error en sendAudioMessage:', error.response?.data || error);
+    console.error('Error en sendAudioMessage:', error);
     throw error;
   }
 };

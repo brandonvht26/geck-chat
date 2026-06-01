@@ -89,13 +89,13 @@ export default function DocumentsScreen() {
       if (result.canceled) return;
       const asset = result.assets[0];
       if (asset.size && asset.size > 5 * 1024 * 1024) {
-        Alert.alert('Archivo muy pesado', 'Por favor, selecciona un archivo menor a 5MB.');
+        toast.warning('Archivo muy pesado', { description: 'Por favor, selecciona un archivo menor a 5MB.' });
         return;
       }
       await uploadDocument(asset.uri, asset.name, asset.mimeType || 'application/octet-stream', currentFolderId);
       refetch();
     } catch (error) {
-      Alert.alert('Error', 'No se pudo subir el documento. Intenta con un archivo más pequeño.');
+      toast.error('Error', { description: 'No se pudo subir el documento. Intenta con un archivo más pequeño.' });
     }
   };
 
@@ -124,7 +124,7 @@ export default function DocumentsScreen() {
         await Sharing.shareAsync(download.uri);
       }
     } catch (error) {
-      Alert.alert('Error', 'No se pudo generar el archivo para compartir');
+      toast.error('Error', { description: 'No se pudo generar el archivo para compartir' });
     }
   };
 

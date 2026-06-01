@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { StatusBar } from 'expo-status-bar';
 import { View, Text, FlatList, Pressable, KeyboardAvoidingView, Platform, ActivityIndicator, Alert, Modal, Image, ImageBackground } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Feather, Ionicons } from '@expo/vector-icons';
@@ -7,7 +8,7 @@ import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import { toast } from 'sonner-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useSafeAreaInsets, SafeAreaView } from 'react-native-safe-area-context';
 import { useColorScheme } from 'nativewind';
 import Animated, { useSharedValue, useAnimatedStyle, withSpring } from 'react-native-reanimated';
 import { useQueryClient } from '@tanstack/react-query';
@@ -26,6 +27,7 @@ import { UserAvatar } from '@/src/components/ui/UserAvatar';
 import MessageBubble from '@/src/components/chat/MessageBubble';
 import ChatInput from '@/src/components/chat/ChatInput';
 import AudioPlayer from '@/src/components/chat/AudioPlayer';
+import MessageInfoModal from '@/src/components/chat/MessageInfoModal';
 
 const extractId = (obj: any): string => {
   if (!obj) return '';
@@ -95,6 +97,9 @@ export default function WorkspaceScreen() {
   const [unreadSeparatorId, setUnreadSeparatorId] = useState<string | null>(null);
   const [workspaceData, setWorkspaceData] = useState<any>(null);
 
+  const [infoModalVisible, setInfoModalVisible] = useState(false);
+  const [selectedMessageForInfo, setSelectedMessageForInfo] = useState<ChatMessageType | null>(null);
+
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const { data: messages = [], isLoading: isChatLoading } = useChatMessages(currentChatId);
@@ -162,17 +167,14 @@ export default function WorkspaceScreen() {
     queryClient.setQueryData(['userChats'], (oldChats: any[]) => oldChats ? oldChats.map(chat => String(chat._id) === String(currentChatId) ? { ...chat, unreadCounts: { ...chat.unreadCounts, [currentUserId]: 0 } } : chat) : oldChats);
     SocketService.emit('mark_read', { chatId: currentChatId, userId: currentUserId });
     api.patch(`/api/chat/${currentChatId}/read`).catch(() => { });
-    const timer = setTimeout(() => {
-      queryClient.setQueryData(['chatMessages', currentChatId], (oldMessages: any[]) => oldMessages ? oldMessages.map(msg => {
-        const senderStr = extractId(msg.senderId);
-        const readArr = Array.isArray((msg as any).readBy) ? (msg as any).readBy.map(extractId) : [];
-        if (senderStr !== String(currentUserId) && !readArr.includes(String(currentUserId))) {
-          return { ...msg, readBy: [...(msg.readBy || []), currentUserId], deliveredTo: [...(msg.deliveredTo || []), currentUserId] };
-        }
-        return msg;
-      }) : oldMessages);
-    }, 800);
-    return () => clearTimeout(timer);
+    queryClient.setQueryData(['chatMessages', currentChatId], (oldMessages: any[]) => oldMessages ? oldMessages.map(msg => {
+      const senderStr = extractId(msg.senderId);
+      const readArr = Array.isArray((msg as any).readBy) ? (msg as any).readBy.map(extractId) : [];
+      if (senderStr !== String(currentUserId) && !readArr.includes(String(currentUserId))) {
+        return { ...msg, readBy: [...(msg.readBy || []), currentUserId], deliveredTo: [] };
+      }
+      return msg;
+    }) : oldMessages);
   }, [currentChatId, currentUserId, queryClient, messages.length]);
 
   const handleLongPress = useCallback((item: ChatMessageType) => {
@@ -185,12 +187,12 @@ export default function WorkspaceScreen() {
       const result = await DocumentPicker.getDocumentAsync({ type: '*/*', copyToCacheDirectory: true });
       if (result.canceled) return;
       const asset = result.assets[0];
-      if (asset.size && asset.size > 5 * 1024 * 1024) return Alert.alert('Archivo muy pesado', 'Por favor, selecciona un archivo menor a 5MB.');
+      if (asset.size && asset.size > 5 * 1024 * 1024) return toast.warning('Archivo muy pesado', { description: 'Por favor, selecciona un archivo menor a 5MB.' });
       const safeFileName = asset.name.replace(/[^a-zA-Z0-9.-]/g, '_');
       const safeMimeType = asset.mimeType || 'application/octet-stream';
       const newMsg = await sendFileMessage(currentChatId!, asset.uri, safeFileName, safeMimeType);
       queryClient.setQueryData(['chatMessages', currentChatId], (old: ChatMessageType[] | undefined) => old ? (old.some(msg => msg._id === newMsg._id) ? old : [newMsg, ...old]) : [newMsg]);
-    } catch (error) { Alert.alert('Error', 'No se pudo adjuntar el archivo al grupo.'); }
+    } catch (error) { toast.error('Error', { description: 'No se pudo adjuntar el archivo al grupo.' }); }
   };
 
   const handleOpenFile = async (message: any) => {
@@ -291,7 +293,7 @@ export default function WorkspaceScreen() {
             await deleteGroupChat(currentChatId!);
             queryClient.removeQueries({ queryKey: ['chatMessages', currentChatId] });
             queryClient.invalidateQueries({ queryKey: ['userChats'] });
-            setCurrentChatId(null); // 🚀 Deshabilitamos la query ANTES de navegar
+            setCurrentChatId(null);
             router.replace('/home');
             toast.success('Grupo eliminado correctamente');
           } catch (error: any) { toast.error(getErrorMessage(error as AxiosError) || 'Error al eliminar el grupo'); }
@@ -319,7 +321,22 @@ export default function WorkspaceScreen() {
             <View className="flex-1 h-[1px] bg-indigo-200 dark:bg-indigo-900/50" />
           </View>
         )}
-        <MessageBubble item={item} isMe={isSent} senderName={senderNameStr} isOnline={isOnline} onLongPress={handleLongPress} onOpenFile={handleOpenFile} totalParticipants={members.length} AudioPlayerComponent={AudioPlayer} isGroupChat={true} chatParticipants={members} />
+        <MessageBubble 
+          item={item} 
+          isMe={isSent} 
+          senderName={senderNameStr} 
+          isOnline={isOnline} 
+          onLongPress={handleLongPress} 
+          onOpenFile={handleOpenFile} 
+          onShowInfo={(msg) => {
+            setSelectedMessageForInfo(msg);
+            setInfoModalVisible(true);
+          }}
+          totalParticipants={members.length} 
+          AudioPlayerComponent={AudioPlayer} 
+          isGroupChat={true} 
+          chatParticipants={members} 
+        />
       </View>
     );
   };
@@ -333,10 +350,9 @@ export default function WorkspaceScreen() {
 
   return (
     <View className="flex-1">
-      {/* Fondo Absoluto para evitar bordes blancos al animar el teclado */}
+      <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} backgroundColor={colorScheme === 'dark' ? '#0F172A' : '#ffffff'} />
       <Image source={imageSource as any} style={{ position: 'absolute', width: '100%', height: '100%', zIndex: 0 }} resizeMode="cover" />
 
-      {/* 🚀 Cabecera Personalizada Premium */}
       <View style={{ paddingTop: insets.top }} className="bg-white dark:bg-authEnd-dark z-20 border-b border-gray-100 dark:border-zinc-800 shadow-sm">
         <View className="flex-row items-center justify-between px-4 py-3">
           <View className="flex-row items-center flex-1">
@@ -364,7 +380,6 @@ export default function WorkspaceScreen() {
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'} 
         keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top + 56 + 12 - Math.max(insets.bottom, 12) : 0}
       >
-          {/* Barra de Miembros Online */}
           {members.length > 0 && (
             <Pressable className="flex-row items-center justify-between px-4 py-2 bg-white/90 dark:bg-zinc-900/90 border-b border-gray-100 dark:border-zinc-800 backdrop-blur-md z-10" onPress={() => setShowMembersModal(true)}>
               <View className="flex-row items-center">
@@ -424,9 +439,16 @@ export default function WorkspaceScreen() {
             isEditing={!!editingMessage}
             onCancelEdit={() => { setEditingMessage(null); setNewMessage(''); }}
           />
+        
+        <MessageInfoModal
+          visible={infoModalVisible}
+          onClose={() => setInfoModalVisible(false)}
+          message={selectedMessageForInfo as any}
+          participants={members}
+          currentUserId={currentUserId}
+        />
       </KeyboardAvoidingView>
 
-      {/* 🚀 Modal de Opciones del Mensaje */}
       <Modal visible={!!selectedMsgOptions} transparent animationType="fade">
         <Pressable className="flex-1 bg-black/60 justify-end" onPress={() => setSelectedMsgOptions(null)}>
           <Pressable 
@@ -441,7 +463,8 @@ export default function WorkspaceScreen() {
               icon="information-circle-outline" title="Ver Información" 
               onPress={() => {
                 const msg = selectedMsgOptions!; setSelectedMsgOptions(null);
-                router.push({ pathname: '/chat/message-info', params: { messageId: msg._id, messageContent: msg.contenido || msg.content || '', senderId: currentUserId, chatParticipantsRaw: JSON.stringify(members || []), readByRaw: JSON.stringify(msg.readBy || []), deliveredToRaw: JSON.stringify(msg.deliveredTo || []) } });
+                setSelectedMessageForInfo(msg);
+                setInfoModalVisible(true);
               }} 
             />
 
@@ -473,7 +496,6 @@ export default function WorkspaceScreen() {
         </Pressable>
       </Modal>
 
-      {/* Modal de Miembros */}
       <Modal visible={showMembersModal} transparent animationType="slide">
         <Pressable className="flex-1 bg-black/60 justify-end" onPress={() => setShowMembersModal(false)}>
           <Pressable className="bg-white dark:bg-authEnd-dark rounded-t-3xl pt-6 pb-8" style={{ maxHeight: '70%', paddingBottom: Math.max(insets.bottom, 24) }} onPress={(e) => e.stopPropagation()}>

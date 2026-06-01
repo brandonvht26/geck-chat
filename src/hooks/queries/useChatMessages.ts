@@ -73,5 +73,6 @@ export const useChatMessages = (chatId: string | null | undefined) => {
       }
     },
     enabled: !!chatId,
+    staleTime: 60000,
   });
 };

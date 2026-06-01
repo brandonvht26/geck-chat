@@ -1,13 +1,41 @@
-import { useState } from 'react';
-import { View, Text, Pressable, ActivityIndicator, Image } from 'react-native';
+import { useState, useEffect } from 'react';
+import { View, Text, Pressable, ActivityIndicator, Image, Dimensions } from 'react-native';
+import { StatusBar } from 'expo-status-bar';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { accessUserChat } from '@/src/services/chat.service';
 import { Feather, Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useColorScheme } from 'nativewind';
-import Animated, { useSharedValue, useAnimatedStyle, withSpring } from 'react-native-reanimated';
-import { useAuth } from '@/src/hooks/useAuth'; // 🚀 Importamos useAuth
+import Animated, { useSharedValue, useAnimatedStyle, withSpring, withRepeat, withTiming, Easing } from 'react-native-reanimated';
+import { useAuth } from '@/src/hooks/useAuth';
 
+const { width, height } = Dimensions.get('window');
+
+const BottomWaveBackground = () => {
+  const rotation1 = useSharedValue(0);
+  const rotation2 = useSharedValue(0);
+
+  useEffect(() => {
+    rotation1.value = withRepeat(withTiming(360, { duration: 12000, easing: Easing.linear }), -1, false);
+    rotation2.value = withRepeat(withTiming(360, { duration: 18000, easing: Easing.linear }), -1, false);
+  }, []);
+
+  const style1 = useAnimatedStyle(() => ({ transform: [{ rotate: `${rotation1.value}deg` }] }));
+  const style2 = useAnimatedStyle(() => ({ transform: [{ rotate: `${rotation2.value}deg` }] }));
+
+  return (
+    <View pointerEvents="none" style={{ position: 'absolute', bottom: 0, width, height: height * 0.35, overflow: 'hidden', zIndex: 0 }}>
+      <Animated.View style={[
+        { position: 'absolute', bottom: -width * 1.3, left: -width * 0.5, width: width * 2, height: width * 2, borderRadius: width * 0.85, backgroundColor: 'rgba(42, 114, 212, 0.2)' },
+        style1
+      ]} />
+      <Animated.View style={[
+        { position: 'absolute', bottom: -width * 1.4, left: -width * 0.45, width: width * 2, height: width * 2, borderRadius: width * 0.9 },
+        style2
+      ]} className="bg-primary dark:bg-primary-dark" />
+    </View>
+  );
+};
 const AnimatedSquishButton = ({ onPress, text, loading }: { onPress: () => void, text: string, loading: boolean }) => {
   const scale = useSharedValue(1);
   const animatedStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
@@ -63,21 +91,23 @@ export default function UserProfileScreen() {
 
   return (
     <View className="flex-1 bg-white dark:bg-authEnd-dark">
+      <StatusBar style="light" />
+      <BottomWaveBackground />
       
-      <View style={{ paddingTop: insets.top }} className="bg-white dark:bg-authEnd-dark z-20">
-        <View className="flex-row justify-between items-center px-4 py-3 bg-white dark:bg-authEnd-dark border-b border-gray-100 dark:border-gray-800">
+      <View style={{ paddingTop: insets.top }} className="bg-primary dark:bg-primary-dark z-20 border-b border-primary/90 dark:border-zinc-800 shadow-sm">
+        <View className="flex-row justify-between items-center px-4 py-3">
           <Pressable onPress={() => router.back()} className="p-2 -ml-2 active:opacity-60">
-            <Feather name="arrow-left" size={24} color={iconColor} />
+            <Feather name="arrow-left" size={24} color="#ffffff" />
           </Pressable>
-          <Text className="text-2xl font-snpro-bold text-textMain dark:text-textMain-dark tracking-tight">
+          <Text className="text-2xl font-snpro-bold text-white tracking-tight">
             Perfil
           </Text>
           <View className="p-2 -mr-2 opacity-0" pointerEvents="none"><Feather name="arrow-left" size={24} /></View>
         </View>
       </View>
 
-      <View className="flex-1 items-center pt-14">
-        <View className="w-[180px] h-[180px] rounded-full bg-primary/10 dark:bg-primary-dark/20 border-4 border-white dark:border-zinc-800 shadow-2xl shadow-black/10 justify-center items-center mb-8 overflow-hidden">
+      <View className="flex-1 items-center pt-8">
+        <View className="w-[180px] h-[180px] rounded-full bg-primary/10 dark:bg-primary-dark/20 border-4 border-white dark:border-zinc-800 shadow-2xl shadow-black/10 justify-center items-center mb-8 overflow-hidden z-10">
             {avatarUrl ? (
                 <Image source={{ uri: avatarUrl }} className="w-full h-full" resizeMode="cover" />
             ) : (

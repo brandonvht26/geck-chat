@@ -1,4 +1,5 @@
 import { api, getToken } from './api';
+import * as FileSystem from 'expo-file-system/legacy';
 export interface UserProfile {
   _id: string;
   name: string;
@@ -81,41 +82,42 @@ export const updateUserPreferences = async (theme?: string, phoneWallpaperUri?: 
         const response = await api.patch('/api/users/preferences', { phoneWallpaperUrl: phoneWallpaperUri });
         responseData = { ...responseData, ...response.data };
       } else {
-        // Wallpaper desde galería → fetch nativo con PATCH + multer
-        const formData = new FormData();
-        formData.append('type', 'wallpaper');
-        const filename = phoneWallpaperUri.split('/').pop() || 'wallpaper.jpg';
-        formData.append('image', { uri: phoneWallpaperUri, name: filename, type: 'image/jpeg' } as any);
-
-        const res = await fetch(`${BASE_URL}/api/users/preferences`, {
-          method: 'POST',
-          headers: authHeaders,
-          body: formData,
+        // Wallpaper desde galería → FileSystem.uploadAsync
+        const uploadUrl = `${BASE_URL}/api/users/preferences`;
+        const res = await FileSystem.uploadAsync(uploadUrl, phoneWallpaperUri, {
+          httpMethod: 'POST',
+          uploadType: FileSystem.FileSystemUploadType.MULTIPART,
+          fieldName: 'image',
+          mimeType: 'image/jpeg',
+          parameters: { type: 'wallpaper' },
+          headers: authHeaders
         });
-        const data = await safeJson(res);
-        if (!res.ok) throw new Error(data.msg || 'Error al subir wallpaper');
+        
+        let data;
+        try { data = JSON.parse(res.body); } catch(e) { data = { msg: 'Error de parseo' }; }
+        if (res.status !== 200 && res.status !== 201) throw new Error(data.msg || 'Error al subir wallpaper');
         responseData = { ...responseData, ...data };
       }
     }
 
-    // CASO C: Subir Avatar → fetch nativo con PATCH + multer
+    // CASO C: Subir Avatar
     if (avatarUri) {
-      const formData = new FormData();
-      formData.append('type', 'avatar');
-      const filename = avatarUri.split('/').pop() || 'avatar.jpg';
-      formData.append('image', { uri: avatarUri, name: filename, type: 'image/jpeg' } as any);
-
       const uploadUrl = `${BASE_URL}/api/users/preferences`;
       console.log('[updateUserPreferences] Subiendo avatar a:', uploadUrl);
 
-      const res = await fetch(uploadUrl, {
-        method: 'POST',
-        headers: authHeaders,
-        body: formData,
+      const res = await FileSystem.uploadAsync(uploadUrl, avatarUri, {
+        httpMethod: 'POST',
+        uploadType: FileSystem.FileSystemUploadType.MULTIPART,
+        fieldName: 'image',
+        mimeType: 'image/jpeg',
+        parameters: { type: 'avatar' },
+        headers: authHeaders
       });
-      const data = await safeJson(res);
+
+      let data;
+      try { data = JSON.parse(res.body); } catch(e) { data = { msg: 'Error de parseo' }; }
       console.log('[updateUserPreferences] Respuesta avatar:', res.status, data);
-      if (!res.ok) throw new Error(data.msg || 'Error al subir avatar');
+      if (res.status !== 200 && res.status !== 201) throw new Error(data.msg || 'Error al subir avatar');
       responseData = { ...responseData, ...data };
     }
 
