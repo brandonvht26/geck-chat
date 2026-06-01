@@ -2,7 +2,7 @@ import { createContext, useContext, useEffect, useState, ReactNode } from 'react
 import { io, Socket } from 'socket.io-client';
 import { useAudioPlayer } from 'expo-audio';
 
-const SOCKET_URL = process.env.EXPO_PUBLIC_API_URI || 'http://localhost:3000';
+import { SocketService } from '../services/socket.service';
 
 interface SocketContextType {
   socket: Socket | null;
@@ -26,22 +26,23 @@ export const SocketProvider = ({ children, userId }: SocketProviderProps) => {
   useEffect(() => {
     if (!userId) return;
 
-    const newSocket = io(SOCKET_URL);
+    // Conectamos el servicio global (si no estaba ya conectado)
+    SocketService.connect(userId);
+    const globalSocket = SocketService.getSocket();
+    setSocket(globalSocket);
 
-    setSocket(newSocket);
+    SocketService.emit('get_online_users');
 
-    newSocket.emit('setup', userId);
-    newSocket.emit('get_online_users');
-
-    newSocket.on('online_users_list', (users: string[]) => {
+    // Registramos listeners en el servicio
+    SocketService.on('online_users_list', (users: string[]) => {
       setOnlineUsers(users);
     });
 
-    newSocket.on('user_online', ({ userId }: { userId: string }) => {
+    SocketService.on('user_online', ({ userId }: { userId: string }) => {
       setOnlineUsers(prev => (prev.includes(userId) ? prev : [...prev, userId]));
     });
 
-    newSocket.on('user_offline', ({ userId }: { userId: string }) => {
+    SocketService.on('user_offline', ({ userId }: { userId: string }) => {
       setOnlineUsers(prev => prev.filter(id => id !== userId));
     });
 
@@ -51,13 +52,17 @@ export const SocketProvider = ({ children, userId }: SocketProviderProps) => {
       }
     };
 
-    newSocket.on('new_message', handleIncomingMessage);
-    newSocket.on('message_received', handleIncomingMessage);
+    SocketService.on('new_message', handleIncomingMessage);
+    SocketService.on('message_received', handleIncomingMessage);
+    SocketService.on('receive_message', handleIncomingMessage);
 
     return () => {
-      newSocket.off('new_message', handleIncomingMessage);
-      newSocket.off('message_received', handleIncomingMessage);
-      newSocket.disconnect();
+      SocketService.off('online_users_list');
+      SocketService.off('user_online');
+      SocketService.off('user_offline');
+      SocketService.off('new_message', handleIncomingMessage);
+      SocketService.off('message_received', handleIncomingMessage);
+      SocketService.off('receive_message', handleIncomingMessage);
       setSocket(null);
       setOnlineUsers([]);
     };

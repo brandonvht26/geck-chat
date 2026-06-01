@@ -52,6 +52,7 @@ export default function ChatList({ activeTab, searchTerm }: ChatListProps) {
     };
 
     SocketService.on('message_received', handleGlobalUpdate);
+    SocketService.on('receive_message', handleGlobalUpdate);
     SocketService.on('chat_read', handleGlobalUpdate);
     SocketService.on('chat_deleted', handleGlobalUpdate);
     SocketService.on('new_chat_created', handleGlobalUpdate);
@@ -62,6 +63,7 @@ export default function ChatList({ activeTab, searchTerm }: ChatListProps) {
 
     return () => {
       SocketService.off('message_received', handleGlobalUpdate);
+      SocketService.off('receive_message', handleGlobalUpdate);
       SocketService.off('chat_read', handleGlobalUpdate);
       SocketService.off('chat_deleted', handleGlobalUpdate);
       SocketService.off('new_chat_created', handleGlobalUpdate);

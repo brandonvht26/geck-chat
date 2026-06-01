@@ -131,20 +131,34 @@ export const accessUserChat = async (targetUserId: string): Promise<Chat> => {
 };
 
 export const sendFileMessage = async (chatId: string, uri: string, name: string, mimeType: string) => {
+  const BASE_URL = process.env.EXPO_PUBLIC_API_URI || 'http://localhost:3000';
   try {
-    const formData = new FormData();
-    formData.append('chatId', chatId);
+    const token = await getToken();
     
-    const cleanUri = Platform.OS === 'ios' ? uri.replace('file://', '') : uri;
-    formData.append('file', {
-      uri: cleanUri,
-      name,
-      type: mimeType,
-    } as any);
+    // Copiamos a caché para garantizar un file:// URI
+    const localUri = `${FileSystem.cacheDirectory}${name.replace(/[^a-zA-Z0-9.]/g, '_')}`;
+    await FileSystem.copyAsync({ from: uri, to: localUri });
+    const cleanUri = Platform.OS === 'ios' ? localUri.replace('file://', '') : localUri;
 
-    const response = await api.post('/api/chat/file', formData);
+    const res = await FileSystem.uploadAsync(`${BASE_URL}/api/chat/file`, cleanUri, {
+      httpMethod: 'POST',
+      uploadType: FileSystem.FileSystemUploadType.MULTIPART,
+      fieldName: 'file', // Probamos con 'file'
+      mimeType: mimeType || 'application/octet-stream',
+      parameters: { chatId },
+      headers: { 
+        Authorization: `Bearer ${token}`,
+        'x-chat-id': chatId // Enviamos por header para evitar problemas de Multer con el body
+      }
+    });
+
+    let data;
+    try { data = JSON.parse(res.body); } catch(e) { data = { msg: 'Error de parseo' }; }
     
-    return response.data.message;
+    if (res.status !== 200 && res.status !== 201) {
+      throw new Error(data.msg || 'Error al enviar archivo');
+    }
+    return data.message;
   } catch (error) {
     console.error('Error en sendFileMessage:', error);
     throw error;
@@ -161,21 +175,38 @@ export const deleteMessage = async (messageId: string, type: 'for_me' | 'for_all
 };
 
 export const sendAudioMessage = async (chatId: string, uri: string, duration: number) => {
+  const BASE_URL = process.env.EXPO_PUBLIC_API_URI || 'http://localhost:3000';
   try {
-    const formData = new FormData();
-    formData.append('chatId', chatId);
-    formData.append('duration', String(Math.floor(duration)));
+    const token = await getToken();
     
-    const cleanUri = Platform.OS === 'ios' ? uri.replace('file://', '') : uri;
-    formData.append('audio', {
-      uri: cleanUri,
-      name: `audio_${Date.now()}.m4a`,
-      type: 'audio/mp4',
-    } as any);
+    const safeName = `audio_${Date.now()}.m4a`;
+    const localUri = `${FileSystem.cacheDirectory}${safeName}`;
+    await FileSystem.copyAsync({ from: uri, to: localUri });
+    const cleanUri = Platform.OS === 'ios' ? localUri.replace('file://', '') : localUri;
 
-    const response = await api.post('/api/chat/audio', formData);
+    const res = await FileSystem.uploadAsync(`${BASE_URL}/api/chat/audio`, cleanUri, {
+      httpMethod: 'POST',
+      uploadType: FileSystem.FileSystemUploadType.MULTIPART,
+      fieldName: 'audio', // Intentamos primero con 'audio', si no funciona el backend está usando otro nombre
+      mimeType: 'audio/m4a',
+      parameters: { 
+        chatId,
+        duration: String(Math.floor(duration))
+      },
+      headers: { 
+        Authorization: `Bearer ${token}`,
+        'x-chat-id': chatId,
+        'x-duration': String(Math.floor(duration))
+      }
+    });
+
+    let data;
+    try { data = JSON.parse(res.body); } catch(e) { data = { msg: 'Error de parseo' }; }
     
-    return response.data.message;
+    if (res.status !== 200 && res.status !== 201) {
+      throw new Error(data.msg || 'Error al enviar audio');
+    }
+    return data.message;
   } catch (error: any) {
     console.error('Error en sendAudioMessage:', error);
     throw error;

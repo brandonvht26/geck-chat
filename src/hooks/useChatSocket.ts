@@ -100,6 +100,7 @@ export const useChatSocket = ({ chatId, currentUserId, onMembersChange }: UseCha
         // 📡 Encendemos la antena
         SocketService.on('new_message', handleMessageReceived);
         SocketService.on('message_received', handleMessageReceived);
+        SocketService.on('receive_message', handleMessageReceived);
         SocketService.on('message_status_update', handleMessageStatusUpdate);
         SocketService.on('chat_status_bulk_update', handleBulkUpdate);
         SocketService.on('message_edited', handleMessageEdited);
@@ -112,6 +113,7 @@ export const useChatSocket = ({ chatId, currentUserId, onMembersChange }: UseCha
         return () => {
             SocketService.off('new_message', handleMessageReceived);
             SocketService.off('message_received', handleMessageReceived);
+            SocketService.off('receive_message', handleMessageReceived);
             SocketService.off('message_status_update', handleMessageStatusUpdate);
             SocketService.off('chat_status_bulk_update', handleBulkUpdate);
             SocketService.off('message_edited', handleMessageEdited);

@@ -112,14 +112,18 @@ export default function DocumentsScreen() {
           : `<html><body style="background: #1e1e1e; padding: 20px;"><pre style="color: #d4d4d4; font-family: monospace; font-size: 14px;">${itemContent}</pre></body></html>`;
 
         const { uri } = await Print.printToFileAsync({ html: htmlContent });
-        const pdfUri = `${FileSystem.documentDirectory}${safeFileName}.pdf`;
+        const dirUri = `${FileSystem.cacheDirectory}DocumentPicker`;
+        await FileSystem.makeDirectoryAsync(dirUri, { intermediates: true }).catch(() => {});
+        const pdfUri = `${dirUri}/${safeFileName}.pdf`;
         await FileSystem.moveAsync({ from: uri, to: pdfUri });
         await Sharing.shareAsync(pdfUri);
       } else if (item.url || item.fileUrl) {
         const itemUrl = item.url || item.fileUrl;
         const extension = item.fileFormat ? `.${item.fileFormat.replace('.', '')}` : '';
         const finalName = safeFileName.includes('.') ? safeFileName : `${safeFileName}${extension}`;
-        const fileUri = `${FileSystem.documentDirectory}${finalName}`;
+        const dirUri = `${FileSystem.cacheDirectory}DocumentPicker`;
+        await FileSystem.makeDirectoryAsync(dirUri, { intermediates: true }).catch(() => {});
+        const fileUri = `${dirUri}/${finalName}`;
         const download = await FileSystem.downloadAsync(itemUrl, fileUri);
         await Sharing.shareAsync(download.uri);
       }

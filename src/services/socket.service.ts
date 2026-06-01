@@ -29,8 +29,8 @@ export const SocketService = {
     return socket;
   },
 
-  emit(eventName: string, data: any): void {
-    if (socket?.connected) {
+  emit(eventName: string, data?: any): void {
+    if (socket) {
       socket.emit(eventName, data);
     }
   },

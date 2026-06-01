@@ -15,41 +15,7 @@ export const useChatMessages = (chatId: string | null | undefined) => {
 
     socket.emit('join_chat', chatId);
 
-    const handleNewMessage = (newMessage: any) => {
-
-      queryClient.invalidateQueries({ queryKey: ['chatMessages', chatId] });
-
-      queryClient.invalidateQueries({ queryKey: ['userChats'] });
-    };
-
-    const handleEdit = (editedMsg: any) => {
-      queryClient.setQueryData(['chatMessages', chatId], (old: any) =>
-        old ? old.map((m: any) => m._id === editedMsg._id ? editedMsg : m) : []
-      );
-      queryClient.invalidateQueries({ queryKey: ['userChats'] });
-    };
-
-    const handleDelete = ({ messageId, content }: any) => {
-      queryClient.setQueryData(['chatMessages', chatId], (old: any) =>
-        old ? old.map((m: any) => m._id === messageId ? { ...m, content, isDeleted: true } : m) : []
-      );
-      queryClient.invalidateQueries({ queryKey: ['userChats'] });
-    };
-
-    socket.on('receive_message', handleNewMessage);
-    socket.on('new_message', handleNewMessage);
-    socket.on('message_received', handleNewMessage);
-    socket.on('message_edited', handleEdit);
-    socket.on('message_deleted_for_all', handleDelete);
-
     return () => {
-      // Desconectar todos los listeners para evitar fugas de memoria
-      socket.off('receive_message', handleNewMessage);
-      socket.off('new_message', handleNewMessage);
-      socket.off('message_received', handleNewMessage);
-      socket.off('message_edited', handleEdit);
-      socket.off('message_deleted_for_all', handleDelete);
-      
       // Emitir evento para salir de la sala (mejora de optimización)
       socket.emit('leave_chat', chatId);
     };

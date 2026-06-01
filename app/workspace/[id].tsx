@@ -99,6 +99,7 @@ export default function WorkspaceScreen() {
 
   const [infoModalVisible, setInfoModalVisible] = useState(false);
   const [selectedMessageForInfo, setSelectedMessageForInfo] = useState<ChatMessageType | null>(null);
+  const [isSending, setIsSending] = useState(false);
 
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -197,9 +198,17 @@ export default function WorkspaceScreen() {
 
   const handleOpenFile = async (message: any) => {
     try {
-      const fileName: string = message.content || message.contenido || '';
+      let fileName: string = message.content || message.contenido || '';
+      
+      if (!fileName || message.type === 'audio') {
+        const ext = message.type === 'audio' ? '.m4a' : '.bin';
+        fileName = `${message.type}_${message._id}${ext}`;
+      }
+
       const safeFileName = fileName.replace(/[^a-zA-Z0-9.]/g, '_');
-      const fileUri = `${FileSystem.documentDirectory}${safeFileName}`;
+      const dirUri = `${FileSystem.cacheDirectory}DocumentPicker`;
+      await FileSystem.makeDirectoryAsync(dirUri, { intermediates: true }).catch(() => {});
+      const fileUri = `${dirUri}/${safeFileName}`;
       const cachedFileInfo = await FileSystem.getInfoAsync(fileUri);
       if (cachedFileInfo.exists) { await Sharing.shareAsync(fileUri, { UTI: 'public.item' }); } 
       else { await FileSystem.downloadAsync(message.fileUrl, fileUri); await Sharing.shareAsync(fileUri, { UTI: 'public.item' }); }
@@ -208,14 +217,22 @@ export default function WorkspaceScreen() {
 
   const sendMessageLocal = useCallback(async () => {
     const cleanedMessage = newMessage.trim();
-    if (!cleanedMessage || !currentChatId) return;
+    if (!cleanedMessage || !currentChatId || isSending) return;
+    
+    setIsSending(true);
+    setNewMessage('');
+    
     if (editingMessage) {
       try {
         const updated = await editMessage(editingMessage._id, cleanedMessage);
         queryClient.setQueryData(['chatMessages', currentChatId], (old: ChatMessageType[] | undefined) => old ? old.map(msg => msg._id === editingMessage._id ? updated : msg) : []);
-        setNewMessage('');
         setEditingMessage(null);
-      } catch (error) { toast.error('Error al editar mensaje', { description: getErrorMessage(error as AxiosError) }); }
+      } catch (error) { 
+        setNewMessage(cleanedMessage);
+        toast.error('Error al editar mensaje', { description: getErrorMessage(error as AxiosError) }); 
+      } finally {
+        setIsSending(false);
+      }
       return;
     }
     const msgData = { chatId: currentChatId, content: cleanedMessage, clientTimestamp: new Date().toISOString() };
@@ -223,10 +240,14 @@ export default function WorkspaceScreen() {
     queryClient.setQueryData(['chatMessages', currentChatId], (old: ChatMessageType[] | undefined) => old ? [localMsg, ...old] : [localMsg]);
     try {
       await api.post('/api/chat/message', msgData);
-      setNewMessage('');
       queryClient.invalidateQueries({ queryKey: ['userChats'] });
-    } catch (error) { toast.error('Error enviando mensaje', { description: getErrorMessage(error as AxiosError) }); }
-  }, [newMessage, currentChatId, editingMessage, currentUserId, queryClient]);
+    } catch (error) { 
+      setNewMessage(cleanedMessage);
+      toast.error('Error enviando mensaje', { description: getErrorMessage(error as AxiosError) }); 
+    } finally {
+      setIsSending(false);
+    }
+  }, [newMessage, currentChatId, editingMessage, currentUserId, queryClient, isSending]);
 
   const startRecording = async () => {
     try {

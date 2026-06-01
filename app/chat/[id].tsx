@@ -105,6 +105,7 @@ export default function ChatRoomScreen() {
   
   const hasMarkedRead = useRef(false);
   const [unreadSeparatorId, setUnreadSeparatorId] = useState<string | null>(null);
+  const [isSending, setIsSending] = useState(false);
 
   useEffect(() => { if (user) setCurrentUserId(user._id); }, [user]);
 
@@ -168,9 +169,13 @@ export default function ChatRoomScreen() {
 
   const handleSendMessage = async () => {
     const cleanedMessage = content.trim();
-    if (!cleanedMessage || !id) {
+    if (!cleanedMessage || !id || isSending) {
         return;
     }
+    
+    setIsSending(true);
+    setContent('');
+    
     try {
       if (editingMessage) {
         const updatedMsg = await editMessage(editingMessage._id, cleanedMessage);
@@ -181,11 +186,13 @@ export default function ChatRoomScreen() {
         const newMsg = await sendMessage(id as string, cleanedMessage);
         queryClient.setQueryData(['chatMessages', id], (old: ChatMessage[] | undefined) => old ? (old.some(msg => msg._id === newMsg._id) ? old : [newMsg, ...old]) : [newMsg]);
       }
-      setContent('');
       queryClient.invalidateQueries({ queryKey: ['userChats'] });
     } catch (error) { 
+      setContent(cleanedMessage);
       console.error('Error enviando mensaje:', error);
       toast.error('Error enviando mensaje', { description: getErrorMessage(error as AxiosError) }); 
+    } finally {
+      setIsSending(false);
     }
   };
 
@@ -211,9 +218,17 @@ export default function ChatRoomScreen() {
 
   const handleOpenFile = async (item: any) => {
     try {
-      const fileName: string = item.content || item.contenido || '';
+      let fileName: string = item.content || item.contenido || '';
+      
+      if (!fileName || item.type === 'audio') {
+        const ext = item.type === 'audio' ? '.m4a' : '.bin';
+        fileName = `${item.type}_${item._id}${ext}`;
+      }
+
       const safeFileName = fileName.replace(/[^a-zA-Z0-9.]/g, '_');
-      const fileUri = `${FileSystem.documentDirectory}${safeFileName}`;
+      const dirUri = `${FileSystem.cacheDirectory}DocumentPicker`;
+      await FileSystem.makeDirectoryAsync(dirUri, { intermediates: true }).catch(() => {});
+      const fileUri = `${dirUri}/${safeFileName}`;
       const cachedFileInfo = await FileSystem.getInfoAsync(fileUri);
       if (cachedFileInfo.exists) { await Sharing.shareAsync(fileUri, { UTI: 'public.item' }); } 
       else { await FileSystem.downloadAsync(item.fileUrl, fileUri); await Sharing.shareAsync(fileUri, { UTI: 'public.item' }); }
@@ -432,7 +447,7 @@ export default function ChatRoomScreen() {
         visible={infoModalVisible}
         onClose={() => setInfoModalVisible(false)}
         message={selectedMessageForInfo as any}
-        participants={otherUser ? [otherUser, user] : []}
+        participants={currentChat?.isGroup ? currentChat.participants : (otherUser ? [otherUser, user] : [])}
         currentUserId={currentUserId}
       />
 
