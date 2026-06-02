@@ -42,10 +42,11 @@ export const getDesktopItems = async (): Promise<DocumentItem[]> => {
 };
 
 export const uploadDocument = async (fileUri: string, fileName: string, mimeType: string, parentId: string | null = null): Promise<DocumentItem> => {
+  const BASE_URL = process.env.EXPO_PUBLIC_API_URI || 'http://localhost:3000';
   try {
+    const token = await getToken();
     const formData = new FormData();
     
-    // Aseguramos que la URI sea válida para FormData en Android
     const cleanUri = Platform.OS === 'android' && !fileUri.startsWith('file://') && !fileUri.startsWith('content://') 
       ? `file://${fileUri}` 
       : fileUri;
@@ -61,22 +62,27 @@ export const uploadDocument = async (fileUri: string, fileName: string, mimeType
     formData.append('y', '100');
     formData.append('workspaceId', 'null');
 
-    // Axios adjuntará automáticamente el Content-Type multipart y el Authorization
-    const response = await api.post('/api/items/upload', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' }
+    // Usamos el fetch nativo de React Native. Axios es conocido por destruir FormData con archivos en RN.
+    const response = await fetch(`${BASE_URL}/api/items/upload`, {
+      method: 'POST',
+      body: formData,
+      headers: {
+        Authorization: `Bearer ${token}`
+        // IMPORTANTE: NO settear el Content-Type manualmente, fetch lo hace automático con el boundary correcto
+      }
     });
 
-    return response.data.item;
-  } catch (error) {
-    if (axios.isAxiosError(error)) {
-      console.error('[uploadDocument] Error Axios:', {
-        status: error.response?.status,
-        data: error.response?.data,
-        message: error.message,
-      });
-    } else {
-      console.error('[uploadDocument] Error desconocido:', error);
+    const text = await response.text();
+    let data;
+    try { data = JSON.parse(text); } catch (e) { data = { msg: text }; }
+
+    if (!response.ok) {
+      throw new Error(data.msg || 'Error al subir el documento');
     }
+
+    return data.item;
+  } catch (error: any) {
+    console.error('[uploadDocument] Error:', error);
     throw error;
   }
 };

@@ -131,7 +131,9 @@ export const accessUserChat = async (targetUserId: string): Promise<Chat> => {
 };
 
 export const sendFileMessage = async (chatId: string, uri: string, name: string, mimeType: string) => {
+  const BASE_URL = process.env.EXPO_PUBLIC_API_URI || 'http://localhost:3000';
   try {
+    const token = await getToken();
     const formData = new FormData();
     
     const cleanUri = Platform.OS === 'android' && !uri.startsWith('file://') && !uri.startsWith('content://') 
@@ -146,14 +148,24 @@ export const sendFileMessage = async (chatId: string, uri: string, name: string,
 
     formData.append('chatId', chatId);
 
-    const response = await api.post<{ message: ChatMessage }>('/api/chat/file', formData, {
+    const response = await fetch(`${BASE_URL}/api/chat/file`, {
+      method: 'POST',
+      body: formData,
       headers: { 
-        'Content-Type': 'multipart/form-data',
+        Authorization: `Bearer ${token}`,
         'x-chat-id': chatId
       }
     });
 
-    return response.data.message;
+    const text = await response.text();
+    let data;
+    try { data = JSON.parse(text); } catch (e) { data = { msg: text }; }
+
+    if (!response.ok) {
+      throw new Error(data.msg || 'Error al enviar archivo');
+    }
+
+    return data.message;
   } catch (error) {
     console.error('Error en sendFileMessage:', error);
     throw error;
@@ -170,7 +182,9 @@ export const deleteMessage = async (messageId: string, type: 'for_me' | 'for_all
 };
 
 export const sendAudioMessage = async (chatId: string, uri: string, duration: number) => {
+  const BASE_URL = process.env.EXPO_PUBLIC_API_URI || 'http://localhost:3000';
   try {
+    const token = await getToken();
     const formData = new FormData();
     const safeName = `audio_${Date.now()}.m4a`;
     
@@ -187,15 +201,25 @@ export const sendAudioMessage = async (chatId: string, uri: string, duration: nu
     formData.append('chatId', chatId);
     formData.append('duration', String(Math.floor(duration)));
 
-    const response = await api.post<{ message: ChatMessage }>('/api/chat/audio', formData, {
+    const response = await fetch(`${BASE_URL}/api/chat/audio`, {
+      method: 'POST',
+      body: formData,
       headers: { 
-        'Content-Type': 'multipart/form-data',
+        Authorization: `Bearer ${token}`,
         'x-chat-id': chatId,
         'x-duration': String(Math.floor(duration))
       }
     });
 
-    return response.data.message;
+    const text = await response.text();
+    let data;
+    try { data = JSON.parse(text); } catch (e) { data = { msg: text }; }
+
+    if (!response.ok) {
+      throw new Error(data.msg || 'Error al enviar audio');
+    }
+
+    return data.message;
   } catch (error: any) {
     console.error('Error en sendAudioMessage:', error);
     throw error;
