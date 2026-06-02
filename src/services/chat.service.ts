@@ -135,11 +135,8 @@ export const sendFileMessage = async (chatId: string, uri: string, name: string,
   try {
     const token = await getToken();
     
-    // Copiamos a caché para garantizar un file:// URI
-    const safeName = name.replace(/[^a-zA-Z0-9.]/g, '_');
-    const localUri = `${FileSystem.cacheDirectory}${safeName}`;
-    await FileSystem.copyAsync({ from: uri, to: localUri });
-    const cleanUri = Platform.OS === 'ios' ? localUri.replace('file://', '') : localUri;
+    // Evitamos copyAsync ya que puede generar un archivo de 0 bytes y corromper la subida.
+    const cleanUri = Platform.OS === 'ios' ? uri.replace('file://', '') : uri;
 
     const res = await FileSystem.uploadAsync(`${BASE_URL}/api/chat/file`, cleanUri, {
       httpMethod: 'POST',
@@ -177,10 +174,9 @@ export const sendAudioMessage = async (chatId: string, uri: string, duration: nu
   try {
     const token = await getToken();
     
-    const safeName = `audio_${Date.now()}.m4a`;
-    const localUri = `${FileSystem.cacheDirectory}${safeName}`;
-    await FileSystem.copyAsync({ from: uri, to: localUri });
-    const cleanUri = Platform.OS === 'ios' ? localUri.replace('file://', '') : localUri;
+    // Usamos la URI nativa que arroja expo-audio sin pasar por copyAsync,
+    // que es conocido por generar un archivo de 0 bytes silenciosamente.
+    const cleanUri = Platform.OS === 'ios' ? uri.replace('file://', '') : uri;
 
     const res = await FileSystem.uploadAsync(`${BASE_URL}/api/chat/audio`, cleanUri, {
       httpMethod: 'POST',

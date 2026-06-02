@@ -46,18 +46,15 @@ export const uploadDocument = async (fileUri: string, fileName: string, mimeType
   try {
     const token = await getToken();
     
-    // Es VITAL copiar el archivo a la caché para asegurar que Expo FileSystem pueda leerlo, 
-    // esquivando problemas con content:// URIs en Android.
-    const safeName = fileName.replace(/[^a-zA-Z0-9.]/g, '_');
-    const localUri = `${FileSystem.cacheDirectory}${safeName}`;
-    await FileSystem.copyAsync({ from: fileUri, to: localUri });
-    const cleanUri = Platform.OS === 'ios' ? localUri.replace('file://', '') : localUri;
+    // Usamos la URI original directamente tal como se hace en user.service.ts (Avatar),
+    // ya que copyAsync en algunos dispositivos crea archivos de 0 bytes.
+    const cleanUri = Platform.OS === 'ios' ? fileUri.replace('file://', '') : fileUri;
 
     const res = await FileSystem.uploadAsync(`${BASE_URL}/api/items/upload`, cleanUri, {
       httpMethod: 'POST',
       uploadType: FileSystem.FileSystemUploadType.MULTIPART,
       fieldName: 'archivo',
-      mimeType: mimeType || 'application/pdf', // fallback explícito en lugar de octet-stream
+      mimeType: mimeType || 'application/pdf', 
       parameters: {
         parentId: parentId || 'null',
         x: '100',
