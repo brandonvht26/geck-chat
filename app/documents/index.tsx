@@ -94,8 +94,8 @@ export default function DocumentsScreen() {
       }
       await uploadDocument(asset.uri, asset.name, asset.mimeType || 'application/octet-stream', currentFolderId);
       refetch();
-    } catch (error) {
-      toast.error('Error', { description: 'No se pudo subir el documento. Intenta con un archivo más pequeño.' });
+    } catch (error: any) {
+      toast.error('Error al subir documento', { description: getErrorMessage(error) || 'Ocurrió un error inesperado al subir el archivo.' });
     }
   };
 

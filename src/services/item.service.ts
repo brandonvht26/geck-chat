@@ -42,32 +42,31 @@ export const getDesktopItems = async (): Promise<DocumentItem[]> => {
 };
 
 export const uploadDocument = async (fileUri: string, fileName: string, mimeType: string, parentId: string | null = null): Promise<DocumentItem> => {
-  const BASE_URL = process.env.EXPO_PUBLIC_API_URI || 'http://localhost:3000';
   try {
-    const token = await getToken();
-    // Usamos FileSystem.uploadAsync en lugar de fetch nativo por bugs en formData
-    const res = await FileSystem.uploadAsync(`${BASE_URL}/api/items/upload`, fileUri, {
-      httpMethod: 'POST',
-      uploadType: FileSystem.FileSystemUploadType.MULTIPART,
-      fieldName: 'archivo',
-      mimeType: mimeType || 'application/octet-stream',
-      parameters: {
-        parentId: parentId || 'null',
-        x: '100',
-        y: '100',
-        workspaceId: 'null'
-      },
-      headers: { Authorization: `Bearer ${token}` }
+    const formData = new FormData();
+    
+    // Aseguramos que la URI sea válida para FormData en Android
+    const cleanUri = Platform.OS === 'android' && !fileUri.startsWith('file://') && !fileUri.startsWith('content://') 
+      ? `file://${fileUri}` 
+      : fileUri;
+
+    formData.append('archivo', {
+      uri: cleanUri,
+      name: fileName,
+      type: mimeType || 'application/octet-stream'
+    } as any);
+
+    formData.append('parentId', parentId || 'null');
+    formData.append('x', '100');
+    formData.append('y', '100');
+    formData.append('workspaceId', 'null');
+
+    // Axios adjuntará automáticamente el Content-Type multipart y el Authorization
+    const response = await api.post('/api/items/upload', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
     });
 
-    let data;
-    try { data = JSON.parse(res.body); } catch(e) { data = { msg: 'Error de parseo' }; }
-    
-    if (res.status !== 200 && res.status !== 201) {
-      throw new Error(data.msg || 'Error al subir el documento');
-    }
-
-    return data.item;
+    return response.data.item;
   } catch (error) {
     if (axios.isAxiosError(error)) {
       console.error('[uploadDocument] Error Axios:', {
