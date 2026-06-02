@@ -185,10 +185,19 @@ export default function WorkspaceScreen() {
 
   const handleAttachFile = async () => {
     try {
-      const result = await DocumentPicker.getDocumentAsync({ type: '*/*', copyToCacheDirectory: true });
+      // 🚀 Usamos copyToCacheDirectory: false para obtener la URI nativa y evitar el bug de 0 bytes
+      const result = await DocumentPicker.getDocumentAsync({ type: '*/*', copyToCacheDirectory: false });
       if (result.canceled) return;
       const asset = result.assets[0];
       if (asset.size && asset.size > 5 * 1024 * 1024) return toast.warning('Archivo muy pesado', { description: 'Por favor, selecciona un archivo menor a 5MB.' });
+
+      // 🚀 Verificación de tamaño para descartar archivos vacíos o bloqueados por permisos de Android
+      const fileInfo = await FileSystem.getInfoAsync(asset.uri);
+      if (fileInfo.exists && fileInfo.size === 0) {
+        toast.error('Archivo no válido', { description: 'El archivo está vacío o el sistema restringe su lectura.' });
+        return;
+      }
+
       const safeFileName = asset.name.replace(/[^a-zA-Z0-9.-]/g, '_');
       const safeMimeType = asset.mimeType || 'application/octet-stream';
       const newMsg = await sendFileMessage(currentChatId!, asset.uri, safeFileName, safeMimeType);
@@ -275,9 +284,8 @@ export default function WorkspaceScreen() {
     const elapsed = Date.now() - startTimeRef.current;
     
     try {
-      const currentUri = audioRecorder.uri;
+      const currentUri = audioRecorder.uri || (typeof (audioRecorder as any).getURI === 'function' ? (audioRecorder as any).getURI() : null);
       await audioRecorder.stop();
-      await new Promise(resolve => setTimeout(resolve, 300));
 
       if (elapsed < 800) {
         toast.info('Audio muy corto', { description: 'Mantén presionado o graba más tiempo.' });
@@ -285,6 +293,20 @@ export default function WorkspaceScreen() {
       }
       
       if (currentUri && id) {
+        // 🚀 Bucle de espera estricto para asegurar que el OS ha terminado de volcar el archivo a disco
+        let fileInfo = await FileSystem.getInfoAsync(currentUri);
+        let attempts = 0;
+        while ((!fileInfo.exists || fileInfo.size === 0) && attempts < 15) {
+          await new Promise(r => setTimeout(r, 200));
+          fileInfo = await FileSystem.getInfoAsync(currentUri);
+          attempts++;
+        }
+        
+        if (!fileInfo.exists || fileInfo.size === 0) {
+          toast.error('Error al guardar', { description: 'El archivo de audio está vacío o no se guardó.' });
+          return;
+        }
+
         const duration = elapsed / 1000;
         const newMsg = await sendAudioMessage(currentChatId, currentUri, duration);
         queryClient.setQueryData(['chatMessages', currentChatId], (old: ChatMessageType[] | undefined) => old ? (old.some(msg => msg._id === newMsg._id) ? old : [newMsg, ...old]) : [newMsg]);

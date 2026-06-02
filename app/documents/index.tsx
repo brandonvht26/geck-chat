@@ -85,13 +85,22 @@ export default function DocumentsScreen() {
 
   const handleUpload = async () => {
     try {
-      const result = await DocumentPicker.getDocumentAsync({ type: '*/*', copyToCacheDirectory: true });
+      // 🚀 Usamos copyToCacheDirectory: false para obtener la URI nativa y evitar el bug de 0 bytes
+      const result = await DocumentPicker.getDocumentAsync({ type: '*/*', copyToCacheDirectory: false });
       if (result.canceled) return;
       const asset = result.assets[0];
       if (asset.size && asset.size > 5 * 1024 * 1024) {
         toast.warning('Archivo muy pesado', { description: 'Por favor, selecciona un archivo menor a 5MB.' });
         return;
       }
+
+      // 🚀 Verificación de tamaño
+      const fileInfo = await FileSystem.getInfoAsync(asset.uri);
+      if (fileInfo.exists && fileInfo.size === 0) {
+        toast.error('Archivo no válido', { description: 'El archivo está vacío o el sistema restringe su lectura.' });
+        return;
+      }
+
       await uploadDocument(asset.uri, asset.name, asset.mimeType || 'application/octet-stream', currentFolderId);
       refetch();
     } catch (error: any) {

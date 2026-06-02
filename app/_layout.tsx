@@ -19,6 +19,15 @@ configureReanimatedLogger({
 
 SplashScreen.preventAutoHideAsync();
 
+import { AppState, AppStateStatus, Platform } from 'react-native';
+import { focusManager } from '@tanstack/react-query';
+
+function onAppStateChange(status: AppStateStatus) {
+  if (Platform.OS !== 'web') {
+    focusManager.setFocused(status === 'active');
+  }
+}
+
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
@@ -28,7 +37,7 @@ const queryClient = new QueryClient({
         }
         return failureCount < 2;
       },
-      refetchOnWindowFocus: false,
+      refetchOnWindowFocus: true, // 🚀 Ahora es true para refresco instantáneo
     },
   },
 });
@@ -51,6 +60,11 @@ function RootLayoutContent() {
       SplashScreen.hideAsync();
     }
   }, [fontsLoaded]);
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', onAppStateChange);
+    return () => subscription.remove();
+  }, []);
 
   useEffect(() => {
     if (user?.preferences?.theme) {
