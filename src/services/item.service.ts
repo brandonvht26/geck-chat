@@ -45,39 +45,33 @@ export const uploadDocument = async (fileUri: string, fileName: string, mimeType
   const BASE_URL = process.env.EXPO_PUBLIC_API_URI || 'http://localhost:3000';
   try {
     const token = await getToken();
-    const formData = new FormData();
     
-    const cleanUri = Platform.OS === 'android' && !fileUri.startsWith('file://') && !fileUri.startsWith('content://') 
-      ? `file://${fileUri}` 
-      : fileUri;
+    // Es VITAL copiar el archivo a la caché para asegurar que Expo FileSystem pueda leerlo, 
+    // esquivando problemas con content:// URIs en Android.
+    const safeName = fileName.replace(/[^a-zA-Z0-9.]/g, '_');
+    const localUri = `${FileSystem.cacheDirectory}${safeName}`;
+    await FileSystem.copyAsync({ from: fileUri, to: localUri });
+    const cleanUri = Platform.OS === 'ios' ? localUri.replace('file://', '') : localUri;
 
-    formData.append('archivo', {
-      uri: cleanUri,
-      name: fileName,
-      type: mimeType || 'application/octet-stream'
-    } as any);
-
-    formData.append('parentId', parentId || 'null');
-    formData.append('x', '100');
-    formData.append('y', '100');
-    formData.append('workspaceId', 'null');
-
-    // Usamos el fetch nativo de React Native. Axios es conocido por destruir FormData con archivos en RN.
-    const response = await fetch(`${BASE_URL}/api/items/upload`, {
-      method: 'POST',
-      body: formData,
-      headers: {
-        Authorization: `Bearer ${token}`
-        // IMPORTANTE: NO settear el Content-Type manualmente, fetch lo hace automático con el boundary correcto
-      }
+    const res = await FileSystem.uploadAsync(`${BASE_URL}/api/items/upload`, cleanUri, {
+      httpMethod: 'POST',
+      uploadType: FileSystem.FileSystemUploadType.MULTIPART,
+      fieldName: 'archivo',
+      mimeType: mimeType || 'application/pdf', // fallback explícito en lugar de octet-stream
+      parameters: {
+        parentId: parentId || 'null',
+        x: '100',
+        y: '100',
+        workspaceId: 'null'
+      },
+      headers: { Authorization: `Bearer ${token}` }
     });
 
-    const text = await response.text();
     let data;
-    try { data = JSON.parse(text); } catch (e) { data = { msg: text }; }
+    try { data = JSON.parse(res.body); } catch(e) { data = { msg: 'Error de parseo del servidor' }; }
 
-    if (!response.ok) {
-      throw new Error(data.msg || 'Error al subir el documento');
+    if (res.status !== 200 && res.status !== 201) {
+      throw { response: { data: { msg: data.msg || 'Error al subir el documento' } } };
     }
 
     return data.item;
