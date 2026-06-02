@@ -185,22 +185,29 @@ export default function WorkspaceScreen() {
 
   const handleAttachFile = async () => {
     try {
-      // 🚀 Usamos copyToCacheDirectory: false para obtener la URI nativa y evitar el bug de 0 bytes
-      const result = await DocumentPicker.getDocumentAsync({ type: '*/*', copyToCacheDirectory: false });
+      // 🚀 Volvemos a copyToCacheDirectory: true para que Android resuelva el content://
+      const result = await DocumentPicker.getDocumentAsync({ type: '*/*', copyToCacheDirectory: true });
       if (result.canceled) return;
       const asset = result.assets[0];
       if (asset.size && asset.size > 5 * 1024 * 1024) return toast.warning('Archivo muy pesado', { description: 'Por favor, selecciona un archivo menor a 5MB.' });
 
-      // 🚀 Verificación de tamaño para descartar archivos vacíos o bloqueados por permisos de Android
-      const fileInfo = await FileSystem.getInfoAsync(asset.uri);
+      const safeFileName = asset.name.replace(/[^a-zA-Z0-9.-]/g, '_');
+      const safeMimeType = asset.mimeType || 'application/octet-stream';
+
+      // 🚀 CRÍTICO: Copiamos a un tempUri con el nombre EXACTO para que Multer vea la extensión.
+      const tempDir = `${FileSystem.cacheDirectory}Uploads`;
+      await FileSystem.makeDirectoryAsync(tempDir, { intermediates: true }).catch(() => {});
+      const tempUri = `${tempDir}/${safeFileName}`;
+      await FileSystem.copyAsync({ from: asset.uri, to: tempUri });
+
+      // 🚀 Verificación de tamaño
+      const fileInfo = await FileSystem.getInfoAsync(tempUri);
       if (fileInfo.exists && fileInfo.size === 0) {
         toast.error('Archivo no válido', { description: 'El archivo está vacío o el sistema restringe su lectura.' });
         return;
       }
 
-      const safeFileName = asset.name.replace(/[^a-zA-Z0-9.-]/g, '_');
-      const safeMimeType = asset.mimeType || 'application/octet-stream';
-      const newMsg = await sendFileMessage(currentChatId!, asset.uri, safeFileName, safeMimeType);
+      const newMsg = await sendFileMessage(currentChatId!, tempUri, safeFileName, safeMimeType);
       queryClient.setQueryData(['chatMessages', currentChatId], (old: ChatMessageType[] | undefined) => old ? (old.some(msg => msg._id === newMsg._id) ? old : [newMsg, ...old]) : [newMsg]);
       queryClient.setQueryData(['userChats'], (oldChats: any[]) => oldChats ? oldChats.map(c => c._id === currentChatId ? { ...c, lastMessage: newMsg, updatedAt: newMsg.createdAt || new Date().toISOString() } : c).sort((a,b) => new Date(b.updatedAt || 0).getTime() - new Date(a.updatedAt || 0).getTime()) : oldChats);
       queryClient.invalidateQueries({ queryKey: ['userChats'] });

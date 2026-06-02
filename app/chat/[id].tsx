@@ -215,23 +215,30 @@ export default function ChatRoomScreen() {
 
   const handleAttachFile = async () => {
     try {
-      // 🚀 Usamos copyToCacheDirectory: false para obtener la URI nativa y evitar el bug de 0 bytes
-      const result = await DocumentPicker.getDocumentAsync({ type: '*/*', copyToCacheDirectory: false });
+      // 🚀 Volvemos a copyToCacheDirectory: true para que Android resuelva el content://
+      const result = await DocumentPicker.getDocumentAsync({ type: '*/*', copyToCacheDirectory: true });
       if (result.canceled) return;
       const asset = result.assets[0];
       if (asset.size && asset.size > 5 * 1024 * 1024) return toast.warning('Archivo muy pesado', { description: 'Por favor, selecciona un archivo menor a 5MB.' });
 
-      // 🚀 Verificación de tamaño para descartar archivos vacíos o bloqueados por permisos de Android
-      const fileInfo = await FileSystem.getInfoAsync(asset.uri);
+      const safeFileName = asset.name.replace(/[^a-zA-Z0-9.-]/g, '_');
+      const safeMimeType = asset.mimeType || 'application/octet-stream';
+
+      // 🚀 CRÍTICO: Copiamos a un tempUri con el nombre EXACTO para que Multer vea la extensión.
+      // FileSystem.uploadAsync extrae el filename de la ruta, si no tiene extensión Multer lo rechaza.
+      const tempDir = `${FileSystem.cacheDirectory}Uploads`;
+      await FileSystem.makeDirectoryAsync(tempDir, { intermediates: true }).catch(() => {});
+      const tempUri = `${tempDir}/${safeFileName}`;
+      await FileSystem.copyAsync({ from: asset.uri, to: tempUri });
+
+      // 🚀 Verificación de tamaño para descartar archivos vacíos
+      const fileInfo = await FileSystem.getInfoAsync(tempUri);
       if (fileInfo.exists && fileInfo.size === 0) {
         toast.error('Archivo no válido', { description: 'El archivo está vacío o el sistema restringe su lectura.' });
         return;
       }
 
-      const safeFileName = asset.name.replace(/[^a-zA-Z0-9.-]/g, '_');
-      const safeMimeType = asset.mimeType || 'application/octet-stream';
-
-      const newMsg = await sendFileMessage(id as string, asset.uri, safeFileName, safeMimeType);
+      const newMsg = await sendFileMessage(id as string, tempUri, safeFileName, safeMimeType);
       
       queryClient.setQueryData(['chatMessages', id], (old: ChatMessage[] | undefined) => {
         if (!old) return [newMsg];

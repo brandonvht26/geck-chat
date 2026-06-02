@@ -85,8 +85,8 @@ export default function DocumentsScreen() {
 
   const handleUpload = async () => {
     try {
-      // 🚀 Usamos copyToCacheDirectory: false para obtener la URI nativa y evitar el bug de 0 bytes
-      const result = await DocumentPicker.getDocumentAsync({ type: '*/*', copyToCacheDirectory: false });
+      // 🚀 Volvemos a copyToCacheDirectory: true para que Android resuelva el content://
+      const result = await DocumentPicker.getDocumentAsync({ type: '*/*', copyToCacheDirectory: true });
       if (result.canceled) return;
       const asset = result.assets[0];
       if (asset.size && asset.size > 5 * 1024 * 1024) {
@@ -94,14 +94,22 @@ export default function DocumentsScreen() {
         return;
       }
 
+      const safeFileName = asset.name.replace(/[^a-zA-Z0-9.-]/g, '_');
+
+      // 🚀 CRÍTICO: Copiamos a un tempUri con el nombre EXACTO para que Multer vea la extensión.
+      const tempDir = `${FileSystem.cacheDirectory}Uploads`;
+      await FileSystem.makeDirectoryAsync(tempDir, { intermediates: true }).catch(() => {});
+      const tempUri = `${tempDir}/${safeFileName}`;
+      await FileSystem.copyAsync({ from: asset.uri, to: tempUri });
+
       // 🚀 Verificación de tamaño
-      const fileInfo = await FileSystem.getInfoAsync(asset.uri);
+      const fileInfo = await FileSystem.getInfoAsync(tempUri);
       if (fileInfo.exists && fileInfo.size === 0) {
         toast.error('Archivo no válido', { description: 'El archivo está vacío o el sistema restringe su lectura.' });
         return;
       }
 
-      await uploadDocument(asset.uri, asset.name, asset.mimeType || 'application/octet-stream', currentFolderId);
+      await uploadDocument(tempUri, safeFileName, asset.mimeType || 'application/octet-stream', currentFolderId);
       refetch();
     } catch (error: any) {
       toast.error('Error al subir documento', { description: getErrorMessage(error) || 'Ocurrió un error inesperado al subir el archivo.' });
