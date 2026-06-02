@@ -3,7 +3,7 @@ import { StatusBar } from 'expo-status-bar';
 import { View, Text, FlatList, Pressable, KeyboardAvoidingView, Platform, ActivityIndicator, Alert, Modal, Image, ImageBackground } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Feather, Ionicons } from '@expo/vector-icons';
-import { useAudioRecorder, RecordingOptions } from 'expo-audio';
+import { useAudioRecorder, RecordingOptions, getRecordingPermissionsAsync, requestRecordingPermissionsAsync } from 'expo-audio';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
@@ -270,7 +270,17 @@ export default function WorkspaceScreen() {
   }, [newMessage, currentChatId, editingMessage, currentUserId, queryClient, isSending]);
 
   const startRecording = async () => {
+    if (!currentChatId) return;
     try {
+      const perm = await getRecordingPermissionsAsync();
+      if (!perm.granted) {
+        const req = await requestRecordingPermissionsAsync();
+        if (!req.granted) {
+          toast.warning('Permisos necesarios', { description: 'Para usar esta función debes activar los permisos de micrófono en el sistema.' });
+          return;
+        }
+      }
+
       await audioRecorder.prepareToRecordAsync(audioOptions);
       await audioRecorder.record();
       setIsRecording(true);

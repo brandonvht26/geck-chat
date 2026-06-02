@@ -2,7 +2,7 @@ import { useEffect, useState, useRef } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { View, FlatList, KeyboardAvoidingView, Platform, Alert, Modal, Pressable, Text, ActivityIndicator, ImageBackground, Image } from 'react-native';
 import { Feather, Ionicons } from '@expo/vector-icons';
-import { useAudioRecorder, RecordingOptions } from 'expo-audio';
+import { useAudioRecorder, RecordingOptions, getRecordingPermissionsAsync, requestRecordingPermissionsAsync } from 'expo-audio';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import * as DocumentPicker from 'expo-document-picker';
@@ -273,9 +273,18 @@ export default function ChatRoomScreen() {
     if (senderId === currentUserId) setSelectedMsgOptions(item);
   };
 
-  // 🚀 Lógica Acorazada de Grabación
+  // 🚀 Lógica Acorazada de Grabación con Permisos
   const startRecording = async () => {
     try {
+      const perm = await getRecordingPermissionsAsync();
+      if (!perm.granted) {
+        const req = await requestRecordingPermissionsAsync();
+        if (!req.granted) {
+          toast.warning('Permisos necesarios', { description: 'Para usar esta función debes activar los permisos de micrófono en el sistema.' });
+          return;
+        }
+      }
+
       await audioRecorder.prepareToRecordAsync(audioOptions);
       await audioRecorder.record();
       setIsRecording(true);

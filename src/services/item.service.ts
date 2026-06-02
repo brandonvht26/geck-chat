@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { Platform } from 'react-native';
 import { api, ApiError, getToken } from './api';
 import * as FileSystem from 'expo-file-system/legacy';
 
