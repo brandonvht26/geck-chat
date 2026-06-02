@@ -9,6 +9,8 @@ import MainHeader from '@/src/components/layout/MainHeader';
 import SideMenu from '@/src/components/layout/SideMenu';
 import ChatList from '@/src/components/chat/ChatList';
 import { StatusBar } from 'expo-status-bar';
+import { useUserChats } from '@/src/hooks/queries/useUserChats';
+import { useAuth } from '@/src/hooks/useAuth';
 
 const { width } = Dimensions.get('window');
 const TAB_CONTAINER_WIDTH = width - 32; 
@@ -36,9 +38,14 @@ export default function HomeScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { colorScheme } = useColorScheme();
+  const { user } = useAuth();
+  const { data: userChats = [] } = useUserChats();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'privados' | 'workspaces'>('privados');
   const [searchTerm, setSearchTerm] = useState(''); 
+
+  const hasUnreadPrivados = userChats.some(c => !c.workspaceId && (c.unreadCounts?.[user?._id || ''] || 0) > 0);
+  const hasUnreadWorkspaces = userChats.some(c => !!c.workspaceId && (c.unreadCounts?.[user?._id || ''] || 0) > 0);
 
   const indicatorStyle = useAnimatedStyle(() => {
     return {
@@ -79,11 +86,17 @@ export default function HomeScreen() {
                     ]}
                     className="bg-white dark:bg-zinc-700 shadow-sm"
                 />
-                <Pressable className="flex-1 py-2.5 items-center justify-center z-10" onPress={() => setActiveTab('privados')}>
-                    <Text className={`text-sm font-nunito-bold transition-colors ${activeTab === 'privados' ? 'text-primary dark:text-white' : 'text-gray-500 dark:text-gray-400'}`}>Privados</Text>
+                <Pressable className="flex-1 py-2.5 items-center justify-center z-10 relative" onPress={() => setActiveTab('privados')}>
+                    <View className="flex-row items-center justify-center">
+                        <Text className={`text-sm font-nunito-bold transition-colors ${activeTab === 'privados' ? 'text-primary dark:text-white' : 'text-gray-500 dark:text-gray-400'}`}>Privados</Text>
+                        {hasUnreadPrivados && <View className="w-2 h-2 rounded-full bg-orange-500 absolute -right-3 top-0 border border-white dark:border-zinc-800/80" />}
+                    </View>
                 </Pressable>
-                <Pressable className="flex-1 py-2.5 items-center justify-center z-10" onPress={() => setActiveTab('workspaces')}>
-                    <Text className={`text-sm font-nunito-bold transition-colors ${activeTab === 'workspaces' ? 'text-primary dark:text-white' : 'text-gray-500 dark:text-gray-400'}`}>Workspaces</Text>
+                <Pressable className="flex-1 py-2.5 items-center justify-center z-10 relative" onPress={() => setActiveTab('workspaces')}>
+                    <View className="flex-row items-center justify-center">
+                        <Text className={`text-sm font-nunito-bold transition-colors ${activeTab === 'workspaces' ? 'text-primary dark:text-white' : 'text-gray-500 dark:text-gray-400'}`}>Workspaces</Text>
+                        {hasUnreadWorkspaces && <View className="w-2 h-2 rounded-full bg-orange-500 absolute -right-3 top-0 border border-white dark:border-zinc-800/80" />}
+                    </View>
                 </Pressable>
             </View>
 

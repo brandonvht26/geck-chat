@@ -71,7 +71,7 @@ export const updateUserPreferences = async (theme?: string, phoneWallpaperUri?: 
 
     // CASO A: Actualizar el tema (patch simple con JSON)
     if (theme) {
-      const response = await api.patch('/api/users/preferences', { theme });
+      const response = await api.post('/api/users/preferences', { theme });
       responseData = { ...responseData, ...response.data };
     }
 
@@ -79,7 +79,7 @@ export const updateUserPreferences = async (theme?: string, phoneWallpaperUri?: 
     if (phoneWallpaperUri) {
       if (phoneWallpaperUri.startsWith('bundled:')) {
         // Bundled wallpaper → solo enviamos la URL como texto plano (PATCH JSON)
-        const response = await api.patch('/api/users/preferences', { phoneWallpaperUrl: phoneWallpaperUri });
+        const response = await api.post('/api/users/preferences', { phoneWallpaperUrl: phoneWallpaperUri });
         responseData = { ...responseData, ...response.data };
       } else {
         // Wallpaper desde galería → FileSystem.uploadAsync

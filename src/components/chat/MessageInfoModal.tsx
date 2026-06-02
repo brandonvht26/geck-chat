@@ -18,25 +18,29 @@ export default function MessageInfoModal({ visible, onClose, message, participan
   const extractId = (obj: any): string => {
     if (!obj) return '';
     if (typeof obj === 'string') return obj;
-    if (typeof obj === 'object' && obj._id) return String(obj._id);
+    if (typeof obj === 'object') {
+      if (obj.userId && obj.userId._id) return String(obj.userId._id);
+      if (obj.userId && typeof obj.userId === 'string') return String(obj.userId);
+      if (obj._id) return String(obj._id);
+    }
     return String(obj);
   };
 
-  const { readUsers, remainingUsers, statusLabel, statusColor, statusIcon } = useMemo(() => {
-    if (!message || !Array.isArray(participants)) return { readUsers: [], remainingUsers: [], statusLabel: 'Enviado', statusColor: 'text-gray-500', statusIcon: 'checkmark' };
+  const { readUsers, deliveredUsers, remainingUsers, statusLabel, statusColor, statusIcon } = useMemo(() => {
+    if (!message || !Array.isArray(participants)) return { readUsers: [], deliveredUsers: [], remainingUsers: [], statusLabel: 'Enviado', statusColor: 'text-gray-500', statusIcon: 'checkmark' };
     
-    // Filtramos al enviador
     const senderIdStr = extractId(message.senderId);
     const recipients = participants.filter((p: any) => extractId(p) !== senderIdStr);
     
     const readByStr = Array.isArray(message.readBy) ? message.readBy.map(extractId) : [];
+    const deliveredToStr = Array.isArray(message.deliveredTo) ? message.deliveredTo.map(extractId) : [];
     
     const read = recipients.filter((p: any) => readByStr.includes(extractId(p)));
-    const remaining = recipients.filter((p: any) => !readByStr.includes(extractId(p)));
+    const delivered = recipients.filter((p: any) => deliveredToStr.includes(extractId(p)) && !readByStr.includes(extractId(p)));
+    const remaining = recipients.filter((p: any) => !readByStr.includes(extractId(p)) && !deliveredToStr.includes(extractId(p)));
 
-    // Determinar el estado general
     let label = 'Enviado';
-    let color = 'text-gray-500';
+    let color = 'text-gray-500 dark:text-gray-400';
     let icon = 'checkmark-outline';
 
     if (read.length > 0 && read.length === recipients.length) {
@@ -44,20 +48,23 @@ export default function MessageInfoModal({ visible, onClose, message, participan
       color = 'text-blue-500 dark:text-blue-400';
       icon = 'checkmark-done';
     } else if (read.length > 0) {
-      label = `Leído por ${read.length}`;
+      const names = read.map(r => (r.userId?.name || r.userId?.username || r.name || r.username)).filter(Boolean);
+      label = names.length <= 2 ? `Leído por ${names.join(', ')}` : `Leído por ${read.length}`;
       color = 'text-blue-500 dark:text-blue-400';
       icon = 'checkmark-done';
-    } else if (message.deliveredTo && message.deliveredTo.length > 0) {
-      label = 'Entregado';
+    } else if (delivered.length > 0) {
+      const names = delivered.map(r => (r.userId?.name || r.userId?.username || r.name || r.username)).filter(Boolean);
+      label = names.length <= 2 ? `Entregado a ${names.join(', ')}` : `Entregado a ${delivered.length}`;
       color = 'text-gray-500 dark:text-gray-400';
       icon = 'checkmark-done';
     }
 
-    return { readUsers: read, remainingUsers: remaining, statusLabel: label, statusColor: color, statusIcon: icon };
+    return { readUsers: read, deliveredUsers: delivered, remainingUsers: remaining, statusLabel: label, statusColor: color, statusIcon: icon };
   }, [message, participants]);
 
-  const renderUserRow = (user: any, index: number) => {
-    if (!user) return null;
+  const renderUserRow = (rawUser: any, index: number) => {
+    if (!rawUser) return null;
+    const user = rawUser.userId || rawUser;
     const id = user._id || user.id || (typeof user === 'string' ? user : `user_${index}`);
     const avatarUrl = user.avatarUrl || user.avatar || user.profilePicture;
     const displayName = user.name || user.username || (typeof user === 'string' ? `ID: ${user}` : 'Usuario');
@@ -114,7 +121,7 @@ export default function MessageInfoModal({ visible, onClose, message, participan
                 </TouchableOpacity>
               </View>
 
-              <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
+              <ScrollView className="w-full shrink" showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 24 }}>
                 
                 {/* Contenido del Mensaje */}
                 <View className="p-6 bg-white dark:bg-zinc-900 border-b border-gray-100 dark:border-zinc-800/50">
@@ -141,13 +148,26 @@ export default function MessageInfoModal({ visible, onClose, message, participan
                   )}
                 </View>
 
+                {/* Entregado a */}
+                {deliveredUsers.length > 0 && (
+                  <View className="mt-2">
+                    <View className="flex-row items-center px-6 py-3 bg-gray-50 dark:bg-zinc-800/50 border-y border-gray-100 dark:border-zinc-800/80">
+                      <Ionicons name="checkmark-done" size={16} color={colorScheme === 'dark' ? '#9CA3AF' : '#6B7280'} />
+                      <Text className="text-xs font-snpro-bold uppercase tracking-widest text-gray-500 dark:text-gray-400 ml-2">
+                        Entregado a ({deliveredUsers.length})
+                      </Text>
+                    </View>
+                    {deliveredUsers.map((u, i) => renderUserRow(u, i))}
+                  </View>
+                )}
+
                 {/* Pendiente */}
                 {remainingUsers.length > 0 && (
-                  <View className="mt-4 mb-4">
+                  <View className="mt-2 mb-4">
                     <View className="flex-row items-center px-6 py-3 bg-gray-50 dark:bg-zinc-800/50 border-y border-gray-100 dark:border-zinc-800/80">
                       <Feather name="clock" size={14} color={colorScheme === 'dark' ? '#9CA3AF' : '#6B7280'} />
                       <Text className="text-xs font-snpro-bold uppercase tracking-widest text-gray-500 dark:text-gray-400 ml-2">
-                        Pendiente de lectura ({remainingUsers.length})
+                        Pendiente de entrega ({remainingUsers.length})
                       </Text>
                     </View>
                     {remainingUsers.map((u, i) => renderUserRow(u, i))}

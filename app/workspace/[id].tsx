@@ -193,6 +193,8 @@ export default function WorkspaceScreen() {
       const safeMimeType = asset.mimeType || 'application/octet-stream';
       const newMsg = await sendFileMessage(currentChatId!, asset.uri, safeFileName, safeMimeType);
       queryClient.setQueryData(['chatMessages', currentChatId], (old: ChatMessageType[] | undefined) => old ? (old.some(msg => msg._id === newMsg._id) ? old : [newMsg, ...old]) : [newMsg]);
+      queryClient.setQueryData(['userChats'], (oldChats: any[]) => oldChats ? oldChats.map(c => c._id === currentChatId ? { ...c, lastMessage: newMsg, updatedAt: newMsg.createdAt || new Date().toISOString() } : c).sort((a,b) => new Date(b.updatedAt || 0).getTime() - new Date(a.updatedAt || 0).getTime()) : oldChats);
+      queryClient.invalidateQueries({ queryKey: ['userChats'] });
     } catch (error) { toast.error('Error', { description: 'No se pudo adjuntar el archivo al grupo.' }); }
   };
 
@@ -226,6 +228,7 @@ export default function WorkspaceScreen() {
       try {
         const updated = await editMessage(editingMessage._id, cleanedMessage);
         queryClient.setQueryData(['chatMessages', currentChatId], (old: ChatMessageType[] | undefined) => old ? old.map(msg => msg._id === editingMessage._id ? updated : msg) : []);
+        queryClient.setQueryData(['userChats'], (oldChats: any[]) => oldChats ? oldChats.map(c => (c._id === currentChatId && c.lastMessage?._id === editingMessage._id) ? { ...c, lastMessage: { ...c.lastMessage, content: cleanedMessage } } : c) : oldChats);
         setEditingMessage(null);
       } catch (error) { 
         setNewMessage(cleanedMessage);
@@ -236,8 +239,9 @@ export default function WorkspaceScreen() {
       return;
     }
     const msgData = { chatId: currentChatId, content: cleanedMessage, clientTimestamp: new Date().toISOString() };
-    const localMsg: ChatMessageType = { _id: Date.now().toString(), senderId: currentUserId!, receiverId: currentChatId, contenido: cleanedMessage, createdAt: new Date().toISOString() } as ChatMessageType;
+    const localMsg: ChatMessageType = { _id: Date.now().toString(), senderId: currentUserId!, receiverId: currentChatId, contenido: cleanedMessage, createdAt: new Date().toISOString(), type: 'text' } as ChatMessageType;
     queryClient.setQueryData(['chatMessages', currentChatId], (old: ChatMessageType[] | undefined) => old ? [localMsg, ...old] : [localMsg]);
+    queryClient.setQueryData(['userChats'], (oldChats: any[]) => oldChats ? oldChats.map(c => c._id === currentChatId ? { ...c, lastMessage: localMsg, updatedAt: localMsg.createdAt } : c).sort((a,b) => new Date(b.updatedAt || 0).getTime() - new Date(a.updatedAt || 0).getTime()) : oldChats);
     try {
       await api.post('/api/chat/message', msgData);
       queryClient.invalidateQueries({ queryKey: ['userChats'] });
@@ -284,6 +288,7 @@ export default function WorkspaceScreen() {
         const duration = elapsed / 1000;
         const newMsg = await sendAudioMessage(currentChatId, currentUri, duration);
         queryClient.setQueryData(['chatMessages', currentChatId], (old: ChatMessageType[] | undefined) => old ? (old.some(msg => msg._id === newMsg._id) ? old : [newMsg, ...old]) : [newMsg]);
+        queryClient.setQueryData(['userChats'], (oldChats: any[]) => oldChats ? oldChats.map(c => c._id === currentChatId ? { ...c, lastMessage: newMsg, updatedAt: newMsg.createdAt || new Date().toISOString() } : c).sort((a,b) => new Date(b.updatedAt || 0).getTime() - new Date(a.updatedAt || 0).getTime()) : oldChats);
       }
     } catch (error: any) { toast.error('Error enviando nota de voz', { description: getErrorMessage(error as AxiosError) || 'Revisa la conexión.' }); }
   };
@@ -293,9 +298,11 @@ export default function WorkspaceScreen() {
       { text: 'Cancelar', style: 'cancel' },
       { text: 'Salir', style: 'destructive', onPress: async () => {
           try {
-            queryClient.cancelQueries({ queryKey: ['chatMessages', currentChatId] });
+            const chatIdSnapshot = currentChatId;
+            setCurrentChatId(null);
+            queryClient.cancelQueries({ queryKey: ['chatMessages', chatIdSnapshot] });
             await leaveWorkspace(id);
-            queryClient.removeQueries({ queryKey: ['chatMessages', currentChatId] });
+            queryClient.removeQueries({ queryKey: ['chatMessages', chatIdSnapshot] });
             queryClient.invalidateQueries({ queryKey: ['userChats'] });
             router.replace('/home');
             toast.success('Has salido del grupo');
@@ -501,6 +508,7 @@ export default function WorkspaceScreen() {
               onPress={async () => {
                 const msgId = selectedMsgOptions!._id; setSelectedMsgOptions(null); await deleteMessage(msgId, 'for_me');
                 queryClient.setQueryData(['chatMessages', currentChatId], (old: ChatMessageType[] | undefined) => old ? old.filter(msg => msg._id !== msgId) : []);
+                queryClient.setQueryData(['userChats'], (oldChats: any[]) => oldChats ? oldChats.map(c => (c._id === currentChatId && c.lastMessage?._id === msgId) ? { ...c, lastMessage: { ...c.lastMessage, content: 'Mensaje eliminado', isDeleted: true } } : c) : oldChats);
               }} 
             />
 
@@ -509,7 +517,8 @@ export default function WorkspaceScreen() {
                 icon="trash-bin-outline" title="Eliminar para todos" danger={true}
                 onPress={async () => {
                   const msgId = selectedMsgOptions!._id; setSelectedMsgOptions(null); await deleteMessage(msgId, 'for_all');
-                  queryClient.setQueryData(['chatMessages', currentChatId], (old: ChatMessageType[] | undefined) => old ? old.map(msg => msg._id === msgId ? { ...msg, contenido: 'Mensaje eliminado' } : msg) : []);
+                  queryClient.setQueryData(['chatMessages', currentChatId], (old: ChatMessageType[] | undefined) => old ? old.map(msg => msg._id === msgId ? { ...msg, contenido: 'Mensaje eliminado', isDeleted: true } : msg) : []);
+                  queryClient.setQueryData(['userChats'], (oldChats: any[]) => oldChats ? oldChats.map(c => (c._id === currentChatId && c.lastMessage?._id === msgId) ? { ...c, lastMessage: { ...c.lastMessage, content: 'Mensaje eliminado', isDeleted: true } } : c) : oldChats);
                 }} 
               />
             )}

@@ -1,26 +1,18 @@
-# Roadmap - Próxima Sesión
+# Construcción y Compilación del APK (Roadmap Final)
 
-## 1. Revisión Exhaustiva del Chat (Corazón de la App)
-- **Manejo de estados y re-renderizados:** Asegurar un rendimiento óptimo de la flatlist y la caché.
-- **Envío de archivos y audios:** Comprobar flujos de subida, visualización en el chat y reproducción fluida.
-- **Renderizado de mensajes (Interno/Externo):** Confirmar que el último mensaje (texto/audio/archivo) se previsualice correctamente en la lista de chats.
-- **Notificaciones / Banderín de no leídos:** 
-  - Validar que los chats con mensajes nuevos muestren el indicador en la lista global de `home`.
-  - Asegurar que al entrar a un chat con mensajes no leídos se marque la separación temporalmente.
-  - Comprobar que al salir y volver a entrar al chat, el banderín de separación de no leídos desaparezca.
-- **Modal de Información del Mensaje:**
-  - Refactorizar la pantalla de info de mensaje para que se comporte como un Modal nativo y no como una pantalla completa.
-  - Eliminar el estado de mensaje "entregado" ya que el backend no lo soporta (dejar solo Enviado / Visto).
+El objetivo de esta fase es limpiar minuciosamente cualquier advertencia de dependencias y de esquema de Expo para garantizar que la compilación del APK no solo sea exitosa, sino que la aplicación resultante sea estable y no sufra crasheos en producción.
 
-## 2. Pulido de UI/UX
-- **Alertas y Toasts:** Revisar que todos los mensajes de éxito/error usen el sistema centralizado de Toasts, sin saturar al usuario.
-- **Transiciones:** Suavizar las animaciones entre pantallas (navegación y teclados).
-- **Consistencia Visual:** Ajustes menores de padding, colores, bordes.
+## 1. Dependencias y Configuración
+Tras ejecutar rigurosamente `npx expo-doctor`, el diagnóstico detectó **2 problemas críticos** que podrían haber roto el APK si no los verificábamos:
 
-## 3. Verificación de Subida de Imágenes
-- Probar el cambio de avatar y wallpaper una vez que el compañero de backend haya aplicado el manejo de errores de Multer en `POST /api/users/preferences`.
+- **Eliminar `useNextNotificationsApi`:** El esquema moderno de Expo ya no soporta esta propiedad bajo `android`. Mantenerla puede causar un error de validación en los servidores de EAS durante la compilación.
+- **Instalación de `expo-asset`:** La librería `expo-audio` requiere estrictamente `expo-asset` como dependencia nativa. Si compilábamos sin esto, la aplicación iba a cerrarse inesperadamente al momento de abrir el chat.
 
-## 4. Construcción del APK (Fase Final)
-- **Compatibilidad:** Revisar variables de entorno y dependencias nativas en `app.json`.
-- **Trial & Error de Build:** Correr `eas build -p android --profile preview` o similar.
-- Resolver errores de dependencias de compilación Gradle o SDK si aparecen (esperado).
+## 2. Variables de Entorno y Assets
+- **eas.json:** La configuración para el perfil `preview` está perfecta. Está inyectando tu variable `EXPO_PUBLIC_API_URI = "https://geck-core.onrender.com"`, lo cual es vital para que la app se conecte al servidor real en producción.
+- **Assets:** Los archivos (`adaptive_icon.png`, `background.png`, `splash_screen.png`) están referenciados correctamente y existen.
+
+## 3. Plan de Compilación (Siguientes Pasos)
+- Instalar la dependencia requerida (`npx expo install expo-asset`).
+- Eliminar la propiedad desactualizada en `app.json`.
+- Iniciar la compilación ejecutando `eas build -p android --profile preview`.

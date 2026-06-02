@@ -33,6 +33,14 @@ export const SocketProvider = ({ children, userId }: SocketProviderProps) => {
 
     SocketService.emit('get_online_users');
 
+    const handleReconnect = () => {
+      SocketService.emit('get_online_users');
+    };
+
+    if (globalSocket) {
+      globalSocket.on('connect', handleReconnect);
+    }
+
     // Registramos listeners en el servicio
     SocketService.on('online_users_list', (users: string[]) => {
       setOnlineUsers(users);
@@ -63,6 +71,9 @@ export const SocketProvider = ({ children, userId }: SocketProviderProps) => {
       SocketService.off('new_message', handleIncomingMessage);
       SocketService.off('message_received', handleIncomingMessage);
       SocketService.off('receive_message', handleIncomingMessage);
+      if (globalSocket) {
+        globalSocket.off('connect', handleReconnect);
+      }
       setSocket(null);
       setOnlineUsers([]);
     };

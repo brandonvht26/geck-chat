@@ -181,10 +181,27 @@ export default function ChatRoomScreen() {
         const updatedMsg = await editMessage(editingMessage._id, cleanedMessage);
         SocketService.emit('edit_message', { messageId: editingMessage._id, senderId: currentUserId, content: cleanedMessage });
         queryClient.setQueryData(['chatMessages', id], (old: ChatMessage[] | undefined) => old ? old.map(m => m._id === editingMessage._id ? { ...m, content: updatedMsg.content || updatedMsg.contenido } : m) : []);
+        queryClient.setQueryData(['userChats'], (oldChats: any[]) => oldChats ? oldChats.map(c => (c._id === id && c.lastMessage?._id === editingMessage._id) ? { ...c, lastMessage: { ...c.lastMessage, content: cleanedMessage } } : c) : oldChats);
         setEditingMessage(null);
       } else {
-        const newMsg = await sendMessage(id as string, cleanedMessage);
-        queryClient.setQueryData(['chatMessages', id], (old: ChatMessage[] | undefined) => old ? (old.some(msg => msg._id === newMsg._id) ? old : [newMsg, ...old]) : [newMsg]);
+        const localMsg: ChatMessage = { _id: Date.now().toString(), senderId: currentUserId!, receiverId: id, contenido: cleanedMessage, createdAt: new Date().toISOString(), type: 'text' } as ChatMessage;
+        queryClient.setQueryData(['chatMessages', id], (old: ChatMessage[] | undefined) => old ? [localMsg, ...old] : [localMsg]);
+        queryClient.setQueryData(['userChats'], (oldChats: any[]) => oldChats ? oldChats.map(c => c._id === id ? { ...c, lastMessage: localMsg, updatedAt: localMsg.createdAt } : c).sort((a,b) => new Date(b.updatedAt || 0).getTime() - new Date(a.updatedAt || 0).getTime()) : oldChats);
+
+        try {
+          const newMsg = await sendMessage(id as string, cleanedMessage);
+          queryClient.setQueryData(['chatMessages', id], (old: ChatMessage[] | undefined) => {
+            if (!old) return [newMsg];
+            if (old.some(msg => String(msg._id) === String(newMsg._id))) {
+              return old.filter(msg => String(msg._id) !== String(localMsg._id));
+            }
+            return old.map(msg => String(msg._id) === String(localMsg._id) ? newMsg : msg);
+          });
+        } catch (error) {
+          // Revert optimistically
+          queryClient.setQueryData(['chatMessages', id], (old: ChatMessage[] | undefined) => old ? old.filter(msg => String(msg._id) !== String(localMsg._id)) : []);
+          throw error;
+        }
       }
       queryClient.invalidateQueries({ queryKey: ['userChats'] });
     } catch (error) { 
@@ -212,6 +229,7 @@ export default function ChatRoomScreen() {
         if (!old) return [newMsg];
         return old.some(msg => msg._id === newMsg._id) ? old : [newMsg, ...old];
       });
+      queryClient.setQueryData(['userChats'], (oldChats: any[]) => oldChats ? oldChats.map(c => c._id === id ? { ...c, lastMessage: newMsg, updatedAt: newMsg.createdAt || new Date().toISOString() } : c).sort((a,b) => new Date(b.updatedAt || 0).getTime() - new Date(a.updatedAt || 0).getTime()) : oldChats);
       queryClient.invalidateQueries({ queryKey: ['userChats'] });
     } catch (error) { toast.error('No se pudo adjuntar el archivo', { description: getErrorMessage(error as AxiosError) }); }
   };
@@ -279,6 +297,7 @@ export default function ChatRoomScreen() {
         const duration = elapsed / 1000;
         const newMsg = await sendAudioMessage(id as string, finalUri, duration);
         queryClient.setQueryData(['chatMessages', id], (old: ChatMessage[] | undefined) => old ? (old.some(msg => msg._id === newMsg._id) ? old : [newMsg, ...old]) : [newMsg]);
+        queryClient.setQueryData(['userChats'], (oldChats: any[]) => oldChats ? oldChats.map(c => c._id === id ? { ...c, lastMessage: newMsg, updatedAt: newMsg.createdAt || new Date().toISOString() } : c).sort((a,b) => new Date(b.updatedAt || 0).getTime() - new Date(a.updatedAt || 0).getTime()) : oldChats);
       }
     } catch (error: any) { 
       toast.error('Error enviando nota de voz', { description: getErrorMessage(error as AxiosError) || 'Puede que el formato no sea soportado.' }); 
@@ -425,6 +444,7 @@ export default function ChatRoomScreen() {
                 onPress={async () => {
                   const msgId = selectedMsgOptions!._id; setSelectedMsgOptions(null); await deleteMessage(msgId, 'for_me');
                   queryClient.setQueryData(['chatMessages', id], (old: ChatMessage[] | undefined) => old ? old.filter(msg => msg._id !== msgId) : []);
+                  queryClient.setQueryData(['userChats'], (oldChats: any[]) => oldChats ? oldChats.map(c => (c._id === id && c.lastMessage?._id === msgId) ? { ...c, lastMessage: { ...c.lastMessage, content: 'Mensaje eliminado', isDeleted: true } } : c) : oldChats);
                 }} 
             />
 
@@ -436,6 +456,7 @@ export default function ChatRoomScreen() {
                     SocketService.emit('delete_message', { messageId: msgId, userId: currentUserId, type: 'for_all' });
                     queryClient.invalidateQueries({ queryKey: ['userChats'] });
                     queryClient.setQueryData(['chatMessages', id], (old: ChatMessage[] | undefined) => old ? old.map(msg => msg._id === msgId ? { ...msg, content: 'Mensaje eliminado', isDeleted: true } : msg) : []);
+                    queryClient.setQueryData(['userChats'], (oldChats: any[]) => oldChats ? oldChats.map(c => (c._id === id && c.lastMessage?._id === msgId) ? { ...c, lastMessage: { ...c.lastMessage, content: 'Mensaje eliminado', isDeleted: true } } : c) : oldChats);
                   }} 
               />
             )}

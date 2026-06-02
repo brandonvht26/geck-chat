@@ -31,12 +31,32 @@ export const useChatSocket = ({ chatId, currentUserId, onMembersChange }: UseCha
                 receiverId: payload.chatId,
                 contenido: payload.content || payload.contenido,
                 createdAt: payload.createdAt,
+                type: payload.type,
+                fileUrl: payload.fileUrl,
+                duration: payload.duration,
+                readBy: payload.readBy || [],
+                deliveredTo: payload.deliveredTo || [],
             };
 
             queryClient.setQueryData(['chatMessages', chatId], (old: any) => {
                 if (!old) return [message];
-                const exists = old.some((msg: any) => msg._id === message._id);
-                return exists ? old : [message, ...old];
+                const exists = old.some((msg: any) => String(msg._id) === String(message._id));
+                if (exists) return old;
+
+                if (String(message.senderId) === String(currentUserId)) {
+                    const localMsgIndex = old.findIndex((msg: any) => 
+                        String(msg.senderId) === String(currentUserId) &&
+                        (msg.content === message.contenido || msg.contenido === message.contenido) &&
+                        String(msg._id).length < 20
+                    );
+                    if (localMsgIndex !== -1) {
+                        const newOld = [...old];
+                        newOld[localMsgIndex] = message;
+                        return newOld;
+                    }
+                }
+
+                return [message, ...old];
             });
 
             const senderStr = extractId(payload.senderId);
