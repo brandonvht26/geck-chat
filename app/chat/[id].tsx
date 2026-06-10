@@ -371,10 +371,6 @@ export default function ChatRoomScreen() {
               <Text className="text-xs font-nunito-bold text-gray-500 dark:text-gray-400 mt-0.5">{isOtherOnline ? 'En línea' : 'Desconectado'}</Text>
             </View>
           </View>
-          
-          <Pressable onPress={() => router.push({ pathname: '/user/[id]', params: { id: otherUser?._id, name: otherUser?.name || otherUser?.username, email: otherUser?.email || '', avatarUrl: otherUser?.avatarUrl || '' } })} className="p-2 -mr-2 bg-gray-50 dark:bg-zinc-800 rounded-full ml-2">
-            <Feather name="info" size={18} color={colorScheme === 'dark' ? '#9CA3AF' : '#4B5563'} />
-          </Pressable>
         </View>
       </View>
 
