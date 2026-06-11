@@ -41,6 +41,14 @@ El proyecto ha sido construido utilizando las mejores y más modernas herramient
 
 ---
 
+## 🏗️ Arquitectura de la Aplicación
+
+El proyecto se estructura bajo un enfoque de **Arquitectura en Capas** y flujos reactivos mediante el patrón **MVVM (Model-View-ViewModel)**. Esto permite desacoplar totalmente la interfaz gráfica (React Native) del manejo de estado global en caché (TanStack Query) y del acceso a datos externos (Axios/Socket.IO).
+
+![Arquitectura GeckChat](./assets/images/architecture.png)
+
+---
+
 ## 🛠️ Características Principales
 
 * **Mensajería en Tiempo Real & UI Optimista:** Comunicación fluida sin latencia perceptible. Los mensajes se dibujan al instante en pantalla antes de siquiera recibir la confirmación del servidor.
