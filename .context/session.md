@@ -1,42 +1,42 @@
-# Sesión Actual - Estado de GeckChat (02 de Junio de 2026)
+# Sesión Actual - Estado de GeckChat (09 de Junio de 2026)
 
 ## 📌 Contexto y Estado General
-En esta sesión intensa de depuración conjunta, se lograron identificar y aislar los problemas reales detrás de los fallos de subida de archivos y audios tanto en el entorno de producción (APK standalone) como en Expo Go. Además, se pulió la experiencia de usuario (refresco en segundo plano) y se fortalecieron los permisos nativos del dispositivo.
+En esta sesión se trabajó intensamente en la fundamentación teórica para el Trabajo de Integración Curricular (TIC) y en correcciones menores para garantizar un build estable del APK (Sprint 4 de Pruebas). 
 
 ---
 
-## 🛠️ Problemas Resueltos en el Frontend (GeckChat Móvil)
+## 🏗️ Definición Arquitectónica y Teórica (Para el TIC)
 
-### 1. Refresco Inmediato de UI (Background -> Foreground)
-- **El Problema:** Al salir de la app (ir al escritorio o a otras apps) y regresar horas después, los datos (chats, mensajes) tardaban demasiado en actualizarse o requerían acción manual.
-- **La Solución:** Se inyectó un listener del ciclo de vida de la app (`AppState`) en `app/_layout.tsx`. Ahora, cada vez que el estado cambia a `active`, la app dispara automáticamente `queryClient.refetchQueries()`, forzando a React Query a traer la información fresca en el milisegundo en que la app vuelve a primer plano.
+### 1. Principios SOLID y SDD
+- Se confirmó que el proyecto cumple aceptablemente con los principios **SOLID**, destacando la Inversión de Dependencias (DIP) y la Responsabilidad Única (SRP) lograda al separar la UI, los Custom Hooks (Estado) y los Servicios (Red).
+- Se validó que el proyecto encaja perfectamente en el marco del **Desarrollo Basado en Especificaciones (SDD)**, justificado por el uso estricto de esquemas `Zod`, el desarrollo frontend basado en los contratos predefinidos de la API, y el uso de la carpeta `.context/` como "Living Specification" para guiar a la IA.
 
-### 2. Archivos y Audios en SDK 54 (Renombrado Explícito)
-- **El Problema:** La app enviaba archivos a través de `FileSystem.uploadAsync` directamente desde el caché temporal de Android (`content://` o uris raras) sin una extensión explícita.
-- **La Solución:** Se forzó un paso de copiado intermedio. Antes de subir, el archivo/audio se copia a la carpeta segura `Uploads/` e inyectamos a la fuerza el nombre y la extensión real (ej. `mi_archivo.pdf` o `nota_de_voz.m4a`). Esto garantiza que el encabezado `filename` del `multipart/form-data` viaje perfectamente formateado.
+### 2. Patrones de Diseño y Flujo de Datos
+- Se estableció que la app utiliza una **Arquitectura en Capas** combinada con el patrón **MVVM (Model-View-ViewModel)**.
+- Se estructuró un ideograma detallado del flujo de datos y se depuró el diagrama en Draw.io, resaltando la naturaleza **bidireccional** de la interacción entre Vista y ViewModel, y el uso de **Socket.IO** en ambos extremos (Cliente y Render).
 
-### 3. Permisos de Micrófono (El Crash Silencioso)
-- **El Problema:** La función `startRecording` llamaba al hardware de audio sin solicitar permiso al sistema. Si el usuario nunca lo dio manualmente en los ajustes de Android/iOS, el `prepareToRecordAsync()` fallaba inmediatamente.
-- **La Solución:** Se integró en `app/chat/[id].tsx` y `app/workspace/[id].tsx` el ciclo de vida oficial: `getRecordingPermissionsAsync` y `requestRecordingPermissionsAsync`. Ahora aparece el prompt nativo y un toaster descriptivo si se deniega.
-- **Nota extra sobre Galería y Archivos:** Se confirmó que el perfil usa correctamente `ImagePicker.requestMediaLibraryPermissionsAsync()`, mientras que la selección de archivos usa `DocumentPicker` que funciona a través del Storage Access Framework (SAF) y **no requiere permisos globales de lectura** por diseño del SO.
-
-### 4. Error de ReferenceError: Platform
-- Se detectó en los logs un crasheo de Expo Go: `Property 'Platform' doesn't exist`.
-- **Solución:** Se inyectó el `import { Platform } from 'react-native';` faltante en `src/services/item.service.ts`.
+### 3. Herramientas y Librerías Definidas
+- **Herramientas Base:** Se consolidó la lista de herramientas estructurales descartando Firebase (Expo, EAS, Render, Node.js, Git, y herramientas de IA como Antigravity y OpenCode CLI).
+- **Librerías Core (Top 8):** Expo Router, TanStack Query, Axios, TanStack React Form, Zod, React Native Reanimated, Expo Audio y AsyncStorage.
+- Se aclaró la discrepancia documental sobre `React Hook Form`; se confirmó que el código de registro usa realmente `TanStack React Form`.
 
 ---
 
-## 🚨 LA CAUSA RAÍZ EN EL BACKEND (geck-core)
+## 🛠️ Modificaciones en el Código y Repositorio
 
-A pesar de que el frontend ya envía los datos perfectamente, el servidor rechazaba la subida a Mis Documentos con el mensaje *"No se ha seleccionado ningún archivo"*. Tras inspeccionar el repositorio backend (`geck-core-tmp`), se descubrió la verdadera causa:
+### 1. Fix en Chats Privados
+- **El Problema:** El botón de información (info) en la cabecera de los chats privados navegaba a una ruta inexistente (Page not Found).
+- **La Solución:** Se eliminó permanentemente el bloque de código del botón de navegación en `app/chat/[id].tsx` para asegurar un entorno estable.
 
-- **Colisión de Middlewares:** En `src/app.js` (Línea 36), el backend implementa `express-fileupload` de manera global para todas las rutas. Sin embargo, en `src/routers/item_routes.js`, se utiliza **Multer** (`upload.single('archivo')`). 
-- **Efecto Domino:** `express-fileupload` consume el stream multipart antes de que Multer lo alcance. Multer lee un stream vacío, dejando `req.file = undefined`. Finalmente, el controlador `uploadFileItem` falla lanzando el mensaje mencionado.
-- **Pendiente para el Backend:** El desarrollador del backend debe agregar una exclusión en `app.js` para que `express-fileupload` ignore `/api/items/upload` (dejando que Multer haga su trabajo), o remover Multer de `item_routes.js` y usar `req.files.archivo`.
+### 2. Limpieza de Repositorio
+- Se eliminaron archivos basura de la raíz del proyecto para mantener el repositorio pulcro: `google-services.json`, `emulator.log`, `emulator2.log`, `logs_clean.txt` y `read_logs.js`.
+
+### 3. Documentación (README y Árboles)
+- Se inyectó una nueva sección `🏗️ Arquitectura de la Aplicación` en el `README.md`, referenciando la imagen `./assets/images/architecture.png` (a la espera del push del usuario).
+- Se generó un archivo de ayuda (`Arquitectura_Capas_GeckChat.md`) en Descargas con un árbol de directorios clasificado por capas.
 
 ---
 
-## 🚀 Estado Actual y Próximos Pasos
-- Todos los fallos, crashes y falta de robustez del código frontend **están parchados**.
-- La rama `main` en GitHub está actualizada con los fixes de permisos, renombrado de archivos, refetch de background e import de Platform.
-- Se recomienda compilar el APK (`eas build -p android --profile preview`) **sólo después** de que el desarrollador del backend aplique el fix en su repositorio y reinicie el servidor de producción.
+## 🚀 Próximos Pasos (Al reanudar)
+- El entorno está configurado correctamente (`.env` y `eas.json`) y el build en la nube fue ejecutado exitosamente (`eas build --profile preview --platform android`).
+- El siguiente paso natural al reiniciar la aplicación será proceder formalmente con las tareas de QA (Quality Assurance) correspondientes al **Sprint 4 (Pruebas de Rendimiento y Aceptación)** descritas en `.context/testing.md`.

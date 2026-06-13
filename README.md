@@ -108,3 +108,19 @@ eas login
 eas build -p android --profile preview
 ```
 El proceso subirá el código a la nube y, tras unos minutos, te proveerá de un enlace directo para descargar e instalar el `.apk` en cualquier dispositivo Android.
+
+> [!NOTE]
+> **APK Pre-compilada:** En la raíz de este repositorio ya se encuentra incluida una versión pre-compilada lista para instalar (`GeckChat_V1.0.1.apk`), por lo que puedes omitir el proceso de compilación si solo deseas probar la aplicación.
+
+### 5. Pruebas de Aceptación (Testing)
+GeckChat cuenta con un entorno robusto de pruebas automatizadas aisladas en el directorio `src/__tests__/`. Estas pruebas utilizan **Jest** para verificar la integridad de la capa de red (servicios REST y WebSockets) mockeando las conexiones sin necesidad de levantar el servidor hermano.
+
+Para ejecutar los reportes detallados y de cobertura, utiliza:
+
+```bash
+# Mostrará el detalle lógico de cada caso de prueba superado
+npm run test:verbose
+
+# Generará una tabla visual con el porcentaje de código cubierto por las pruebas
+npm run test:coverage
+```
