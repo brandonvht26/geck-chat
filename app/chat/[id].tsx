@@ -106,6 +106,7 @@ export default function ChatRoomScreen() {
   const hasMarkedRead = useRef(false);
   const [unreadSeparatorId, setUnreadSeparatorId] = useState<string | null>(null);
   const [isSending, setIsSending] = useState(false);
+  const isSendingRef = useRef(false);
 
   useEffect(() => { if (user) setCurrentUserId(user._id); }, [user]);
 
@@ -169,10 +170,11 @@ export default function ChatRoomScreen() {
 
   const handleSendMessage = async () => {
     const cleanedMessage = content.trim();
-    if (!cleanedMessage || !id || isSending) {
+    if (!cleanedMessage || !id || isSendingRef.current) {
         return;
     }
     
+    isSendingRef.current = true;
     setIsSending(true);
     setContent('');
     
@@ -209,6 +211,7 @@ export default function ChatRoomScreen() {
       console.error('Error enviando mensaje:', error);
       toast.error('Error enviando mensaje', { description: getErrorMessage(error as AxiosError) }); 
     } finally {
+      isSendingRef.current = false;
       setIsSending(false);
     }
   };
@@ -449,6 +452,7 @@ export default function ChatRoomScreen() {
             onCancelRecord={cancelRecording}
             isEditing={!!editingMessage}
             onCancelEdit={() => { setEditingMessage(null); setContent(''); }}
+            isSending={isSending}
           />
       </KeyboardAvoidingView>
 

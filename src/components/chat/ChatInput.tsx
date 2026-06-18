@@ -16,6 +16,7 @@ interface ChatInputProps {
   onCancelRecord?: () => void; 
   isEditing?: boolean;
   onCancelEdit?: () => void;
+  isSending?: boolean;
 }
 
 const AnimatedSquishBtn = ({ onPress, onLongPress, disabled, children, className }: any) => {
@@ -51,7 +52,7 @@ const PulsingMic = () => {
 }
 
 export default function ChatInput({
-  content, setContent, onSend, onAttach, isRecording, onStartRecord, onStopRecord, onCancelRecord, isEditing, onCancelEdit
+  content, setContent, onSend, onAttach, isRecording, onStartRecord, onStopRecord, onCancelRecord, isEditing, onCancelEdit, isSending
 }: ChatInputProps) {
   const hasContent = content.trim().length > 0;
   const { colorScheme } = useColorScheme();
@@ -101,8 +102,8 @@ export default function ChatInput({
             {hasContent || isEditing ? (
               <AnimatedSquishBtn
                 onPress={onSend}
-                disabled={!hasContent}
-                className={`w-12 h-12 items-center justify-center rounded-full shadow-sm ${!hasContent ? 'bg-gray-300 dark:bg-zinc-700' : 'bg-primary dark:bg-primary-dark shadow-primary/30'}`}
+                disabled={!hasContent || isSending}
+                className={`w-12 h-12 items-center justify-center rounded-full shadow-sm ${(!hasContent || isSending) ? 'bg-gray-300 dark:bg-zinc-700' : 'bg-primary dark:bg-primary-dark shadow-primary/30'}`}
               >
                 <Ionicons name={isEditing ? 'checkmark' : 'send'} size={20} color="#fff" style={{ marginLeft: isEditing ? 0 : 2 }} />
               </AnimatedSquishBtn>

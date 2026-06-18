@@ -43,7 +43,7 @@ export const useChatSocket = ({ chatId, currentUserId, onMembersChange }: UseCha
                 const exists = old.some((msg: any) => String(msg._id) === String(message._id));
                 if (exists) return old;
 
-                if (String(message.senderId) === String(currentUserId)) {
+                if (extractId(message.senderId) === String(currentUserId)) {
                     const localMsgIndex = old.findIndex((msg: any) => 
                         String(msg.senderId) === String(currentUserId) &&
                         (msg.content === message.contenido || msg.contenido === message.contenido) &&

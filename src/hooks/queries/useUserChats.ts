@@ -104,5 +104,6 @@ export const useUserChats = () => {
                 new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
             ) || [];
         },
+        staleTime: 1000 * 60 * 10,
     });
 };
