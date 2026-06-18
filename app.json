@@ -68,8 +68,9 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "78230675-e6ad-4e8a-81cf-be7cb7e9813c"
+        "projectId": "40342a12-ea34-42bf-bed5-a8a777e3828e"
       }
-    }
+    },
+    "owner": "ilunits"
   }
 }
