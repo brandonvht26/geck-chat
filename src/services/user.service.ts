@@ -71,7 +71,7 @@ export const updateUserPreferences = async (theme?: string, phoneWallpaperUri?: 
 
     // CASO A: Actualizar el tema (patch simple con JSON)
     if (theme) {
-      const response = await api.post('/api/users/preferences', { theme });
+      const response = await api.put('/api/users/preferences', { theme });
       responseData = { ...responseData, ...response.data };
     }
 
@@ -79,17 +79,17 @@ export const updateUserPreferences = async (theme?: string, phoneWallpaperUri?: 
     if (phoneWallpaperUri) {
       if (phoneWallpaperUri.startsWith('bundled:')) {
         // Bundled wallpaper → solo enviamos la URL como texto plano (PATCH JSON)
-        const response = await api.post('/api/users/preferences', { phoneWallpaperUrl: phoneWallpaperUri });
+        const response = await api.put('/api/users/preferences', { phoneWallpaperUrl: phoneWallpaperUri });
         responseData = { ...responseData, ...response.data };
       } else {
         // Wallpaper desde galería → FileSystem.uploadAsync
         const uploadUrl = `${BASE_URL}/api/users/preferences`;
         const res = await FileSystem.uploadAsync(uploadUrl, phoneWallpaperUri, {
-          httpMethod: 'POST',
+          httpMethod: 'PUT',
           uploadType: FileSystem.FileSystemUploadType.MULTIPART,
           fieldName: 'image',
           mimeType: 'image/jpeg',
-          parameters: { type: 'wallpaper' },
+          parameters: { type: 'phoneWallpaper' },
           headers: authHeaders
         });
         
@@ -106,7 +106,7 @@ export const updateUserPreferences = async (theme?: string, phoneWallpaperUri?: 
       console.log('[updateUserPreferences] Subiendo avatar a:', uploadUrl);
 
       const res = await FileSystem.uploadAsync(uploadUrl, avatarUri, {
-        httpMethod: 'POST',
+        httpMethod: 'PUT',
         uploadType: FileSystem.FileSystemUploadType.MULTIPART,
         fieldName: 'image',
         mimeType: 'image/jpeg',

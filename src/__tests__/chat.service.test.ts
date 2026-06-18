@@ -1,5 +1,6 @@
-import { getChatMessages, sendMessage, deleteMessage, getPrivateChats } from '../services/chat.service';
-import { api } from '../services/api';
+import { getChatMessages, sendMessage, deleteMessage, getPrivateChats, sendFileMessage } from '../services/chat.service';
+import { api, getToken } from '../services/api';
+import * as FileSystem from 'expo-file-system/legacy';
 
 jest.mock('../services/api', () => ({
   api: {
@@ -7,6 +8,12 @@ jest.mock('../services/api', () => ({
     post: jest.fn(),
     delete: jest.fn(),
   },
+  getToken: jest.fn().mockResolvedValue('fake-token'),
+}));
+
+jest.mock('expo-file-system/legacy', () => ({
+  uploadAsync: jest.fn(),
+  FileSystemUploadType: { MULTIPART: 1 },
 }));
 
 describe('Chat Service (Pruebas RESTful)', () => {
@@ -65,5 +72,29 @@ describe('Chat Service (Pruebas RESTful)', () => {
     await deleteMessage('m1', 'for_all');
 
     expect(api.delete).toHaveBeenCalledWith('/api/chat/message/m1', { data: { type: 'for_all' } });
+  });
+
+  it('Debería enviar un archivo multimedia exitosamente a través de uploadAsync', async () => {
+    // Simulamos la respuesta del backend para un archivo
+    const mockUploadResponse = {
+      status: 200,
+      body: JSON.stringify({ message: { _id: 'm3', fileUrl: 'https://cloudinary.com/file.pdf', type: 'file' } })
+    };
+    
+    (FileSystem.uploadAsync as jest.Mock).mockResolvedValueOnce(mockUploadResponse);
+
+    const result = await sendFileMessage('chat123', 'file:///path/to/file.pdf', 'document.pdf', 'application/pdf');
+
+    expect(FileSystem.uploadAsync).toHaveBeenCalledWith(
+      expect.stringContaining('/api/chat/file'),
+      expect.stringContaining('path/to/file.pdf'), // Verifica que le quita el 'file://' en iOS o lo mantiene, dependiendo de Platform
+      expect.objectContaining({
+        httpMethod: 'POST',
+        mimeType: 'application/pdf',
+        parameters: { chatId: 'chat123' },
+        headers: { Authorization: 'Bearer fake-token' }
+      })
+    );
+    expect(result.fileUrl).toBe('https://cloudinary.com/file.pdf');
   });
 });
