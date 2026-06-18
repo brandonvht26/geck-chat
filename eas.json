@@ -10,11 +10,13 @@
     },
     "preview": {
       "distribution": "internal",
+      "node": "20.x",
       "android": {
         "buildType": "apk"
       },
       "env": {
-        "EXPO_PUBLIC_API_URI": "https://geck-core.onrender.com"
+        "EXPO_PUBLIC_API_URI": "https://geck-core.onrender.com",
+        "EAS_BUILD_NPM_CONFIG_LEGACY_PEER_DEPS": "true"
       }
     },
     "production": {
